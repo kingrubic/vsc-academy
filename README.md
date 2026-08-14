@@ -12,7 +12,7 @@ Site tĩnh VSC Academy + CMS, backend **Convex self-hosted local** (cùng kiểu
 | Convex API | http://127.0.0.1:3280 |
 | Convex dashboard | http://127.0.0.1:6796 |
 
-Đăng nhập admin sau seed: `owner@vsc.academy` / `VscAcademy!2026`  
+Đăng nhập admin: `vutrananh97@gmail.com`, `nnqbao@gmail.com` (mật khẩu tạm riêng từ `VSC_OWNER_TEMP_PASSWORD` và `VSC_ADMIN_TEMP_PASSWORD`, bắt buộc đổi lần đầu)
 Học viên demo: `hoc-vien@vsc.academy` / `VscLearner!2026`
 
 ## Auto-start (giống LVT CRM)
@@ -22,7 +22,7 @@ LaunchAgents (RunAtLoad + KeepAlive):
 - `ai.vsc.academy.convex` → `scripts/vsc-academy-convex-ensure.sh` (Colima + Docker Compose)
 - `ai.vsc.academy.web` → `npm start` trên cổng 4173
 
-Log Convex: `~/Library/Logs/vsc-academy-convex-ensure.log`  
+Log Convex: `~/Library/Logs/vsc-academy-convex-ensure.log`
 Log web: `~/.openclaw/logs/ai.vsc.academy.web.log`
 
 ## Chạy tay
@@ -32,5 +32,6 @@ npm install
 docker compose -f infra/convex-local/docker-compose.yml up -d
 npm run convex:deploy
 npm run seed
+npm run seed:admin
 npm start
 ```

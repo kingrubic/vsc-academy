@@ -32,5 +32,8 @@ function normalize(snapshot) {
 
 const snapshot = normalize(JSON.parse(readFileSync(snapshotPath, "utf8")));
 const client = new ConvexHttpClient(url);
+const current = await client.query(anyApi.store.dumpAll, {});
+// Content reseeding must never delete or reset existing administrator accounts.
+snapshot.users = Array.isArray(current.users) ? current.users : [];
 const result = await client.mutation(anyApi.store.replaceAll, { snapshot });
 console.log(`Seeded Convex at ${url}: ${result.count} documents`);

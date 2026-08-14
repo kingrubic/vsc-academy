@@ -60,7 +60,7 @@
       ...opts,
       body: opts.body instanceof FormData ? opts.body : opts.body ? JSON.stringify(opts.body) : undefined,
     });
-    if (res.status === 401) {
+    if (res.status === 401 && path !== "/login") {
       state.user = null;
       history.replaceState({}, "", "/admin/login");
       render();
@@ -68,6 +68,11 @@
     }
     const text = await res.text();
     const data = text ? JSON.parse(text) : {};
+    if (res.status === 403 && data.code === "MUST_CHANGE_PASSWORD") {
+      if (state.user) state.user.mustChangePassword = true;
+      render();
+      throw new Error(data.error || "Cần đổi mật khẩu trước khi tiếp tục");
+    }
     if (!res.ok) throw new Error(data.error || res.statusText);
     return data;
   }
@@ -1398,11 +1403,20 @@
     const p = path();
     if (!state.user) {
       $("#login-view").classList.remove("hidden");
+      $("#password-view").classList.add("hidden");
       $("#shell").classList.add("hidden");
       if (p !== "/admin/login") history.replaceState({}, "", "/admin/login");
       return;
     }
+    if (state.user.mustChangePassword) {
+      $("#login-view").classList.add("hidden");
+      $("#password-view").classList.remove("hidden");
+      $("#shell").classList.add("hidden");
+      if (p !== "/admin/change-password") history.replaceState({}, "", "/admin/change-password");
+      return;
+    }
     $("#login-view").classList.add("hidden");
+    $("#password-view").classList.add("hidden");
     $("#shell").classList.remove("hidden");
     layout();
     const segs = parts();
@@ -1440,9 +1454,28 @@
         body: { email: $("#email").value, password: $("#password").value },
       });
       state.user = data.user;
-      go("/admin");
+      go(data.user.mustChangePassword ? "/admin/change-password" : "/admin");
     } catch (err) {
       $("#login-error").textContent = err.message;
+    }
+  });
+  $("#password-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("#password-error").textContent = "";
+    try {
+      const data = await api("/change-password", {
+        method: "POST",
+        body: {
+          currentPassword: $("#current-password").value,
+          newPassword: $("#new-password").value,
+          confirmPassword: $("#confirm-password").value,
+        },
+      });
+      state.user = data.user;
+      toast("Đã đổi mật khẩu");
+      go("/admin");
+    } catch (err) {
+      $("#password-error").textContent = err.message;
     }
   });
   $("#logout").addEventListener("click", async () => {

@@ -64,7 +64,17 @@ function seed(db) {
 
   const data = loadSiteData();
   const ts = now();
-  const password = process.env.ADMIN_PASSWORD || "VscAcademy!2026";
+  const ownerTemporaryPassword = process.env.VSC_OWNER_TEMP_PASSWORD;
+  const adminTemporaryPassword = process.env.VSC_ADMIN_TEMP_PASSWORD;
+  if (!ownerTemporaryPassword || ownerTemporaryPassword.length < 12) {
+    throw new Error("VSC_OWNER_TEMP_PASSWORD must be set and contain at least 12 characters");
+  }
+  if (!adminTemporaryPassword || adminTemporaryPassword.length < 12) {
+    throw new Error("VSC_ADMIN_TEMP_PASSWORD must be set and contain at least 12 characters");
+  }
+  if (ownerTemporaryPassword === adminTemporaryPassword) {
+    throw new Error("Owner and admin temporary passwords must be different");
+  }
 
   const tx = db.transaction(() => {
     if (FORCE) {
@@ -83,10 +93,28 @@ function seed(db) {
       `);
     }
 
+
     db.prepare(
-      `INSERT INTO users (email, name, password_hash, role, active, created_at, updated_at)
-       VALUES (?, ?, ?, 'OWNER', 1, ?, ?)`,
-    ).run("owner@vsc.academy", "VSC Owner", hashPassword(password), ts, ts);
+      `INSERT INTO users (email, name, password_hash, role, active, must_change_password, created_at, updated_at)
+       VALUES (?, ?, ?, 'OWNER', 1, 1, ?, ?)`,
+    ).run(
+      "vutrananh97@gmail.com",
+      "Trần Anh Vũ",
+      hashPassword(ownerTemporaryPassword),
+      ts,
+      ts,
+    );
+
+    db.prepare(
+      `INSERT INTO users (email, name, password_hash, role, active, must_change_password, created_at, updated_at)
+       VALUES (?, ?, ?, 'ADMIN', 1, 1, ?, ?)`,
+    ).run(
+      "nnqbao@gmail.com",
+      "Bao",
+      hashPassword(adminTemporaryPassword),
+      ts,
+      ts,
+    );
 
     db.prepare(
       `INSERT INTO venues (id, name, address_vi, address_en, city, map_url, notes, active, created_at, updated_at)
@@ -333,7 +361,7 @@ function seed(db) {
         logo: "assets/logo-vsc-academy-white.webp",
         logoFooter: "assets/logo-vsc-academy-white-footer.webp",
         favicon: "assets/favicon-32.png",
-        ogImage: "",
+        ogImage: "assets/og-image.png",
       },
       contact: {
         email: "vscacademy8@gmail.com",
@@ -371,7 +399,7 @@ function seed(db) {
   });
 
   tx();
-  return { seeded: true, password };
+  return { seeded: true };
 }
 
 if (require.main === module) {
@@ -379,9 +407,8 @@ if (require.main === module) {
   const result = seed(db);
   if (result.seeded) {
     console.log("Seeded VSC Academy CMS.");
-    console.log("Login: owner@vsc.academy");
-    console.log(`Password: ${result.password}`);
-    console.log("Change this password before production.");
+    console.log("Owner: vutrananh97@gmail.com — mật khẩu tạm, bắt buộc đổi lần đầu.");
+    console.log("Admin: nnqbao@gmail.com — mật khẩu tạm, bắt buộc đổi lần đầu.");
   }
   db.close();
 }

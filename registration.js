@@ -128,12 +128,7 @@
     saveDraft();
     scrollTo({ top: $("#enrollment").offsetTop - 90, behavior: "smooth" });
   }
-  function id() {
-    const n = String(
-      JSON.parse(localStorage.getItem("vsc_registrations") || "[]").length + 1,
-    ).padStart(6, "0");
-    return `VSC-2026-${n}`;
-  }
+
   function selectSession(session) {
     if (!session) return;
     selected = session;
@@ -242,12 +237,13 @@
     if (submitting || !validate()) return;
     submitting = true;
     const btn = $("#formSubmit");
+    const submitError = $("#registrationSubmitError");
+    submitError.hidden = true;
+    submitError.textContent = "";
     btn.disabled = true;
     btn.textContent = I.locale === "en" ? "PROCESSING..." : "ĐANG XỬ LÝ...";
     const f = Object.fromEntries(new FormData(form)),
-      localId = id(),
       record = {
-        registrationId: localId,
         createdAt: new Date().toISOString(),
         locale: I.locale || "vi",
         student: {
@@ -303,25 +299,27 @@
       success.scrollIntoView({ behavior: "smooth" });
       submitting = false;
     };
-    const saveLocal = (registrationId) => {
-      const records = JSON.parse(localStorage.getItem("vsc_registrations") || "[]");
-      records.push({ ...record, registrationId });
-      localStorage.setItem("vsc_registrations", JSON.stringify(records));
-    };
     fetch("/api/public/registrations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(record),
     })
-      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then((res) =>
+        res.json()
+          .catch(() => ({}))
+          .then((data) => ({ ok: res.ok, data })),
+      )
       .then(({ ok, data }) => {
-        const registrationId = ok && data.id ? data.id : localId;
-        if (!ok) saveLocal(registrationId);
-        finish(registrationId);
+        if (!ok || !data.id) throw new Error(data.error || "Registration could not be saved");
+        finish(data.id);
       })
       .catch(() => {
-        saveLocal(localId);
-        finish(localId);
+        submitError.textContent =
+          I.locale === "en"
+            ? "We could not save your registration. Please check your connection and try again."
+            : "Chưa thể lưu đăng ký. Vui lòng kiểm tra kết nối và thử lại.";
+        submitError.hidden = false;
+        submitting = false;
       })
       .finally(() => {
         btn.disabled = false;

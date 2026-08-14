@@ -23,6 +23,21 @@
         <button type="submit">ĐĂNG NHẬP</button>
       </form>
     </div>
+    <div id="password-view" class="login-page hidden">
+      <form class="login-card" id="password-form">
+        <img src="/assets/logo-vsc-academy-white.webp" alt="VSC Academy" />
+        <h1>Đổi mật khẩu</h1>
+        <p>Lần đăng nhập đầu tiên cần đặt mật khẩu mới. Mật khẩu tạm sẽ không dùng được nữa.</p>
+        <label for="current-password">MẬT KHẨU TẠM</label>
+        <input id="current-password" name="currentPassword" type="password" autocomplete="current-password" required />
+        <label for="new-password">MẬT KHẨU MỚI</label>
+        <input id="new-password" name="newPassword" type="password" minlength="12" autocomplete="new-password" required />
+        <label for="confirm-password">XÁC NHẬN MẬT KHẨU MỚI</label>
+        <input id="confirm-password" name="confirmPassword" type="password" minlength="12" autocomplete="new-password" required />
+        <p class="login-error" id="password-error"></p>
+        <button type="submit">LƯU MẬT KHẨU MỚI</button>
+      </form>
+    </div>
     <div id="shell" class="shell hidden">
       <aside class="sidebar">
         <a class="brand" href="/admin">

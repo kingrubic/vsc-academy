@@ -434,6 +434,16 @@ textarea:focus {
   color: #b52437;
   font-size: 11px;
 }
+.registration-submit-error {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(181, 36, 55, 0.3);
+  border-radius: 8px;
+  background: rgba(181, 36, 55, 0.08);
+  color: #8f1d2d;
+  font-size: 14px;
+  line-height: 1.5;
+}
 .invoice-choice {
   border: 0;
   border-top: 1px solid var(--reg-line);
