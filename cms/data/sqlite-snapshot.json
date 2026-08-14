@@ -922,7 +922,7 @@
   "settings": [
     {
       "key": "brand",
-      "value": "{\"logo\":\"assets/logo-vsc-academy-white.webp\",\"logoFooter\":\"assets/logo-vsc-academy-white-footer.webp\",\"favicon\":\"\",\"ogImage\":\"\"}"
+      "value": "{\"logo\":\"assets/logo-vsc-academy-white.webp\",\"logoFooter\":\"assets/logo-vsc-academy-white-footer.webp\",\"favicon\":\"assets/favicon-32.png\",\"ogImage\":\"\"}"
     },
     {
       "key": "contact",

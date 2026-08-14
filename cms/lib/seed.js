@@ -332,7 +332,7 @@ function seed(db) {
       brand: {
         logo: "assets/logo-vsc-academy-white.webp",
         logoFooter: "assets/logo-vsc-academy-white-footer.webp",
-        favicon: "",
+        favicon: "assets/favicon-32.png",
         ogImage: "",
       },
       contact: {
