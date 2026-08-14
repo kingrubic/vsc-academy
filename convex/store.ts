@@ -21,6 +21,11 @@ const TABLES = [
   "announcements",
   "announcement_reads",
   "certificates",
+  "certificate_templates",
+  "password_resets",
+  "notifications",
+  "mail_outbox",
+  "audit_logs",
 ] as const;
 
 type TableName = (typeof TABLES)[number];
@@ -43,11 +48,14 @@ function rowId(table: string, data: Record<string, unknown>): string {
   if (table === "announcement_reads") {
     return String(data.id ?? `${data.announcement_id}::${data.student_id}`);
   }
+  if (table === "password_resets") {
+    return String(data.id ?? data.token_hash ?? "");
+  }
   return String(data.id ?? "");
 }
 
 function publicRow(table: string, id: string, data: Record<string, unknown>) {
-  const row = { ...data, id };
+  const row: Record<string, unknown> = { ...data, id };
   if (table === "settings" && row.key == null) row.key = id;
   return row;
 }

@@ -23,7 +23,7 @@ const REG_STATUS = [
   "completed",
 ];
 const FORMATS = ["online", "offline", "hybrid"];
-const ROLES = ["OWNER", "ADMIN", "EDITOR"];
+const ROLES = ["OWNER", "ADMIN", "EDITOR", "INSTRUCTOR"];
 
 function fail(message, extra) {
   const err = new Error(message);

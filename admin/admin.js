@@ -5,14 +5,23 @@
     ["Sessions", "/admin/sessions"],
     ["Registrations", "/admin/registrations"],
     ["Students", "/admin/students"],
+    ["Enrollments", "/admin/enrollments"],
     ["Materials", "/admin/materials"],
     ["Announcements", "/admin/announcements"],
+    ["Certificates", "/admin/certificates"],
+    ["Cert. templates", "/admin/certificate-templates"],
     ["Instructors", "/admin/instructors"],
     ["Insights", "/admin/insights"],
     ["Resources", "/admin/resources"],
     ["Media", "/admin/media"],
     ["Venues", "/admin/venues"],
     ["Settings", "/admin/settings"],
+  ];
+  const INSTRUCTOR_NAV = [
+    ["Sessions", "/admin/sessions"],
+    ["Students", "/admin/students"],
+    ["Materials", "/admin/materials"],
+    ["Announcements", "/admin/announcements"],
   ];
   const SESSION_LABEL = {
     draft: "Draft",
@@ -124,7 +133,8 @@
   window.addEventListener("popstate", render);
 
   function layout() {
-    $("#nav").innerHTML = NAV.map(([label, href]) => {
+    const items = state.user.role === "INSTRUCTOR" ? INSTRUCTOR_NAV : NAV;
+    $("#nav").innerHTML = items.map(([label, href]) => {
       const active = href === "/admin" ? path() === "/admin" : path().startsWith(href);
       return `<a href="${href}" class="${active ? "active" : ""}">${label}</a>`;
     }).join("");
@@ -355,6 +365,14 @@
               <select name="venueDefaultId"><option value="">—</option>${venues.items.map((v) => `<option value="${v.id}" ${p.venue_default_id === v.id ? "selected" : ""}>${esc(v.name)}</option>`).join("")}</select>
             </div>
             <div class="field"><label>Featured</label><select name="featured"><option value="0">No</option><option value="1" ${p.featured ? "selected" : ""}>Yes</option></select></div>
+            <div class="field"><label>Certificate enabled</label><select name="certificateEnabled"><option value="1" ${p.certificate_enabled !== 0 ? "selected" : ""}>Yes</option><option value="0" ${p.certificate_enabled === 0 ? "selected" : ""}>No</option></select></div>
+            <div class="field"><label>Certificate code</label><input name="certificateCode" value="${esc(p.certificate_code || "")}" placeholder="AIS / AIA / AIW" /></div>
+            <div class="field"><label>Min attendance %</label><input name="minimumAttendancePercent" type="number" value="${p.minimum_attendance_percent ?? 75}" /></div>
+            <div class="field"><label>Require completion</label><select name="requireCompletion"><option value="1" ${p.require_completion !== 0 ? "selected" : ""}>Yes</option><option value="0" ${p.require_completion === 0 ? "selected" : ""}>No</option></select></div>
+            <div class="field"><label>Require payment</label><select name="requirePayment"><option value="1" ${p.require_payment !== 0 ? "selected" : ""}>Yes</option><option value="0" ${p.require_payment === 0 ? "selected" : ""}>No</option></select></div>
+            <div class="field"><label>Admin approve certificate</label><select name="requireAdminApproval"><option value="1" ${p.require_admin_approval !== 0 ? "selected" : ""}>Yes</option><option value="0" ${p.require_admin_approval === 0 ? "selected" : ""}>No</option></select></div>
+            <div class="field"><label>Join link opens (minutes before)</label><input name="joinLinkOpenMinutesBefore" type="number" value="${p.join_link_open_minutes_before ?? 30}" /></div>
+            <div class="field"><label>Certificate template ID</label><input name="certificateTemplateId" value="${esc(p.certificate_template_id || "tpl-vsc-default")}" /></div>
           </div>
         </section>
         <section data-pane="vi" class="${tab === "vi" ? "" : "hidden"}">
@@ -493,6 +511,14 @@
         locationOnline: val(form, "locationOnline"),
         venueDefaultId: val(form, "venueDefaultId") || null,
         featured: val(form, "featured") === "1",
+        certificateEnabled: val(form, "certificateEnabled") !== "0",
+        certificateCode: val(form, "certificateCode"),
+        minimumAttendancePercent: Number(val(form, "minimumAttendancePercent") || 75),
+        requireCompletion: val(form, "requireCompletion") !== "0",
+        requirePayment: val(form, "requirePayment") !== "0",
+        requireAdminApproval: val(form, "requireAdminApproval") !== "0",
+        joinLinkOpenMinutesBefore: Number(val(form, "joinLinkOpenMinutesBefore") || 30),
+        certificateTemplateId: val(form, "certificateTemplateId") || "tpl-vsc-default",
         contentVi: {
           ...collectContent("vi", vi),
           curriculum: readRepeater(app, "curVi", [{ key: "title" }, { key: "goal" }, { key: "content" }, { key: "output" }]),
@@ -612,6 +638,7 @@
           </div>
           <div class="field"><label>Nền tảng online</label><input name="onlinePlatform" value="${esc(s.online_platform || "")}" /></div>
           <div class="field"><label>Meeting URL</label><input name="meetingUrl" value="${esc(s.meeting_url || "")}" /></div>
+          <div class="field"><label>Join link opens (minutes before)</label><input type="number" name="joinLinkOpenMinutesBefore" value="${s.join_link_open_minutes_before ?? ""}" placeholder="Theo khóa" /></div>
           <div class="field"><label>Giá override (VND)</label><input type="number" name="priceOverride" value="${s.price_override ?? ""}" /></div>
           <div class="field"><label>Sĩ số</label><input type="number" name="capacity" value="${s.capacity ?? ""}" /></div>
           <div class="field"><label>Đã đăng ký</label><input value="${s.registered_count || 0}" disabled /></div>
@@ -646,6 +673,7 @@
         venueId: val(form, "venueId") || null,
         onlinePlatform: val(form, "onlinePlatform"),
         meetingUrl: val(form, "meetingUrl"),
+        joinLinkOpenMinutesBefore: val(form, "joinLinkOpenMinutesBefore") === "" ? null : Number(val(form, "joinLinkOpenMinutesBefore")),
         priceOverride: val(form, "priceOverride") === "" ? null : Number(val(form, "priceOverride")),
         capacity: val(form, "capacity") === "" ? null : Number(val(form, "capacity")),
         status: val(form, "status"),
@@ -676,40 +704,137 @@
       }
     });
     if (!isNew) {
-      const meetings = await api(`/meetings?sessionId=${id}`);
+      let lms = null;
+      try {
+        lms = await api(`/sessions/${id}/lms`);
+      } catch (err) {
+        app.insertAdjacentHTML(
+          "beforeend",
+          `<div class="card" style="margin-top:18px;padding:18px"><p class="empty">Không tải được LMS của lớp: ${esc(err.message)}. Form lớp phía trên vẫn lưu bình thường.</p></div>`,
+        );
+      }
+      if (!lms) return;
+      const tab = new URLSearchParams(location.search).get("tab") || "meetings";
+      const tabs = [
+        ["overview", "OVERVIEW"],
+        ["students", "STUDENTS"],
+        ["meetings", "MEETINGS"],
+        ["attendance", "ATTENDANCE"],
+        ["materials", "MATERIALS"],
+        ["announcements", "ANNOUNCEMENTS"],
+        ["certificates", "CERTIFICATES"],
+      ];
       app.insertAdjacentHTML(
         "beforeend",
         `<div class="card" style="margin-top:18px;padding:18px">
-          <h2>Buổi học (Class meetings)</h2>
-          ${table(
-            ["Buổi", "Ngày", "Giờ", "Status"],
-            meetings.items.map(
-              (m) => `<tr><td>${esc(m.title_vi)}</td><td>${fmtDate(m.date)}</td><td>${esc(m.start_time)}–${esc(m.end_time)}</td><td>${badge(m.status)}</td></tr>`,
+          <div class="tabs">${tabs.map(([k, l]) => `<button data-stab="${k}" class="${tab === k ? "active" : ""}">${l}</button>`).join("")}</div>
+          <div id="lms-pane"></div>
+        </div>`,
+      );
+      const pane = $("#lms-pane");
+      const show = (k) => {
+        app.querySelectorAll("[data-stab]").forEach((b) => b.classList.toggle("active", b.dataset.stab === k));
+        if (k === "overview") {
+          pane.innerHTML = `<p>${lms.summary.total} học viên · ${lms.summary.eligible} eligible · ${lms.summary.missingAttendance} thiếu điểm danh · ${lms.summary.incomplete} incomplete</p>`;
+        } else if (k === "students") {
+          pane.innerHTML = table(
+            ["Học viên", "Status", "Payment", "Progress", "Cert", ""],
+            lms.enrollments.map(
+              (e) => `<tr><td><a href="/admin/students/${e.student_id}">${esc(e.student_name)}</a></td><td>${badge(e.status)}</td><td>${badge(e.payment_status)}</td><td>${e.progress.percent}%</td><td>${badge(e.certificate.status)}</td><td><button class="btn" data-recommend="${e.id}">Recommend completion</button></td></tr>`,
+            ),
+          );
+          pane.querySelectorAll("[data-recommend]").forEach((b) =>
+            b.addEventListener("click", async () => {
+              await api(`/enrollments/${b.dataset.recommend}/recommend-completion`, { method: "POST", body: {} });
+              toast("Đã đề xuất hoàn thành");
+            }),
+          );
+        } else if (k === "meetings") {
+          pane.innerHTML = `${table(
+            ["Buổi", "Ngày", "Giờ", "Status", ""],
+            lms.meetings.map(
+              (m) => `<tr><td>${esc(m.title_vi)}</td><td>${fmtDate(m.date)}</td><td>${esc(m.start_time)}–${esc(m.end_time)}</td><td>${badge(m.status)}</td><td></td></tr>`,
             ),
             "Chưa có buổi",
           )}
           <form id="mtg-form" class="form-grid" style="margin-top:12px">
             <div class="field"><label>Title VI</label><input name="titleVi" required /></div>
+            <div class="field"><label>Title EN</label><input name="titleEn" /></div>
             <div class="field"><label>Ngày</label><input type="date" name="date" required /></div>
             <div class="field"><label>Bắt đầu</label><input type="time" name="startTime" required /></div>
             <div class="field"><label>Kết thúc</label><input type="time" name="endTime" required /></div>
+            <div class="field"><label>Format</label><select name="format"><option value="online">online</option><option value="offline">offline</option></select></div>
             <div class="field"><label>Meet URL</label><input name="meetingUrl" /></div>
+            <div class="field"><label>Recording</label><input name="recordingUrl" /></div>
             <button class="btn btn-primary">Thêm buổi</button>
-          </form>
-        </div>`,
-      );
-      $("#mtg-form").onsubmit = async (e) => {
-        e.preventDefault();
-        const body = Object.fromEntries(new FormData(e.target).entries());
-        body.sessionId = id;
-        try {
-          await api("/meetings", { method: "POST", body });
-          toast("Đã thêm buổi học");
-          render();
-        } catch (err) {
-          toast(err.message, true);
+          </form>`;
+          $("#mtg-form").onsubmit = async (e) => {
+            e.preventDefault();
+            const body = Object.fromEntries(new FormData(e.target).entries());
+            body.sessionId = id;
+            try {
+              await api("/meetings", { method: "POST", body });
+              toast("Đã thêm buổi học");
+              render();
+            } catch (err) {
+              toast(err.message, true);
+            }
+          };
+        } else if (k === "attendance") {
+          const rows = [];
+          lms.meetings.forEach((m) => {
+            lms.enrollments.forEach((enr) => {
+              rows.push(`<tr>
+                <td>${esc(enr.student_name)}</td>
+                <td>${esc(m.title_vi)}</td>
+                <td>
+                  <select data-att="${enr.id}" data-meeting="${m.id}">
+                    ${["not_recorded","present","absent","excused"].map((st) => `<option>${st}</option>`).join("")}
+                  </select>
+                </td>
+              </tr>`);
+            });
+          });
+          pane.innerHTML = table(["Học viên", "Buổi", "Status"], rows, "Chưa có dữ liệu");
+          pane.querySelectorAll("[data-att]").forEach((sel) =>
+            sel.addEventListener("change", async () => {
+              await api("/attendance", { method: "PUT", body: { enrollmentId: sel.dataset.att, meetingId: sel.dataset.meeting, status: sel.value } });
+              toast("Đã ghi nhận điểm danh");
+            }),
+          );
+        } else if (k === "materials") {
+          pane.innerHTML = `${table(["Title", "Type"], lms.materials.map((x) => `<tr><td><a href="/admin/materials/${x.id}">${esc(x.title_vi)}</a></td><td>${esc(x.type)}</td></tr>`))}
+            <p><a class="btn" href="/admin/materials/new">+ Tài liệu</a></p>`;
+        } else if (k === "announcements") {
+          pane.innerHTML = `${table(["Title", "Priority"], lms.announcements.map((x) => `<tr><td><a href="/admin/announcements/${x.id}">${esc(x.title_vi)}</a></td><td>${esc(x.priority)}</td></tr>`))}
+            <p><a class="btn" href="/admin/announcements/new">+ Thông báo</a></p>`;
+        } else {
+          pane.innerHTML = `<p>${lms.summary.eligible} Eligible · ${lms.summary.missingAttendance} Missing attendance · ${lms.summary.incomplete} Incomplete</p>
+            ${table(
+              ["Học viên", "Attendance", "Completion", "Payment", "Cert", ""],
+              lms.enrollments.map(
+                (e) => `<tr>
+                  <td>${esc(e.student_name)}</td>
+                  <td>${e.attendance.percent}%</td>
+                  <td>${esc(e.completion_status || e.status)}</td>
+                  <td>${esc(e.payment_status)}</td>
+                  <td>${badge(e.certificate.status)}</td>
+                  <td><label><input type="checkbox" data-bulk="${e.id}" ${e.eligibility.eligible && e.certificate.status !== "issued" ? "" : "disabled"} /> Issue</label></td>
+                </tr>`,
+              ),
+            )}
+            <button class="btn btn-primary" id="issue-selected">ISSUE SELECTED</button>`;
+          $("#issue-selected").onclick = async () => {
+            const ids = [...pane.querySelectorAll("[data-bulk]:checked")].map((x) => x.dataset.bulk);
+            if (!ids.length) return toast("Chưa chọn học viên", true);
+            const r = await api("/certificates/issue-bulk", { method: "POST", body: { enrollmentIds: ids } });
+            toast(`Đã cấp ${r.issued.length}, lỗi ${r.failed.length}`);
+            render();
+          };
         }
       };
+      show(tab);
+      app.querySelectorAll("[data-stab]").forEach((b) => b.addEventListener("click", () => show(b.dataset.stab)));
     }
   }
 
@@ -1098,6 +1223,7 @@
         <button data-tab="enroll">ENROLLMENTS</button>
         <button data-tab="att">ATTENDANCE</button>
         <button data-tab="notes">NOTES</button>
+        <button data-tab="certs">CERTIFICATES</button>
         <button data-tab="activity">ACTIVITY</button>
       </div>
       <section data-pane="profile">
@@ -1107,7 +1233,7 @@
             <div class="field"><label>Email</label><input value="${esc(s.email)}" disabled /></div>
             <div class="field"><label>Điện thoại</label><input name="phone" value="${esc(s.phone || "")}" /></div>
             <div class="field"><label>Status</label>
-              <select name="status">${["invited","active","paused","disabled"].map((x) => `<option ${s.status === x ? "selected" : ""}>${x}</option>`).join("")}</select>
+              <select name="status">${["invited","active","inactive","suspended"].map((x) => `<option ${s.status === x ? "selected" : ""}>${x}</option>`).join("")}</select>
             </div>
           </div>
           <div class="toolbar"><button class="btn btn-primary">Lưu</button>
@@ -1173,6 +1299,24 @@
           <p>Đăng nhập gần nhất: ${s.lastLoginAt ? fmtDate(s.lastLoginAt) : "Chưa đăng nhập"}</p>
           <p>Enrollment: ${d.enrollments.length}</p>
         </div>
+      </section>
+      <section data-pane="certs" class="hidden">
+        ${table(
+          ["Code", "Status", "Issue", ""],
+          (d.certificates || []).map(
+            (c) => `<tr>
+              <td>${esc(c.certificate_code)}</td>
+              <td>${badge(c.status)}</td>
+              <td>${fmtDate(c.issue_date || c.issued_at)}</td>
+              <td>
+                ${c.status === "issued" ? `<a class="btn" href="/api/admin/certificates/${c.id}/pdf">PDF</a>
+                <button class="btn" data-reissue="${c.id}">Reissue</button>
+                <button class="btn-danger" data-revoke="${c.id}">Revoke</button>` : ""}
+              </td>
+            </tr>`,
+          ),
+          "Chưa có chứng nhận",
+        )}
       </section>`;
     app.querySelectorAll("[data-tab]").forEach((b) =>
       b.addEventListener("click", () => {
@@ -1180,7 +1324,7 @@
         app.querySelectorAll("[data-pane]").forEach((p) =>
           p.classList.toggle(
             "hidden",
-            p.dataset.pane !== { profile: "profile", enroll: "enroll", att: "att", notes: "notes", activity: "activity" }[b.dataset.tab],
+            p.dataset.pane !== { profile: "profile", enroll: "enroll", att: "att", notes: "notes", certs: "certs", activity: "activity" }[b.dataset.tab],
           ),
         );
       }),
@@ -1233,6 +1377,23 @@
       await api(`/students/${id}`, { method: "PUT", body: { notes: e.target.notes.value } });
       toast("Đã lưu ghi chú");
     };
+    app.querySelectorAll("[data-revoke]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const reason = prompt("Lý do thu hồi chứng nhận?");
+        if (!reason) return;
+        await api(`/certificates/${b.dataset.revoke}/revoke`, { method: "POST", body: { reason } });
+        toast("Đã thu hồi");
+        render();
+      }),
+    );
+    app.querySelectorAll("[data-reissue]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        if (!confirmAction("Cấp lại chứng nhận? Bản cũ sẽ chuyển sang REISSUED.")) return;
+        await api(`/certificates/${b.dataset.reissue}/reissue`, { method: "POST", body: {} });
+        toast("Đã cấp lại");
+        render();
+      }),
+    );
   }
 
   async function viewLearnerMaterials() {
@@ -1339,6 +1500,113 @@
     });
   }
 
+  async function viewEnrollments() {
+    $("#page-title").textContent = "Enrollments";
+    const q = new URLSearchParams(location.search).get("q") || "";
+    const data = await api(`/enrollments?q=${encodeURIComponent(q)}`);
+    app.innerHTML = `
+      <div class="toolbar"><input id="search" placeholder="Học viên, email, khóa" value="${esc(q)}" /></div>
+      ${table(
+        ["Học viên", "Khóa", "Lớp", "Status", "Payment", "Progress", "Cert"],
+        data.items.map(
+          (e) => `<tr>
+            <td><a href="/admin/students/${e.student_id}">${esc(e.student_name)}</a><br><small>${esc(e.student_email || "")}</small></td>
+            <td>${esc(e.program_name)}</td>
+            <td>${esc(e.session_name)}</td>
+            <td>${badge(e.status)}</td>
+            <td>${badge(e.payment_status)}</td>
+            <td>${e.progress?.percent ?? e.progress}%</td>
+            <td>${badge(e.eligibility?.certificateStatus || e.certificate_status || "none")}</td>
+          </tr>`,
+        ),
+      )}`;
+    $("#search").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") go(`/admin/enrollments?q=${encodeURIComponent(e.target.value)}`);
+    });
+  }
+
+  async function viewCertificates() {
+    $("#page-title").textContent = "Certificates";
+    const data = await api("/certificates");
+    app.innerHTML = table(
+      ["Code", "Học viên", "Chương trình", "Status", "Ngày cấp", ""],
+      data.items.map(
+        (c) => `<tr>
+          <td>${esc(c.certificate_code)}</td>
+          <td><a href="/admin/students/${c.student_id}">${esc(c.student_name_snapshot)}</a></td>
+          <td>${esc(c.program_name_vi_snapshot)}</td>
+          <td>${badge(c.status)}</td>
+          <td>${fmtDate(c.issue_date)}</td>
+          <td>
+            ${c.status === "issued" ? `<a class="btn" href="/verify/${esc(c.certificate_code)}" target="_blank">Verify</a>
+            <a class="btn" href="/api/admin/certificates/${c.id}/pdf">PDF</a>
+            <button class="btn" data-reissue="${c.id}">Reissue</button>
+            <button class="btn-danger" data-revoke="${c.id}">Revoke</button>` : ""}
+          </td>
+        </tr>`,
+      ),
+      "Chưa cấp chứng nhận",
+    );
+    app.querySelectorAll("[data-revoke]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const reason = prompt("Lý do thu hồi?");
+        if (!reason) return;
+        await api(`/certificates/${b.dataset.revoke}/revoke`, { method: "POST", body: { reason } });
+        render();
+      }),
+    );
+    app.querySelectorAll("[data-reissue]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        await api(`/certificates/${b.dataset.reissue}/reissue`, { method: "POST", body: {} });
+        render();
+      }),
+    );
+  }
+
+  async function viewCertificateTemplates() {
+    $("#page-title").textContent = "Certificate templates";
+    const editing = parts()[2];
+    const data = await api("/certificate-templates");
+    if (!editing) {
+      app.innerHTML = `<div class="toolbar"><a class="btn btn-primary" href="/admin/certificate-templates/new">+ Template</a></div>
+        ${table(
+          ["Name", "Language", "Status", "Version"],
+          data.items.map((x) => `<tr><td><a href="/admin/certificate-templates/${x.id}">${esc(x.name)}</a></td><td>${esc(x.language)}</td><td>${badge(x.status)}</td><td>${esc(x.version)}</td></tr>`),
+        )}`;
+      return;
+    }
+    const item = editing === "new" ? {} : data.items.find((x) => x.id === editing) || data.items[0] || {};
+    app.innerHTML = `<form id="tpl-form" class="card" style="padding:18px">
+      <div class="form-grid">
+        <div class="field"><label>Template name</label><input name="name" value="${esc(item.name || "")}" required /></div>
+        <div class="field"><label>Language</label><select name="language"><option ${item.language === "vi" ? "selected" : ""}>vi</option><option ${item.language === "en" ? "selected" : ""}>en</option></select></div>
+        <div class="field full"><label>Title VI</label><input name="titleVi" value="${esc(item.title_vi || "")}" /></div>
+        <div class="field full"><label>Title EN</label><input name="titleEn" value="${esc(item.title_en || "")}" /></div>
+        <div class="field full"><label>Body VI</label><textarea name="bodyVi">${esc(item.body_vi || "")}</textarea></div>
+        <div class="field full"><label>Body EN</label><textarea name="bodyEn">${esc(item.body_en || "")}</textarea></div>
+        <div class="field"><label>Signer 1</label><input name="signer1Name" value="${esc(item.signer1_name || "")}" /></div>
+        <div class="field"><label>Signer 1 title</label><input name="signer1Title" value="${esc(item.signer1_title || "")}" /></div>
+        <div class="field"><label>Signer 2</label><input name="signer2Name" value="${esc(item.signer2_name || "")}" /></div>
+        <div class="field"><label>Signer 2 title</label><input name="signer2Title" value="${esc(item.signer2_title || "")}" /></div>
+        <div class="field full"><label>Footer VI</label><textarea name="footerVi">${esc(item.footer_vi || "")}</textarea></div>
+        <div class="field full"><label>Footer EN</label><textarea name="footerEn">${esc(item.footer_en || "")}</textarea></div>
+        <div class="field"><label>Status</label><select name="status"><option ${item.status === "published" ? "selected" : ""}>published</option><option ${item.status === "draft" ? "selected" : ""}>draft</option></select></div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:12px">Lưu template</button>
+    </form>`;
+    $("#tpl-form").onsubmit = async (e) => {
+      e.preventDefault();
+      const body = Object.fromEntries(new FormData(e.target).entries());
+      if (editing === "new") {
+        const r = await api("/certificate-templates", { method: "POST", body });
+        go(`/admin/certificate-templates/${r.id}`);
+      } else {
+        await api(`/certificate-templates/${editing}`, { method: "PUT", body });
+        toast("Đã lưu template");
+      }
+    };
+  }
+
   async function viewSettings() {
     $("#page-title").textContent = "Settings";
     if (state.user.role !== "OWNER") {
@@ -1431,8 +1699,11 @@
       if (segs[0] === "admin" && segs[1] === "registrations" && segs[2]) return viewRegistration(segs[2]);
       if (p === "/admin/students") return viewStudents();
       if (segs[0] === "admin" && segs[1] === "students" && segs[2]) return viewStudent(segs[2]);
+      if (p === "/admin/enrollments") return viewEnrollments();
       if (p.startsWith("/admin/materials")) return viewLearnerMaterials();
       if (p.startsWith("/admin/announcements")) return viewAdminAnnouncements();
+      if (p === "/admin/certificates") return viewCertificates();
+      if (p.startsWith("/admin/certificate-templates")) return viewCertificateTemplates();
       if (p === "/admin/instructors") return viewInstructors();
       if (p === "/admin/venues") return viewVenues();
       if (p.startsWith("/admin/insights")) return viewInsights();

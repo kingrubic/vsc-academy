@@ -9,6 +9,7 @@
     insights: { vi: "/goc-chia-se", en: "/en/insights" },
     contact: { vi: "/lien-he", en: "/en/contact" },
     register: { vi: "/dang-ky", en: "/en/register" },
+    verify: { vi: "/verify", en: "/en/verify" },
     "course-ai-starter": {
       vi: "/khoa-hoc/ai-starter",
       en: "/en/courses/ai-starter",

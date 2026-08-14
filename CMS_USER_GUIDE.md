@@ -76,6 +76,8 @@ Tài khoản demo: `hoc-vien@vsc.academy` / `VscLearner!2026`
 
 Học viên chỉ thấy khóa đã enroll, tài liệu và thông báo đúng phạm vi.
 
+Chi tiết vận hành LMS (chứng nhận, QR, điểm danh, instructor): xem `LMS_ADMIN_GUIDE.md` và `LMS_ARCHITECTURE.md`.
+
 ## Khi CMS không chạy
 
 Website tĩnh vẫn dùng `schedule-data.js` / `course-data.js` gốc. Form đăng ký ghi `localStorage` nếu API không tới được.

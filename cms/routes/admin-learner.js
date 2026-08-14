@@ -5,6 +5,9 @@ const { now, parseJson, alive, aliveById, like, programShortName } = require("..
 const { requireRole, randomId, editorLocked } = require("../lib/auth");
 const V = require("../lib/validate");
 const L = require("../lib/learner");
+const C = require("../lib/lms-core");
+const Cert = require("../lib/certificate");
+const { notifyStudents, sessionStudentIds, programStudentIds } = require("../lib/notify");
 
 const LEARNER_UPLOAD = path.join(__dirname, "..", "..", "uploads", "learner");
 fs.mkdirSync(LEARNER_UPLOAD, { recursive: true });
@@ -25,7 +28,17 @@ function attachLearnerAdmin(router, store) {
     const q = String(req.query.q || "").trim();
     const snap = await store.dump();
     const items = alive(snap.students)
-      .filter((s) => !q || like(s.full_name, q) || like(s.email, q) || like(s.phone, q))
+      .filter((s) => {
+        if (req.lmsScope?.type === "instructor") {
+          const allowed = new Set(
+            (snap.enrollments || [])
+              .filter((e) => req.lmsScope.sessionIds.has(e.session_id))
+              .map((e) => e.student_id),
+          );
+          if (!allowed.has(s.id)) return false;
+        }
+        return !q || like(s.full_name, q) || like(s.email, q) || like(s.phone, q);
+      })
       .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
       .map((s) => ({
         id: s.id,
@@ -47,6 +60,12 @@ function attachLearnerAdmin(router, store) {
     const snap = await store.dump();
     const student = aliveById(snap.students, req.params.id);
     if (!student) return res.status(404).json({ error: "Not found" });
+    if (req.lmsScope?.type === "instructor") {
+      const allowed = (snap.enrollments || []).some(
+        (e) => e.student_id === student.id && req.lmsScope.sessionIds.has(e.session_id),
+      );
+      if (!allowed) return res.status(403).json({ error: "Forbidden" });
+    }
     const enrollments = (snap.enrollments || [])
       .filter((e) => e.student_id === student.id)
       .sort((a, b) => String(b.joined_at).localeCompare(String(a.joined_at)))
@@ -84,6 +103,7 @@ function attachLearnerAdmin(router, store) {
       enrollments,
       meetings,
       attendance: meetings,
+      certificates: (snap.certificates || []).filter((c) => c.student_id === student.id),
     });
   });
 
@@ -170,6 +190,8 @@ function attachLearnerAdmin(router, store) {
         status: "active",
         payment_status: req.body.paymentStatus || "paid",
         progress: 0,
+        completion_status: "in_progress",
+        certificate_status: "none",
         joined_at: ts,
         completed_at: null,
         notes: "",
@@ -195,15 +217,20 @@ function attachLearnerAdmin(router, store) {
       programId = session.program_id;
     }
     const status = req.body.status || row.status;
+    const completionStatus =
+      req.body.completionStatus ||
+      (status === "completed" ? "completed" : row.completion_status || "in_progress");
     await store.upsert("enrollments", {
       ...row,
       session_id: sessionId,
       program_id: programId,
       status,
       payment_status: req.body.paymentStatus || row.payment_status,
+      completion_status: completionStatus,
       notes: req.body.notes ?? row.notes,
-      completed_at: status === "completed" ? now() : row.completed_at,
+      completed_at: status === "completed" || completionStatus === "completed" ? now() : row.completed_at,
       updated_at: now(),
+      updated_by: req.session.user.id,
     });
     res.json({ ok: true });
   });
@@ -215,7 +242,30 @@ function attachLearnerAdmin(router, store) {
     res.json({ ok: true });
   });
 
-  router.put("/attendance", requireRole("OWNER", "ADMIN"), async (req, res) => {
+  router.post("/enrollments/:id/recommend-completion", requireRole("OWNER", "ADMIN", "INSTRUCTOR"), async (req, res) => {
+    const snap = await store.dump(true);
+    const row = (snap.enrollments || []).find((e) => e.id === req.params.id);
+    if (!row) return res.status(404).json({ error: "Not found" });
+    if (req.lmsScope?.type === "instructor" && !req.lmsScope.sessionIds.has(row.session_id)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const ts = now();
+    await store.upsert("enrollments", {
+      ...row,
+      completion_status: row.completion_status === "completed" ? row.completion_status : "eligible",
+      completion_recommended_at: ts,
+      completion_recommended_by: req.session.user.id,
+      updated_at: ts,
+      updated_by: req.session.user.id,
+    });
+    await Cert.writeAudit(store, "enrollment.recommend_completion", req.session.user, {
+      type: "enrollment",
+      id: row.id,
+    });
+    res.json({ ok: true });
+  });
+
+  router.put("/attendance", requireRole("OWNER", "ADMIN", "INSTRUCTOR"), async (req, res) => {
     try {
       V.required(req.body, ["enrollmentId", "meetingId", "status"]);
       const snap = await store.dump(true);
@@ -230,7 +280,12 @@ function attachLearnerAdmin(router, store) {
         meeting_id: req.body.meetingId,
         status: req.body.status,
         notes: req.body.notes || "",
+        checked_at: now(),
+        checked_by: req.session.user.id,
         updated_at: now(),
+        updated_by: req.session.user.id,
+        created_at: existing?.created_at || now(),
+        created_by: existing?.created_by || req.session.user.id,
       });
       res.json({ ok: true });
     } catch (err) {
@@ -247,7 +302,7 @@ function attachLearnerAdmin(router, store) {
     res.json({ items });
   });
 
-  router.post("/meetings", requireRole("OWNER", "ADMIN"), async (req, res) => {
+  router.post("/meetings", requireRole("OWNER", "ADMIN", "INSTRUCTOR"), async (req, res) => {
     try {
       V.required(req.body, ["sessionId", "date", "startTime", "endTime"]);
       const id = randomId("mtg");
@@ -257,13 +312,17 @@ function attachLearnerAdmin(router, store) {
         session_id: req.body.sessionId,
         title_vi: req.body.titleVi || "Buổi học",
         title_en: req.body.titleEn || "",
+        description_vi: req.body.descriptionVi || "",
+        description_en: req.body.descriptionEn || "",
         date: req.body.date,
         start_time: req.body.startTime,
         end_time: req.body.endTime,
+        meeting_number: req.body.meetingNumber || Number(req.body.sortOrder || 0) + 1,
         format: req.body.format || null,
         venue_id: req.body.venueId || null,
+        online_platform: req.body.onlinePlatform || "",
         meeting_url: req.body.meetingUrl || "",
-        status: req.body.status || "upcoming",
+        status: req.body.status || "scheduled",
         notes: "",
         recording_url: req.body.recordingUrl || "",
         materials_released: 0,
@@ -277,25 +336,43 @@ function attachLearnerAdmin(router, store) {
     }
   });
 
-  router.put("/meetings/:id", requireRole("OWNER", "ADMIN"), async (req, res) => {
+  router.put("/meetings/:id", requireRole("OWNER", "ADMIN", "INSTRUCTOR"), async (req, res) => {
     const snap = await store.dump(true);
     const row = aliveById(snap.class_meetings, req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
+    const nextDate = req.body.date || row.date;
+    const nextStart = req.body.startTime || row.start_time;
+    const nextStatus = req.body.status || row.status;
     await store.upsert("class_meetings", {
       ...row,
       title_vi: req.body.titleVi ?? row.title_vi,
       title_en: req.body.titleEn ?? row.title_en,
-      date: req.body.date || row.date,
-      start_time: req.body.startTime || row.start_time,
+      description_vi: req.body.descriptionVi ?? row.description_vi,
+      description_en: req.body.descriptionEn ?? row.description_en,
+      date: nextDate,
+      start_time: nextStart,
       end_time: req.body.endTime || row.end_time,
       format: req.body.format ?? row.format,
       venue_id: req.body.venueId ?? row.venue_id,
+      online_platform: req.body.onlinePlatform ?? row.online_platform,
       meeting_url: req.body.meetingUrl ?? row.meeting_url,
-      status: req.body.status || row.status,
+      status: nextStatus,
       recording_url: req.body.recordingUrl ?? row.recording_url,
       notes: req.body.notes ?? row.notes,
       updated_at: now(),
+      updated_by: req.session.user.id,
     });
+    if (nextDate !== row.date || nextStart !== row.start_time || nextStatus === "cancelled" || nextStatus === "rescheduled") {
+      const ids = sessionStudentIds(snap, row.session_id);
+      await notifyStudents(store, ids, {
+        type: "meeting",
+        titleVi: nextStatus === "cancelled" ? "Buổi học đã bị hủy" : "Thay đổi lịch học",
+        titleEn: nextStatus === "cancelled" ? "Class cancelled" : "Schedule updated",
+        bodyVi: `Buổi học ngày ${row.date} đã được cập nhật.`,
+        bodyEn: `The class on ${row.date} has been updated.`,
+        link: "/hoc-vien/lich-hoc",
+      });
+    }
     res.json({ ok: true });
   });
 
@@ -315,7 +392,7 @@ function attachLearnerAdmin(router, store) {
     });
   });
 
-  router.post("/materials", requireRole("OWNER", "ADMIN", "EDITOR"), upload.single("file"), async (req, res) => {
+  router.post("/materials", requireRole("OWNER", "ADMIN", "EDITOR", "INSTRUCTOR"), upload.single("file"), async (req, res) => {
     try {
       const body = req.body || {};
       if (!body.titleVi) throw V.fail("titleVi is required");
@@ -345,14 +422,31 @@ function attachLearnerAdmin(router, store) {
         status: body.status || "published",
         created_at: ts,
         updated_at: ts,
+        created_by: req.session.user.id,
       });
+      if ((body.status || "published") === "published") {
+        const fresh = await store.dump(true);
+        const ids = body.sessionId
+          ? sessionStudentIds(fresh, body.sessionId)
+          : body.programId
+            ? programStudentIds(fresh, body.programId)
+            : [];
+        await notifyStudents(store, ids, {
+          type: "material",
+          titleVi: "Tài liệu mới",
+          titleEn: "New material",
+          bodyVi: `${body.titleVi} đã được cập nhật.`,
+          bodyEn: `${body.titleEn || body.titleVi} has been published.`,
+          link: "/hoc-vien/tai-lieu",
+        });
+      }
       res.json({ ok: true, id });
     } catch (err) {
       res.status(err.status || 400).json({ error: err.message });
     }
   });
 
-  router.put("/materials/:id", requireRole("OWNER", "ADMIN", "EDITOR"), async (req, res) => {
+  router.put("/materials/:id", requireRole("OWNER", "ADMIN", "EDITOR", "INSTRUCTOR"), async (req, res) => {
     const snap = await store.dump(true);
     const row = aliveById(snap.learning_materials, req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
@@ -392,7 +486,7 @@ function attachLearnerAdmin(router, store) {
     });
   });
 
-  router.post("/announcements", requireRole("OWNER", "ADMIN", "EDITOR"), async (req, res) => {
+  router.post("/announcements", requireRole("OWNER", "ADMIN", "EDITOR", "INSTRUCTOR"), async (req, res) => {
     try {
       V.required(req.body, ["titleVi"]);
       const id = randomId("ann");
@@ -415,13 +509,29 @@ function attachLearnerAdmin(router, store) {
         updated_at: ts,
         created_by: req.session.user.id,
       });
+      if ((req.body.status || "published") === "published") {
+        const fresh = await store.dump(true);
+        let ids = [];
+        if (req.body.targetType === "student") ids = [req.body.studentId];
+        else if (req.body.targetType === "session") ids = sessionStudentIds(fresh, req.body.sessionId);
+        else if (req.body.targetType === "program") ids = programStudentIds(fresh, req.body.programId);
+        else ids = alive(fresh.students).filter((s) => s.status === "active").map((s) => s.id);
+        await notifyStudents(store, ids, {
+          type: "announcement",
+          titleVi: req.body.titleVi,
+          titleEn: req.body.titleEn || req.body.titleVi,
+          bodyVi: req.body.contentVi || "",
+          bodyEn: req.body.contentEn || req.body.contentVi || "",
+          link: "/hoc-vien/thong-bao",
+        });
+      }
       res.json({ ok: true, id });
     } catch (err) {
       res.status(err.status || 400).json({ error: err.message });
     }
   });
 
-  router.put("/announcements/:id", requireRole("OWNER", "ADMIN", "EDITOR"), async (req, res) => {
+  router.put("/announcements/:id", requireRole("OWNER", "ADMIN", "EDITOR", "INSTRUCTOR"), async (req, res) => {
     const snap = await store.dump(true);
     const row = (snap.announcements || []).find((a) => a.id === req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
@@ -447,6 +557,243 @@ function attachLearnerAdmin(router, store) {
   router.delete("/announcements/:id", requireRole("OWNER", "ADMIN"), async (req, res) => {
     await store.remove("announcements", req.params.id);
     res.json({ ok: true });
+  });
+
+  router.get("/enrollments", async (req, res) => {
+    const snap = await store.dump();
+    const q = String(req.query.q || "").trim().toLowerCase();
+    const items = (snap.enrollments || [])
+      .map((row) => {
+        const student = aliveById(snap.students, row.student_id);
+        const session = aliveById(snap.sessions, row.session_id);
+        const program = aliveById(snap.programs, row.program_id);
+        const check = C.evaluateEligibility(snap, row, program);
+        return {
+          ...row,
+          student_name: student?.full_name,
+          student_email: student?.email,
+          session_name: session?.session_name,
+          program_name: programShortName(program),
+          progress: L.enrollmentProgress(snap, row.id, row.session_id),
+          attendance: check.attendance,
+          eligibility: check,
+        };
+      })
+      .filter(
+        (e) =>
+          !q ||
+          String(e.student_name || "").toLowerCase().includes(q) ||
+          String(e.student_email || "").toLowerCase().includes(q) ||
+          String(e.program_name || "").toLowerCase().includes(q),
+      )
+      .sort((a, b) => String(b.joined_at).localeCompare(String(a.joined_at)));
+    res.json({ items });
+  });
+
+  router.get("/sessions/:id/lms", async (req, res) => {
+    const snap = await store.dump();
+    const session = aliveById(snap.sessions, req.params.id);
+    if (!session) return res.status(404).json({ error: "Not found" });
+    const program = aliveById(snap.programs, session.program_id);
+    const enrollments = (snap.enrollments || [])
+      .filter((e) => e.session_id === session.id)
+      .map((row) => {
+        const student = aliveById(snap.students, row.student_id);
+        const check = C.evaluateEligibility(snap, row, program);
+        const cert = (snap.certificates || []).find((c) => c.enrollment_id === row.id && c.status === "issued");
+        return {
+          ...row,
+          student_name: student?.full_name,
+          student_email: student?.email,
+          progress: L.enrollmentProgress(snap, row.id, row.session_id),
+          attendance: check.attendance,
+          eligibility: check,
+          certificate: cert
+            ? { id: cert.id, code: cert.certificate_code, status: cert.status }
+            : { status: check.certificateStatus },
+        };
+      });
+    const meetings = alive(snap.class_meetings)
+      .filter((m) => m.session_id === session.id)
+      .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.date).localeCompare(String(b.date)));
+    const materials = alive(snap.learning_materials).filter((m) => m.session_id === session.id || m.program_id === session.program_id);
+    const announcements = (snap.announcements || []).filter(
+      (a) => a.session_id === session.id || a.program_id === session.program_id || a.target_type === "all",
+    );
+    const eligible = enrollments.filter((e) => e.eligibility.eligible && e.certificate.status !== "issued").length;
+    const missingAttendance = enrollments.filter((e) => e.eligibility.reasons.includes("attendance")).length;
+    const incomplete = enrollments.filter((e) => e.eligibility.reasons.includes("completion")).length;
+    res.json({
+      session,
+      enrollments,
+      meetings,
+      materials,
+      announcements,
+      summary: { eligible, missingAttendance, incomplete, total: enrollments.length },
+    });
+  });
+
+  router.get("/certificate-templates", async (_req, res) => {
+    const snap = await store.dump(true);
+    let items = snap.certificate_templates || [];
+    if (!items.find((t) => t.id === "tpl-vsc-default")) {
+      const ts = now();
+      const row = { ...Cert.DEFAULT_TEMPLATE, created_at: ts, updated_at: ts };
+      await store.upsert("certificate_templates", row);
+      items = [row, ...items];
+    }
+    res.json({ items });
+  });
+
+  router.post("/certificate-templates", requireRole("OWNER", "ADMIN"), async (req, res) => {
+    const ts = now();
+    const id = req.body.id || randomId("tpl");
+    await store.upsert("certificate_templates", {
+      ...Cert.DEFAULT_TEMPLATE,
+      id,
+      name: req.body.name || "VSC Academy Standard",
+      title_vi: req.body.titleVi || Cert.DEFAULT_TEMPLATE.title_vi,
+      title_en: req.body.titleEn || Cert.DEFAULT_TEMPLATE.title_en,
+      body_vi: req.body.bodyVi || Cert.DEFAULT_TEMPLATE.body_vi,
+      body_en: req.body.bodyEn || Cert.DEFAULT_TEMPLATE.body_en,
+      footer_vi: req.body.footerVi || Cert.DEFAULT_TEMPLATE.footer_vi,
+      footer_en: req.body.footerEn || Cert.DEFAULT_TEMPLATE.footer_en,
+      signer1_name: req.body.signer1Name || Cert.DEFAULT_TEMPLATE.signer1_name,
+      signer1_title: req.body.signer1Title || Cert.DEFAULT_TEMPLATE.signer1_title,
+      signer2_name: req.body.signer2Name || "",
+      signer2_title: req.body.signer2Title || "",
+      program_id: req.body.programId || null,
+      language: req.body.language || "vi",
+      status: req.body.status || "published",
+      version: Number(req.body.version || 1),
+      created_at: ts,
+      updated_at: ts,
+      created_by: req.session.user.id,
+    });
+    res.json({ ok: true, id });
+  });
+
+  router.put("/certificate-templates/:id", requireRole("OWNER", "ADMIN"), async (req, res) => {
+    const snap = await store.dump(true);
+    const row = (snap.certificate_templates || []).find((t) => t.id === req.params.id) || {
+      ...Cert.DEFAULT_TEMPLATE,
+      id: req.params.id,
+    };
+    await store.upsert("certificate_templates", {
+      ...row,
+      name: req.body.name ?? row.name,
+      title_vi: req.body.titleVi ?? row.title_vi,
+      title_en: req.body.titleEn ?? row.title_en,
+      body_vi: req.body.bodyVi ?? row.body_vi,
+      body_en: req.body.bodyEn ?? row.body_en,
+      footer_vi: req.body.footerVi ?? row.footer_vi,
+      footer_en: req.body.footerEn ?? row.footer_en,
+      signer1_name: req.body.signer1Name ?? row.signer1_name,
+      signer1_title: req.body.signer1Title ?? row.signer1_title,
+      signer2_name: req.body.signer2Name ?? row.signer2_name,
+      signer2_title: req.body.signer2Title ?? row.signer2_title,
+      language: req.body.language ?? row.language,
+      status: req.body.status || row.status,
+      version: Number(row.version || 1) + (req.body.bumpVersion ? 1 : 0),
+      updated_at: now(),
+      updated_by: req.session.user.id,
+    });
+    res.json({ ok: true });
+  });
+
+  router.get("/certificates", async (req, res) => {
+    const snap = await store.dump();
+    const items = (snap.certificates || [])
+      .filter((c) => !req.query.sessionId || c.session_id === req.query.sessionId)
+      .sort((a, b) => String(b.issued_at || "").localeCompare(String(a.issued_at || "")));
+    res.json({ items });
+  });
+
+  router.post("/certificates/issue", requireRole("OWNER", "ADMIN"), async (req, res) => {
+    try {
+      const snap = await store.dump(true);
+      const cert = await Cert.issueCertificate(store, snap, req.body.enrollmentId, req.session.user, req);
+      await notifyStudents(store, [cert.student_id], {
+        type: "certificate",
+        titleVi: "Chứng nhận đã sẵn sàng",
+        titleEn: "Your certificate is ready",
+        bodyVi: "Bạn đã được cấp chứng nhận hoàn thành chương trình.",
+        bodyEn: "Your programme certificate has been issued.",
+        link: "/hoc-vien/chung-nhan",
+      });
+      res.json({ ok: true, id: cert.id, code: cert.certificate_code });
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message, reasons: err.reasons });
+    }
+  });
+
+  router.post("/certificates/issue-bulk", requireRole("OWNER", "ADMIN"), async (req, res) => {
+    const ids = req.body.enrollmentIds || [];
+    const issued = [];
+    const failed = [];
+    for (const enrollmentId of ids) {
+      try {
+        const current = await store.dump(true);
+        const cert = await Cert.issueCertificate(store, current, enrollmentId, req.session.user, req);
+        issued.push({ enrollmentId, code: cert.certificate_code });
+        await notifyStudents(store, [cert.student_id], {
+          type: "certificate",
+          titleVi: "Chứng nhận đã sẵn sàng",
+          titleEn: "Your certificate is ready",
+          bodyVi: "Bạn đã được cấp chứng nhận hoàn thành chương trình.",
+          bodyEn: "Your programme certificate has been issued.",
+          link: "/hoc-vien/chung-nhan",
+        });
+      } catch (err) {
+        failed.push({ enrollmentId, error: err.message, reasons: err.reasons });
+      }
+    }
+    res.json({ ok: true, issued, failed });
+  });
+
+  router.post("/certificates/:id/revoke", requireRole("OWNER", "ADMIN"), async (req, res) => {
+    try {
+      const snap = await store.dump(true);
+      const row = await Cert.revokeCertificate(store, snap, req.params.id, req.session.user, req.body.reason);
+      res.json({ ok: true, status: row.status });
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message });
+    }
+  });
+
+  router.post("/certificates/:id/reissue", requireRole("OWNER", "ADMIN"), async (req, res) => {
+    try {
+      const snap = await store.dump(true);
+      const cert = await Cert.reissueCertificate(store, snap, req.params.id, req.session.user, req);
+      await notifyStudents(store, [cert.student_id], {
+        type: "certificate",
+        titleVi: "Chứng nhận đã sẵn sàng",
+        titleEn: "Your certificate is ready",
+        bodyVi: "Chứng nhận của bạn đã được cấp lại.",
+        bodyEn: "Your certificate has been reissued.",
+        link: "/hoc-vien/chung-nhan",
+      });
+      res.json({ ok: true, code: cert.certificate_code, id: cert.id });
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message });
+    }
+  });
+
+  router.get("/certificates/:id/pdf", requireRole("OWNER", "ADMIN"), async (req, res) => {
+    const snap = await store.dump();
+    const row = (snap.certificates || []).find((c) => c.id === req.params.id || c.certificate_code === req.params.id);
+    if (!row) return res.status(404).json({ error: "Not found" });
+    const abs = Cert.pdfAbsolutePath(row);
+    if (!abs) return res.status(404).json({ error: "PDF missing" });
+    res.setHeader("Content-Type", "application/pdf");
+    res.sendFile(abs);
+  });
+
+  router.get("/mail-outbox", requireRole("OWNER", "ADMIN"), async (_req, res) => {
+    const snap = await store.dump();
+    res.json({
+      items: (snap.mail_outbox || []).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 100),
+    });
   });
 }
 

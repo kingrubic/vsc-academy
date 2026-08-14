@@ -1,6 +1,8 @@
-const crypto = require("crypto");
 const { now, parseJson, alive, aliveById } = require("./convex-db");
 const { hashPassword, randomId } = require("./auth");
+const C = require("./lms-core");
+const Cert = require("./certificate");
+const { queueMail } = require("./notify");
 
 function publicStudent(row) {
   if (!row) return null;
@@ -18,35 +20,15 @@ function publicStudent(row) {
 }
 
 function programName(row, locale) {
-  const content = parseJson(locale === "en" ? row.content_en : row.content_vi, {});
-  return content.shortName || content.name || row.id;
+  return Cert.programName(row, locale);
 }
 
 function meetingComputedStatus(meeting) {
-  if (meeting.status === "cancelled" || meeting.status === "rescheduled") return meeting.status;
-  const start = new Date(`${meeting.date}T${meeting.start_time}:00+07:00`);
-  const end = new Date(`${meeting.date}T${meeting.end_time}:00+07:00`);
-  const n = Date.now();
-  if (Number.isNaN(start.getTime())) return meeting.status || "upcoming";
-  if (n > end.getTime()) return "completed";
-  if (n >= start.getTime() && n <= end.getTime()) return "live";
-  return meeting.status === "completed" ? "completed" : "upcoming";
+  return C.meetingComputedStatus(meeting);
 }
 
 function enrollmentProgress(snap, enrollmentId, sessionId) {
-  const meetings = alive(snap.class_meetings).filter(
-    (m) => m.session_id === sessionId && m.status !== "cancelled",
-  );
-  const attendance = (snap.attendance || []).filter((a) => a.enrollment_id === enrollmentId);
-  const attMap = Object.fromEntries(attendance.map((a) => [a.meeting_id, a.status]));
-  let completed = 0;
-  meetings.forEach((m) => {
-    const st = meetingComputedStatus(m);
-    if (st === "completed" || attMap[m.id] === "present") completed += 1;
-  });
-  const total = meetings.length;
-  const pct = total ? Math.round((completed / total) * 100) : 0;
-  return { completed, total, percent: pct };
+  return C.enrollmentProgress(snap, enrollmentId, sessionId);
 }
 
 function studentSessionIds(snap, studentId) {
@@ -78,7 +60,7 @@ function canSeeMaterial(snap, studentId, material) {
     const meeting = aliveById(snap.class_meetings, material.meeting_id);
     return meeting && studentSessionIds(snap, studentId).includes(meeting.session_id);
   }
-  if (material.visibility === "students") {
+  if (material.visibility === "students" || material.visibility === "specific") {
     const ids = parseJson(material.student_ids, []);
     return ids.includes(studentId);
   }
@@ -95,21 +77,68 @@ function canSeeAnnouncement(snap, studentId, row) {
   return false;
 }
 
-function serializeMeeting(row, locale = "vi") {
+function serializeMeeting(row, locale = "vi", opts = {}) {
+  const program = opts.program;
+  const session = opts.session;
+  const minutes = C.joinLinkOpenMinutes(program, session);
+  const window = C.joinWindow(row, minutes);
+  const status = window.status || C.meetingComputedStatus(row);
+  const includeJoinUrl = opts.includeJoinUrl === true;
   return {
     id: row.id,
+    meetingNumber: row.meeting_number || Number(row.sort_order || 0) + 1,
     title: locale === "en" ? row.title_en || row.title_vi : row.title_vi,
+    description: locale === "en" ? row.description_en || row.description_vi || "" : row.description_vi || row.notes || "",
     date: row.date,
     startTime: row.start_time,
     endTime: row.end_time,
     format: row.format,
-    meetingUrl: row.meeting_url,
-    recordingUrl: row.recording_url,
     venueId: row.venue_id,
-    status: meetingComputedStatus(row),
-    notes: row.notes,
+    onlinePlatform: row.online_platform || session?.online_platform || "",
+    status,
+    notes: locale === "en" ? row.notes_en || row.notes : row.notes_vi || row.notes,
     sortOrder: row.sort_order,
+    canJoin: window.canJoin,
+    joinOpensAt: window.openAt ? new Date(window.openAt).toISOString() : null,
+    hasMeetingUrl: !!(row.meeting_url || session?.meeting_url),
+    hasRecording: !!row.recording_url,
+    recordingUrl: status === "completed" ? row.recording_url || "" : "",
+    meetingUrl: includeJoinUrl && window.canJoin ? row.meeting_url || session?.meeting_url || "" : "",
   };
+}
+
+function studentCertificate(snap, enrollment) {
+  const issued = (snap.certificates || []).find(
+    (c) => c.enrollment_id === enrollment.id && c.status === "issued",
+  );
+  const latest = (snap.certificates || [])
+    .filter((c) => c.enrollment_id === enrollment.id)
+    .sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")))[0];
+  const program = byProgram(snap, enrollment.program_id);
+  const check = evaluateSafe(snap, enrollment, program);
+  if (issued) {
+    return {
+      status: "issued",
+      certificateId: issued.id,
+      certificateCode: issued.certificate_code,
+      issueDate: issued.issue_date,
+      verificationUrl: issued.verification_url,
+    };
+  }
+  if (latest?.status === "revoked") return { status: "revoked" };
+  if (check.eligible) return { status: "eligible" };
+  if (enrollment.status === "completed" || enrollment.completion_status === "completed") {
+    return { status: "pending" };
+  }
+  return { status: check.certificateStatus || "none" };
+}
+
+function evaluateSafe(snap, enrollment, program) {
+  try {
+    return C.evaluateEligibility(snap, enrollment, program);
+  } catch {
+    return { eligible: false, reasons: [], certificateStatus: "none", completionStatus: "in_progress", attendance: { percent: 0 } };
+  }
 }
 
 async function hydrateEnrollment(store, snap, enrollment, locale = "vi") {
@@ -124,22 +153,36 @@ async function hydrateEnrollment(store, snap, enrollment, locale = "vi") {
     ? aliveById(snap.instructors, program.primary_instructor_id)
     : null;
   const progress = enrollmentProgress(snap, enrollment.id, enrollment.session_id);
+  const check = evaluateSafe(snap, enrollment, program);
   const today = now().slice(0, 10);
   const clock = now().slice(11, 16);
   const nextMeeting = alive(snap.class_meetings)
     .filter((m) => m.session_id === enrollment.session_id && !["cancelled", "completed"].includes(m.status))
     .filter((m) => m.date > today || (m.date === today && m.end_time > clock))
     .sort((a, b) => `${a.date}${a.start_time}`.localeCompare(`${b.date}${b.start_time}`))[0];
-  if (progress.percent !== enrollment.progress) {
-    await store.upsert("enrollments", { ...enrollment, progress: progress.percent, updated_at: now() });
+  const derived = {
+    progress: progress.percent,
+    completion_status: check.completionStatus,
+    certificate_status: check.certificateStatus,
+    updated_at: now(),
+  };
+  if (
+    progress.percent !== enrollment.progress ||
+    enrollment.completion_status !== check.completionStatus ||
+    enrollment.certificate_status !== check.certificateStatus
+  ) {
+    await store.upsert("enrollments", { ...enrollment, ...derived });
   }
   return {
     id: enrollment.id,
     status: enrollment.status,
     paymentStatus: enrollment.payment_status,
+    completionStatus: check.completionStatus,
+    certificateStatus: check.certificateStatus,
     joinedAt: enrollment.joined_at,
     completedAt: enrollment.completed_at,
     progress,
+    attendance: check.attendance,
     program: program
       ? {
           id: program.id,
@@ -157,7 +200,6 @@ async function hydrateEnrollment(store, snap, enrollment, locale = "vi") {
           startTime: session.start_time,
           endTime: session.end_time,
           format: session.format || program?.format,
-          meetingUrl: session.meeting_url,
           onlinePlatform: session.online_platform,
         }
       : null,
@@ -167,6 +209,7 @@ async function hydrateEnrollment(store, snap, enrollment, locale = "vi") {
           name: venue.name,
           address: locale === "en" ? venue.address_en || venue.address_vi : venue.address_vi,
           mapUrl: venue.map_url,
+          instructions: locale === "en" ? venue.notes_en || venue.notes : venue.notes,
         }
       : null,
     instructor: instructor
@@ -179,11 +222,8 @@ async function hydrateEnrollment(store, snap, enrollment, locale = "vi") {
           photo: instructor.photo,
         }
       : null,
-    nextMeeting: nextMeeting ? serializeMeeting(nextMeeting, locale) : null,
-    certificate:
-      enrollment.status === "completed"
-        ? { status: "pending", label: locale === "en" ? "Certificate is being prepared" : "Chứng nhận đang được cập nhật" }
-        : null,
+    nextMeeting: nextMeeting ? serializeMeeting(nextMeeting, locale, { program, session }) : null,
+    certificate: studentCertificate(snap, enrollment),
   };
 }
 
@@ -195,6 +235,22 @@ function byIdAll(rows, id) {
   return (rows || []).find((row) => String(row.id) === String(id)) || null;
 }
 
+function meetingForStudent(snap, studentId, meetingId) {
+  const meeting = aliveById(snap.class_meetings, meetingId);
+  if (!meeting) return null;
+  if (!studentSessionIds(snap, studentId).includes(meeting.session_id)) return null;
+  return meeting;
+}
+
+function resolveJoinUrl(snap, meeting) {
+  const session = aliveById(snap.sessions, meeting.session_id);
+  const program = byProgram(snap, session?.program_id);
+  const minutes = C.joinLinkOpenMinutes(program, session);
+  const window = C.joinWindow(meeting, minutes);
+  const url = meeting.meeting_url || session?.meeting_url || "";
+  return { ...window, url, session, program, minutes };
+}
+
 async function ensureStudentAndEnrollment(store, snap, registration) {
   const email = String(registration.email || "").trim().toLowerCase();
   if (!email || !registration.session_id || !registration.program_id) {
@@ -204,7 +260,7 @@ async function ensureStudentAndEnrollment(store, snap, registration) {
   let student = alive(snap.students).find((row) => row.email === email);
   let activationToken = null;
   if (!student) {
-    activationToken = crypto.randomBytes(24).toString("hex");
+    activationToken = C.newSecretToken();
     const id = randomId("stu");
     student = {
       id,
@@ -214,6 +270,7 @@ async function ensureStudentAndEnrollment(store, snap, registration) {
       avatar: "",
       password_hash: null,
       activation_token: activationToken,
+      activation_expires_at: new Date(Date.now() + C.ACTIVATION_TTL_MS).toISOString(),
       status: "invited",
       language_preference: registration.locale || "vi",
       last_login_at: null,
@@ -222,6 +279,14 @@ async function ensureStudentAndEnrollment(store, snap, registration) {
       updated_at: ts,
     };
     await store.upsert("students", student);
+    await queueMail(
+      store,
+      email,
+      "Kích hoạt tài khoản VSC Academy Learner Portal",
+      `Chào ${student.full_name},\n\nTài khoản học viên của bạn đã được tạo. Đặt mật khẩu tại:\n/hoc-vien/kich-hoat?token=${activationToken}\n\nLink hết hạn sau 7 ngày.\n\nVSC Academy`,
+      "activation",
+      { studentId: id, path: `/hoc-vien/kich-hoat?token=${activationToken}` },
+    );
   }
   await store.upsert("registrations", { ...registration, student_id: student.id, updated_at: ts });
   let enrollment = (snap.enrollments || []).find(
@@ -240,6 +305,8 @@ async function ensureStudentAndEnrollment(store, snap, registration) {
       status: "active",
       payment_status: payment,
       progress: 0,
+      completion_status: "in_progress",
+      certificate_status: "none",
       joined_at: ts,
       completed_at: null,
       notes: "",
@@ -262,9 +329,32 @@ async function setStudentPassword(store, student, password) {
     ...student,
     password_hash: hashPassword(password),
     activation_token: null,
+    activation_expires_at: null,
     status: "active",
     updated_at: now(),
   });
+}
+
+function instructorScope(snap, user) {
+  if (!user) return { type: "none" };
+  if (user.role === "OWNER" || user.role === "ADMIN") return { type: "all" };
+  if (user.role === "EDITOR") return { type: "editor" };
+  if (user.role !== "INSTRUCTOR") return { type: "none" };
+  const instructorId = user.instructorId || user.instructor_id;
+  const programIds = new Set(
+    (snap.program_instructors || [])
+      .filter((r) => r.instructor_id === instructorId)
+      .map((r) => r.program_id),
+  );
+  alive(snap.programs).forEach((p) => {
+    if (p.primary_instructor_id === instructorId) programIds.add(p.id);
+  });
+  const sessionIds = new Set(
+    alive(snap.sessions)
+      .filter((s) => programIds.has(s.program_id))
+      .map((s) => s.id),
+  );
+  return { type: "instructor", instructorId, programIds, sessionIds };
 }
 
 module.exports = {
@@ -279,4 +369,9 @@ module.exports = {
   ensureStudentAndEnrollment,
   setStudentPassword,
   studentSessionIds,
+  studentProgramIds,
+  meetingForStudent,
+  resolveJoinUrl,
+  instructorScope,
+  studentCertificate,
 };
