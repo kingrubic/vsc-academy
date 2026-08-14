@@ -128,6 +128,15 @@ function createPublicRouter(store) {
         messageEn: "CERTIFICATE REVOKED",
       });
     }
+    if (row.status === "reissued") {
+      return res.json({
+        valid: false,
+        status: "reissued",
+        certificateCode: row.certificate_code,
+        messageVi: "CHỨNG NHẬN ĐÃ ĐƯỢC CẤP LẠI",
+        messageEn: "CERTIFICATE REISSUED",
+      });
+    }
     if (row.status !== "issued") {
       return res.json({
         valid: false,

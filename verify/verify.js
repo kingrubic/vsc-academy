@@ -9,6 +9,7 @@
         missing: "CERTIFICATE NOT FOUND",
         missingLead: "This Certificate ID cannot be verified.",
         revoked: "CERTIFICATE REVOKED",
+        reissued: "CERTIFICATE REISSUED",
         issuer: "Issuer",
         completion: "Completion date",
         issued: "Issue date",
@@ -24,6 +25,7 @@
         missing: "CHỨNG NHẬN KHÔNG TỒN TẠI",
         missingLead: "Không thể xác minh Certificate ID này.",
         revoked: "CHỨNG NHẬN ĐÃ BỊ THU HỒI",
+        reissued: "CHỨNG NHẬN ĐÃ ĐƯỢC CẤP LẠI",
         issuer: "Đơn vị cấp",
         completion: "Ngày hoàn thành",
         issued: "Ngày cấp",
@@ -67,6 +69,10 @@
     }
     if (data.status === "revoked") {
       result.innerHTML = `<div class="card"><p class="bad">${t.revoked}</p><p class="meta">Status: REVOKED</p><p class="meta">${data.certificateCode || code}</p></div>`;
+      return;
+    }
+    if (data.status === "reissued") {
+      result.innerHTML = `<div class="card"><p class="bad">${t.reissued}</p><p class="meta">Status: REISSUED</p><p class="meta">${data.certificateCode || code}</p></div>`;
       return;
     }
     result.innerHTML = `<div class="card"><p class="bad">${t.missing}</p><p class="meta">${t.missingLead}</p></div>`;
