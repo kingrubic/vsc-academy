@@ -8,7 +8,8 @@
     "dev": "node --watch cms/server.js",
     "convex:deploy": "./scripts/vsc-academy-convex-env.sh ./node_modules/.bin/convex deploy -y",
     "convex:dev": "./scripts/vsc-academy-convex-env.sh ./node_modules/.bin/convex dev",
-    "seed": "./scripts/vsc-academy-convex-env.sh node cms/lib/seed-convex.mjs"
+    "seed": "./scripts/vsc-academy-convex-env.sh node cms/lib/seed-convex.mjs",
+    "seed:admin": "./scripts/vsc-academy-convex-env.sh node cms/lib/upsert-admin.mjs"
   },
   "engines": {
     "node": ">=18"

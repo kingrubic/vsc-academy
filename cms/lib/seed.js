@@ -84,9 +84,20 @@ function seed(db) {
     }
 
     db.prepare(
-      `INSERT INTO users (email, name, password_hash, role, active, created_at, updated_at)
-       VALUES (?, ?, ?, 'OWNER', 1, ?, ?)`,
+      `INSERT INTO users (email, name, password_hash, role, active, must_change_password, created_at, updated_at)
+       VALUES (?, ?, ?, 'OWNER', 1, 0, ?, ?)`,
     ).run("owner@vsc.academy", "VSC Owner", hashPassword(password), ts, ts);
+
+    db.prepare(
+      `INSERT INTO users (email, name, password_hash, role, active, must_change_password, created_at, updated_at)
+       VALUES (?, ?, ?, 'OWNER', 1, 1, ?, ?)`,
+    ).run(
+      "vutrananh97@gmail.com",
+      "Trần Anh Vũ",
+      hashPassword(process.env.VSC_OWNER_TEMP_PASSWORD || "vsc@12345"),
+      ts,
+      ts,
+    );
 
     db.prepare(
       `INSERT INTO venues (id, name, address_vi, address_en, city, map_url, notes, active, created_at, updated_at)
@@ -379,9 +390,9 @@ if (require.main === module) {
   const result = seed(db);
   if (result.seeded) {
     console.log("Seeded VSC Academy CMS.");
-    console.log("Login: owner@vsc.academy");
+    console.log("Owner: vutrananh97@gmail.com — mật khẩu tạm, bắt buộc đổi lần đầu.");
+    console.log("Seed fallback: owner@vsc.academy");
     console.log(`Password: ${result.password}`);
-    console.log("Change this password before production.");
   }
   db.close();
 }

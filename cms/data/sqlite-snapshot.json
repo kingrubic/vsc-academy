@@ -7,8 +7,20 @@
       "password_hash": "$2a$10$.tT3CPPSpCemyZIpH4Uk9O2fOJou.Dk9ch2MRQ09J9JrOoi9jIrae",
       "role": "OWNER",
       "active": 1,
+      "must_change_password": 0,
       "created_at": "2026-08-14T11:53:31.670Z",
       "updated_at": "2026-08-14T11:53:31.670Z"
+    },
+    {
+      "id": 2,
+      "email": "vutrananh97@gmail.com",
+      "name": "Trần Anh Vũ",
+      "password_hash": "$2a$10$c7sPEQO9PJnRSv2fNlLdTOKE/sMZhDmRBKvVBlKQVmEHx9Q4ZAJQS",
+      "role": "OWNER",
+      "active": 1,
+      "must_change_password": 1,
+      "created_at": "2026-08-14T13:56:00.000Z",
+      "updated_at": "2026-08-14T13:56:00.000Z"
     }
   ],
   "venues": [

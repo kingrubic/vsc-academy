@@ -6,6 +6,7 @@ const { now, parseJson, alive, aliveById, like, programShortName } = require("..
 const {
   requireAuth,
   requireRole,
+  hashPassword,
   verifyPassword,
   tooManyLogins,
   recordLogin,
@@ -62,7 +63,14 @@ function createAdminRouter(store) {
     const ok = user && verifyPassword(password, user.password_hash);
     recordLogin(ip, ok);
     if (!ok) return res.status(401).json({ error: "Email hoặc mật khẩu không đúng" });
-    req.session.user = { id: String(user.id), email: user.email, name: user.name, role: user.role };
+    const mustChangePassword = Number(user.must_change_password) === 1;
+    req.session.user = {
+      id: String(user.id),
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      mustChangePassword,
+    };
     res.json({ user: req.session.user });
   });
 
@@ -74,7 +82,47 @@ function createAdminRouter(store) {
     res.json({ user: req.session.user });
   });
 
+  router.post("/change-password", requireAuth, async (req, res) => {
+    try {
+      const current = String(req.body?.currentPassword || "");
+      const next = String(req.body?.newPassword || "");
+      const confirm = String(req.body?.confirmPassword || "");
+      if (next.length < 8) throw V.fail("Mật khẩu mới tối thiểu 8 ký tự");
+      if (next !== confirm) throw V.fail("Xác nhận mật khẩu không khớp");
+      if (current === next) throw V.fail("Mật khẩu mới phải khác mật khẩu tạm");
+
+      const snap = await store.dump(true);
+      const user = (snap.users || []).find((row) => String(row.id) === String(req.session.user.id));
+      if (!user || !verifyPassword(current, user.password_hash)) {
+        throw V.fail("Mật khẩu hiện tại không đúng");
+      }
+      if (verifyPassword(next, user.password_hash)) {
+        throw V.fail("Mật khẩu mới phải khác mật khẩu tạm");
+      }
+
+      await store.upsert("users", {
+        ...user,
+        password_hash: hashPassword(next),
+        must_change_password: 0,
+        updated_at: now(),
+      });
+      req.session.user = { ...req.session.user, mustChangePassword: false };
+      res.json({ user: req.session.user });
+    } catch (err) {
+      sendErr(res, err);
+    }
+  });
+
   router.use(requireAuth);
+  router.use((req, res, next) => {
+    if (req.session.user?.mustChangePassword) {
+      return res.status(403).json({
+        error: "Cần đổi mật khẩu trước khi tiếp tục",
+        code: "MUST_CHANGE_PASSWORD",
+      });
+    }
+    next();
+  });
 
   router.get("/dashboard", async (_req, res) => {
     const snap = await store.dump();
