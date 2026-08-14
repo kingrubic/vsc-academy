@@ -7,4 +7,5 @@ cms/.env
 .env.local
 uploads/cms/
 uploads/learner/
+uploads/certificates/
 .DS_Store

@@ -121,6 +121,15 @@ async function main() {
     res.sendFile(path.join(PORTAL_DIR, "index.html"));
   });
 
+  const VERIFY_DIR = path.join(SITE_ROOT, "verify");
+  app.use("/verify-assets", express.static(VERIFY_DIR));
+  app.get(/^\/verify(?:\/.*)?$/, (_req, res) => {
+    res.sendFile(path.join(VERIFY_DIR, "index.html"));
+  });
+  app.get(/^\/en\/verify(?:\/.*)?$/, (_req, res) => {
+    res.sendFile(path.join(VERIFY_DIR, "index.html"));
+  });
+
   app.get("/healthz", async (_req, res) => {
     try {
       await store.dump();
@@ -149,6 +158,7 @@ async function main() {
     console.log(`VSC Academy running at http://${HOST}:${PORT}`);
     console.log(`Admin CMS            http://${HOST}:${PORT}/admin`);
     console.log(`Learner portal       http://${HOST}:${PORT}/hoc-vien`);
+    console.log(`Verify certificates  http://${HOST}:${PORT}/verify`);
     console.log(`Convex backend       ${store.url}`);
   });
 }

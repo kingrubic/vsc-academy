@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS enrollments (
   status TEXT NOT NULL DEFAULT 'active',
   payment_status TEXT NOT NULL DEFAULT 'unpaid',
   progress INTEGER NOT NULL DEFAULT 0,
+  completion_status TEXT NOT NULL DEFAULT 'in_progress',
+  certificate_status TEXT NOT NULL DEFAULT 'none',
   joined_at TEXT NOT NULL,
   completed_at TEXT,
   notes TEXT NOT NULL DEFAULT '',
@@ -39,6 +41,9 @@ CREATE TABLE IF NOT EXISTS class_meetings (
   session_id TEXT NOT NULL,
   title_vi TEXT NOT NULL DEFAULT '',
   title_en TEXT NOT NULL DEFAULT '',
+  description_vi TEXT NOT NULL DEFAULT '',
+  description_en TEXT NOT NULL DEFAULT '',
+  meeting_number INTEGER NOT NULL DEFAULT 1,
   date TEXT NOT NULL,
   start_time TEXT NOT NULL,
   end_time TEXT NOT NULL,
@@ -125,11 +130,100 @@ CREATE TABLE IF NOT EXISTS announcement_reads (
 
 CREATE TABLE IF NOT EXISTS certificates (
   id TEXT PRIMARY KEY,
-  enrollment_id TEXT NOT NULL UNIQUE,
-  status TEXT NOT NULL DEFAULT 'pending',
+  certificate_code TEXT NOT NULL UNIQUE,
+  student_id TEXT NOT NULL,
+  enrollment_id TEXT NOT NULL,
+  program_id TEXT NOT NULL,
+  session_id TEXT,
+  template_id TEXT,
+  template_version INTEGER NOT NULL DEFAULT 1,
+  student_name_snapshot TEXT NOT NULL,
+  program_name_vi_snapshot TEXT NOT NULL DEFAULT '',
+  program_name_en_snapshot TEXT NOT NULL DEFAULT '',
+  session_name_snapshot TEXT NOT NULL DEFAULT '',
+  completion_date TEXT,
+  issue_date TEXT,
+  status TEXT NOT NULL DEFAULT 'eligible',
+  issued_by TEXT,
   issued_at TEXT,
-  file_url TEXT NOT NULL DEFAULT '',
+  pdf_url TEXT NOT NULL DEFAULT '',
+  verification_url TEXT NOT NULL DEFAULT '',
+  qr_code_data TEXT NOT NULL DEFAULT '',
+  revoked_at TEXT,
+  revoked_by TEXT,
+  revocation_reason TEXT NOT NULL DEFAULT '',
+  replaces_certificate_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  created_by TEXT,
+  updated_by TEXT
+);
+
+CREATE TABLE IF NOT EXISTS certificate_templates (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  program_id TEXT,
+  language TEXT NOT NULL DEFAULT 'vi',
+  title_vi TEXT NOT NULL DEFAULT '',
+  title_en TEXT NOT NULL DEFAULT '',
+  body_vi TEXT NOT NULL DEFAULT '',
+  body_en TEXT NOT NULL DEFAULT '',
+  footer_vi TEXT NOT NULL DEFAULT '',
+  footer_en TEXT NOT NULL DEFAULT '',
+  signer1_name TEXT NOT NULL DEFAULT '',
+  signer1_title TEXT NOT NULL DEFAULT '',
+  signer2_name TEXT NOT NULL DEFAULT '',
+  signer2_title TEXT NOT NULL DEFAULT '',
+  qr_position TEXT NOT NULL DEFAULT 'bottom-right',
+  status TEXT NOT NULL DEFAULT 'published',
+  version INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS password_resets (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL,
+  student_id TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
   created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'info',
+  title_vi TEXT NOT NULL DEFAULT '',
+  title_en TEXT NOT NULL DEFAULT '',
+  body_vi TEXT NOT NULL DEFAULT '',
+  body_en TEXT NOT NULL DEFAULT '',
+  link TEXT NOT NULL DEFAULT '',
+  read_at TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS mail_outbox (
+  id TEXT PRIMARY KEY,
+  to_email TEXT NOT NULL,
+  subject TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  kind TEXT NOT NULL DEFAULT 'generic',
+  payload TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  sent_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id TEXT PRIMARY KEY,
+  action TEXT NOT NULL,
+  actor_id TEXT,
+  actor_email TEXT NOT NULL DEFAULT '',
+  target_type TEXT NOT NULL DEFAULT '',
+  target_id TEXT NOT NULL DEFAULT '',
+  detail TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  created_by TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_enrollments_student ON enrollments(student_id, status);

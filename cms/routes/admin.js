@@ -129,8 +129,10 @@ function createAdminRouter(store) {
         email: currentUser.email,
         name: currentUser.name,
         role: currentUser.role,
+        instructorId: currentUser.instructor_id || null,
         mustChangePassword: Number(currentUser.must_change_password) === 1,
       };
+      req.lmsScope = L.instructorScope(snap, req.session.user);
     } catch (err) {
       return next(err);
     }
@@ -139,6 +141,13 @@ function createAdminRouter(store) {
         error: "Cần đổi mật khẩu trước khi tiếp tục",
         code: "MUST_CHANGE_PASSWORD",
       });
+    }
+    if (req.session.user.role === "INSTRUCTOR") {
+      const p = req.path || "";
+      if (p.startsWith("/settings")) return res.status(403).json({ error: "Forbidden" });
+      if (req.method !== "GET" && (p.startsWith("/programs") || p.startsWith("/venues") || p.startsWith("/registrations"))) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
     }
     next();
   });
@@ -308,6 +317,14 @@ function createAdminRouter(store) {
         support_label_vi: req.body.supportLabelVi ?? existing?.support_label_vi ?? "",
         support_label_en: req.body.supportLabelEn ?? existing?.support_label_en ?? "",
         location_online: req.body.locationOnline ?? existing?.location_online ?? "",
+        certificate_enabled: req.body.certificateEnabled != null ? (req.body.certificateEnabled ? 1 : 0) : existing?.certificate_enabled ?? 1,
+        certificate_code: req.body.certificateCode ?? existing?.certificate_code ?? "",
+        minimum_attendance_percent: req.body.minimumAttendancePercent ?? existing?.minimum_attendance_percent ?? 75,
+        require_completion: req.body.requireCompletion != null ? (req.body.requireCompletion ? 1 : 0) : existing?.require_completion ?? 1,
+        require_payment: req.body.requirePayment != null ? (req.body.requirePayment ? 1 : 0) : existing?.require_payment ?? 1,
+        require_admin_approval: req.body.requireAdminApproval != null ? (req.body.requireAdminApproval ? 1 : 0) : existing?.require_admin_approval ?? 1,
+        certificate_template_id: req.body.certificateTemplateId ?? existing?.certificate_template_id ?? "tpl-vsc-default",
+        join_link_open_minutes_before: req.body.joinLinkOpenMinutesBefore ?? existing?.join_link_open_minutes_before ?? 30,
         sort_order: req.body.sortOrder ?? existing?.sort_order ?? 0,
         status_vi: req.body.statusVi || existing?.status_vi || "draft",
         status_en: req.body.statusEn || existing?.status_en || "not_created",

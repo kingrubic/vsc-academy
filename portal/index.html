@@ -19,6 +19,13 @@
           <small id="brand-sub">LEARNER PORTAL</small>
         </a>
         <nav class="nav" id="nav"></nav>
+        <div class="sidebar-user">
+          <span class="avatar" id="side-avatar">HV</span>
+          <div>
+            <b id="side-name"></b>
+            <button type="button" id="side-logout" class="linkish"></button>
+          </div>
+        </div>
       </aside>
       <div class="main">
         <header class="topbar">
@@ -27,7 +34,7 @@
             <nav class="lang" id="lang-switch"></nav>
             <button class="bell" id="bell" type="button" data-nav="announcements">
               <span id="unread-dot" class="hidden"></span>
-              🔔
+              ●
             </button>
             <span id="who-name"></span>
             <span class="avatar" id="avatar">HV</span>
@@ -36,6 +43,7 @@
         <div class="page" id="app"></div>
       </div>
       <nav class="bottom-nav" id="bottom-nav"></nav>
+      <a id="sticky-join" class="sticky-join hidden" href="#" target="_blank" rel="noopener"></a>
     </div>
     <div class="toast" id="toast"></div>
     <script src="/portal/portal.js"></script>

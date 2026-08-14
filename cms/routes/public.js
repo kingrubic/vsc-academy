@@ -107,6 +107,45 @@ function createPublicRouter(store) {
     }
   });
 
+  router.get("/certificates/:code", async (req, res) => {
+    const snap = await store.dump();
+    const Cert = require("../lib/certificate");
+    const row = Cert.findByCode(snap, req.params.code);
+    if (!row) {
+      return res.json({
+        valid: false,
+        status: "not_found",
+        messageVi: "CHỨNG NHẬN KHÔNG TỒN TẠI",
+        messageEn: "CERTIFICATE NOT FOUND",
+      });
+    }
+    if (row.status === "revoked") {
+      return res.json({
+        valid: false,
+        status: "revoked",
+        certificateCode: row.certificate_code,
+        messageVi: "CHỨNG NHẬN ĐÃ BỊ THU HỒI",
+        messageEn: "CERTIFICATE REVOKED",
+      });
+    }
+    if (row.status !== "issued") {
+      return res.json({
+        valid: false,
+        status: row.status,
+        certificateCode: row.certificate_code,
+        messageVi: "CHỨNG NHẬN KHÔNG TỒN TẠI",
+        messageEn: "CERTIFICATE NOT FOUND",
+      });
+    }
+    res.json({
+      valid: true,
+      status: "valid",
+      messageVi: "CHỨNG NHẬN HỢP LỆ",
+      messageEn: "CERTIFICATE VALID",
+      ...Cert.publicCertificate(row),
+    });
+  });
+
   return router;
 }
 

@@ -61,8 +61,10 @@ Generate English Draft copies VI structure into EN as `ai_draft`. It is never au
 | Role | Access |
 |---|---|
 | OWNER | Everything, including settings |
-| ADMIN | Content, sessions, registrations, instructors, venues, media |
+| ADMIN | Content, sessions, registrations, instructors, venues, media, learner LMS, certificates |
 | EDITOR | Content only (no price/status/settings, no destructive deletes) |
+| INSTRUCTOR | Assigned sessions: roster, materials, announcements, attendance. No pricing, no certificate issue/revoke |
+| STUDENT | Own learner portal data only (`/hoc-vien`, `/api/learner/*`) |
 
 All `/admin` and `/api/admin/*` routes require a session except `/admin/login` and `POST /api/admin/login`.
 
@@ -80,12 +82,13 @@ Helpers used by the server: `getPrograms()`, `getProgram(slug, locale)`, `getSes
 
 ### Admin UI
 
-`/admin` `/admin/login` `/admin/programs` `/admin/programs/:id` `/admin/sessions` `/admin/sessions/:id` `/admin/registrations` `/admin/registrations/:id` `/admin/students` `/admin/students/:id` `/admin/materials` `/admin/announcements` `/admin/instructors` `/admin/insights` `/admin/resources` `/admin/media` `/admin/venues` `/admin/settings`
+`/admin` `/admin/login` `/admin/programs` `/admin/programs/:id` `/admin/sessions` `/admin/sessions/:id` `/admin/registrations` `/admin/registrations/:id` `/admin/students` `/admin/students/:id` `/admin/enrollments` `/admin/materials` `/admin/announcements` `/admin/certificates` `/admin/certificate-templates` `/admin/instructors` `/admin/insights` `/admin/resources` `/admin/media` `/admin/venues` `/admin/settings`
 
 ### Learner Portal
 
-- VI: `/hoc-vien` `/hoc-vien/dang-nhap` `/hoc-vien/kich-hoat` `/hoc-vien/khoa-hoc` `/hoc-vien/khoa-hoc/:enrollmentId` `/hoc-vien/lich-hoc` `/hoc-vien/tai-lieu` `/hoc-vien/thong-bao` `/hoc-vien/tai-khoan` `/hoc-vien/ho-tro`
+- VI: `/hoc-vien` `/hoc-vien/dang-nhap` `/hoc-vien/kich-hoat` `/hoc-vien/quen-mat-khau` `/hoc-vien/khoa-hoc` `/hoc-vien/khoa-hoc/:enrollmentId` `/hoc-vien/lich-hoc` `/hoc-vien/tai-lieu` `/hoc-vien/thong-bao` `/hoc-vien/chung-nhan` `/hoc-vien/tai-khoan` `/hoc-vien/ho-tro`
 - EN: `/en/student` `/en/student/login` `/en/student/activate` `/en/student/courses` …
+- Public verify: `/verify` `/verify/:certificateCode` · `/en/verify`
 
 ### Public API
 
@@ -99,9 +102,9 @@ REST under `/api/admin/` for programs, sessions, venues, instructors, registrati
 
 ### Learner API
 
-Authenticated under `/api/learner/`: login, activate, me, dashboard, enrollments, schedule, materials (incl. private file stream), announcements/read, support.
+Authenticated under `/api/learner/`: login, forgot/reset password, activate, me, dashboard, enrollments, schedule, join meeting, materials (incl. private file stream), announcements/read, certificates/pdf, support.
 
-Learner files are **not** public. Only `/uploads/cms` is statically served.
+Learner files are **not** public. Only `/uploads/cms` is statically served. Certificate PDFs stream through authenticated learner/admin routes. Public verify is `/api/public/certificates/:code` (no private fields).
 
 ## Session status map
 

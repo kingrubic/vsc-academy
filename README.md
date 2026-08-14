@@ -9,6 +9,7 @@ Site tĩnh VSC Academy + CMS, backend **Convex self-hosted local** (cùng kiểu
 | Website | http://127.0.0.1:4173 (`/gioi-thieu`, `/khoa-hoc/ai-starter`, `/en/about` — không đuôi `.html`) |
 | Admin CMS | http://127.0.0.1:4173/admin |
 | Learner portal | http://127.0.0.1:4173/hoc-vien |
+| Certificate verify | http://127.0.0.1:4173/verify |
 | Convex API | http://127.0.0.1:3280 |
 | Convex dashboard | http://127.0.0.1:6796 |
 
