@@ -395,6 +395,7 @@ function createAdminRouter(store) {
     const rows = alive(snap.sessions)
       .filter((s) => !programId || s.program_id === programId)
       .filter((s) => !status || s.status === status)
+      .filter((s) => req.lmsScope?.type !== "instructor" || req.lmsScope.sessionIds.has(s.id))
       .sort((a, b) => `${a.start_date}${a.start_time}`.localeCompare(`${b.start_date}${b.start_time}`))
       .map((row) => {
         const program = aliveById(snap.programs, row.program_id);
@@ -455,6 +456,10 @@ function createAdminRouter(store) {
         venue_id: body.venueId ?? existing?.venue_id ?? null,
         online_platform: body.onlinePlatform ?? existing?.online_platform ?? "",
         meeting_url: body.meetingUrl ?? existing?.meeting_url ?? "",
+        join_link_open_minutes_before:
+          body.joinLinkOpenMinutesBefore != null && body.joinLinkOpenMinutesBefore !== ""
+            ? V.nonNegInt(body.joinLinkOpenMinutesBefore, "joinLinkOpenMinutesBefore")
+            : existing?.join_link_open_minutes_before ?? null,
         price_override: body.priceOverride != null ? V.nonNegInt(body.priceOverride, "price") : existing?.price_override,
         capacity,
         remaining_seats:

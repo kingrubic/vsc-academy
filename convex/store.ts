@@ -55,7 +55,7 @@ function rowId(table: string, data: Record<string, unknown>): string {
 }
 
 function publicRow(table: string, id: string, data: Record<string, unknown>) {
-  const row = { ...data, id };
+  const row: Record<string, unknown> = { ...data, id };
   if (table === "settings" && row.key == null) row.key = id;
   return row;
 }

@@ -365,6 +365,14 @@
               <select name="venueDefaultId"><option value="">—</option>${venues.items.map((v) => `<option value="${v.id}" ${p.venue_default_id === v.id ? "selected" : ""}>${esc(v.name)}</option>`).join("")}</select>
             </div>
             <div class="field"><label>Featured</label><select name="featured"><option value="0">No</option><option value="1" ${p.featured ? "selected" : ""}>Yes</option></select></div>
+            <div class="field"><label>Certificate enabled</label><select name="certificateEnabled"><option value="1" ${p.certificate_enabled !== 0 ? "selected" : ""}>Yes</option><option value="0" ${p.certificate_enabled === 0 ? "selected" : ""}>No</option></select></div>
+            <div class="field"><label>Certificate code</label><input name="certificateCode" value="${esc(p.certificate_code || "")}" placeholder="AIS / AIA / AIW" /></div>
+            <div class="field"><label>Min attendance %</label><input name="minimumAttendancePercent" type="number" value="${p.minimum_attendance_percent ?? 75}" /></div>
+            <div class="field"><label>Require completion</label><select name="requireCompletion"><option value="1" ${p.require_completion !== 0 ? "selected" : ""}>Yes</option><option value="0" ${p.require_completion === 0 ? "selected" : ""}>No</option></select></div>
+            <div class="field"><label>Require payment</label><select name="requirePayment"><option value="1" ${p.require_payment !== 0 ? "selected" : ""}>Yes</option><option value="0" ${p.require_payment === 0 ? "selected" : ""}>No</option></select></div>
+            <div class="field"><label>Admin approve certificate</label><select name="requireAdminApproval"><option value="1" ${p.require_admin_approval !== 0 ? "selected" : ""}>Yes</option><option value="0" ${p.require_admin_approval === 0 ? "selected" : ""}>No</option></select></div>
+            <div class="field"><label>Join link opens (minutes before)</label><input name="joinLinkOpenMinutesBefore" type="number" value="${p.join_link_open_minutes_before ?? 30}" /></div>
+            <div class="field"><label>Certificate template ID</label><input name="certificateTemplateId" value="${esc(p.certificate_template_id || "tpl-vsc-default")}" /></div>
           </div>
         </section>
         <section data-pane="vi" class="${tab === "vi" ? "" : "hidden"}">
@@ -503,6 +511,14 @@
         locationOnline: val(form, "locationOnline"),
         venueDefaultId: val(form, "venueDefaultId") || null,
         featured: val(form, "featured") === "1",
+        certificateEnabled: val(form, "certificateEnabled") !== "0",
+        certificateCode: val(form, "certificateCode"),
+        minimumAttendancePercent: Number(val(form, "minimumAttendancePercent") || 75),
+        requireCompletion: val(form, "requireCompletion") !== "0",
+        requirePayment: val(form, "requirePayment") !== "0",
+        requireAdminApproval: val(form, "requireAdminApproval") !== "0",
+        joinLinkOpenMinutesBefore: Number(val(form, "joinLinkOpenMinutesBefore") || 30),
+        certificateTemplateId: val(form, "certificateTemplateId") || "tpl-vsc-default",
         contentVi: {
           ...collectContent("vi", vi),
           curriculum: readRepeater(app, "curVi", [{ key: "title" }, { key: "goal" }, { key: "content" }, { key: "output" }]),
@@ -622,6 +638,7 @@
           </div>
           <div class="field"><label>Nền tảng online</label><input name="onlinePlatform" value="${esc(s.online_platform || "")}" /></div>
           <div class="field"><label>Meeting URL</label><input name="meetingUrl" value="${esc(s.meeting_url || "")}" /></div>
+          <div class="field"><label>Join link opens (minutes before)</label><input type="number" name="joinLinkOpenMinutesBefore" value="${s.join_link_open_minutes_before ?? ""}" placeholder="Theo khóa" /></div>
           <div class="field"><label>Giá override (VND)</label><input type="number" name="priceOverride" value="${s.price_override ?? ""}" /></div>
           <div class="field"><label>Sĩ số</label><input type="number" name="capacity" value="${s.capacity ?? ""}" /></div>
           <div class="field"><label>Đã đăng ký</label><input value="${s.registered_count || 0}" disabled /></div>
@@ -656,6 +673,7 @@
         venueId: val(form, "venueId") || null,
         onlinePlatform: val(form, "onlinePlatform"),
         meetingUrl: val(form, "meetingUrl"),
+        joinLinkOpenMinutesBefore: val(form, "joinLinkOpenMinutesBefore") === "" ? null : Number(val(form, "joinLinkOpenMinutesBefore")),
         priceOverride: val(form, "priceOverride") === "" ? null : Number(val(form, "priceOverride")),
         capacity: val(form, "capacity") === "" ? null : Number(val(form, "capacity")),
         status: val(form, "status"),
@@ -686,7 +704,16 @@
       }
     });
     if (!isNew) {
-      const lms = await api(`/sessions/${id}/lms`);
+      let lms = null;
+      try {
+        lms = await api(`/sessions/${id}/lms`);
+      } catch (err) {
+        app.insertAdjacentHTML(
+          "beforeend",
+          `<div class="card" style="margin-top:18px;padding:18px"><p class="empty">Không tải được LMS của lớp: ${esc(err.message)}. Form lớp phía trên vẫn lưu bình thường.</p></div>`,
+        );
+      }
+      if (!lms) return;
       const tab = new URLSearchParams(location.search).get("tab") || "meetings";
       const tabs = [
         ["overview", "OVERVIEW"],
@@ -711,10 +738,16 @@
           pane.innerHTML = `<p>${lms.summary.total} học viên · ${lms.summary.eligible} eligible · ${lms.summary.missingAttendance} thiếu điểm danh · ${lms.summary.incomplete} incomplete</p>`;
         } else if (k === "students") {
           pane.innerHTML = table(
-            ["Học viên", "Status", "Payment", "Progress", "Cert"],
+            ["Học viên", "Status", "Payment", "Progress", "Cert", ""],
             lms.enrollments.map(
-              (e) => `<tr><td><a href="/admin/students/${e.student_id}">${esc(e.student_name)}</a></td><td>${badge(e.status)}</td><td>${badge(e.payment_status)}</td><td>${e.progress.percent}%</td><td>${badge(e.certificate.status)}</td></tr>`,
+              (e) => `<tr><td><a href="/admin/students/${e.student_id}">${esc(e.student_name)}</a></td><td>${badge(e.status)}</td><td>${badge(e.payment_status)}</td><td>${e.progress.percent}%</td><td>${badge(e.certificate.status)}</td><td><button class="btn" data-recommend="${e.id}">Recommend completion</button></td></tr>`,
             ),
+          );
+          pane.querySelectorAll("[data-recommend]").forEach((b) =>
+            b.addEventListener("click", async () => {
+              await api(`/enrollments/${b.dataset.recommend}/recommend-completion`, { method: "POST", body: {} });
+              toast("Đã đề xuất hoàn thành");
+            }),
           );
         } else if (k === "meetings") {
           pane.innerHTML = `${table(

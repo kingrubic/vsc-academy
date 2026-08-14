@@ -28,7 +28,17 @@ function attachLearnerAdmin(router, store) {
     const q = String(req.query.q || "").trim();
     const snap = await store.dump();
     const items = alive(snap.students)
-      .filter((s) => !q || like(s.full_name, q) || like(s.email, q) || like(s.phone, q))
+      .filter((s) => {
+        if (req.lmsScope?.type === "instructor") {
+          const allowed = new Set(
+            (snap.enrollments || [])
+              .filter((e) => req.lmsScope.sessionIds.has(e.session_id))
+              .map((e) => e.student_id),
+          );
+          if (!allowed.has(s.id)) return false;
+        }
+        return !q || like(s.full_name, q) || like(s.email, q) || like(s.phone, q);
+      })
       .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
       .map((s) => ({
         id: s.id,
@@ -50,6 +60,12 @@ function attachLearnerAdmin(router, store) {
     const snap = await store.dump();
     const student = aliveById(snap.students, req.params.id);
     if (!student) return res.status(404).json({ error: "Not found" });
+    if (req.lmsScope?.type === "instructor") {
+      const allowed = (snap.enrollments || []).some(
+        (e) => e.student_id === student.id && req.lmsScope.sessionIds.has(e.session_id),
+      );
+      if (!allowed) return res.status(403).json({ error: "Forbidden" });
+    }
     const enrollments = (snap.enrollments || [])
       .filter((e) => e.student_id === student.id)
       .sort((a, b) => String(b.joined_at).localeCompare(String(a.joined_at)))
@@ -226,6 +242,29 @@ function attachLearnerAdmin(router, store) {
     res.json({ ok: true });
   });
 
+  router.post("/enrollments/:id/recommend-completion", requireRole("OWNER", "ADMIN", "INSTRUCTOR"), async (req, res) => {
+    const snap = await store.dump(true);
+    const row = (snap.enrollments || []).find((e) => e.id === req.params.id);
+    if (!row) return res.status(404).json({ error: "Not found" });
+    if (req.lmsScope?.type === "instructor" && !req.lmsScope.sessionIds.has(row.session_id)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const ts = now();
+    await store.upsert("enrollments", {
+      ...row,
+      completion_status: row.completion_status === "completed" ? row.completion_status : "eligible",
+      completion_recommended_at: ts,
+      completion_recommended_by: req.session.user.id,
+      updated_at: ts,
+      updated_by: req.session.user.id,
+    });
+    await Cert.writeAudit(store, "enrollment.recommend_completion", req.session.user, {
+      type: "enrollment",
+      id: row.id,
+    });
+    res.json({ ok: true });
+  });
+
   router.put("/attendance", requireRole("OWNER", "ADMIN", "INSTRUCTOR"), async (req, res) => {
     try {
       V.required(req.body, ["enrollmentId", "meetingId", "status"]);
@@ -241,6 +280,8 @@ function attachLearnerAdmin(router, store) {
         meeting_id: req.body.meetingId,
         status: req.body.status,
         notes: req.body.notes || "",
+        checked_at: now(),
+        checked_by: req.session.user.id,
         updated_at: now(),
         updated_by: req.session.user.id,
         created_at: existing?.created_at || now(),
@@ -593,8 +634,14 @@ function attachLearnerAdmin(router, store) {
   });
 
   router.get("/certificate-templates", async (_req, res) => {
-    const snap = await store.dump();
-    const items = snap.certificate_templates?.length ? snap.certificate_templates : [Cert.DEFAULT_TEMPLATE];
+    const snap = await store.dump(true);
+    let items = snap.certificate_templates || [];
+    if (!items.find((t) => t.id === "tpl-vsc-default")) {
+      const ts = now();
+      const row = { ...Cert.DEFAULT_TEMPLATE, created_at: ts, updated_at: ts };
+      await store.upsert("certificate_templates", row);
+      items = [row, ...items];
+    }
     res.json({ items });
   });
 

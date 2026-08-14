@@ -156,7 +156,17 @@ npm run seed
 npm start
 ```
 
-`http://127.0.0.1:4173/hoc-vien` · `/admin` · `/verify`  
+`http://127.0.0.1:4173/hoc-vien` · `/admin` · `/verify`
+
+Environment (see also README):
+
+- `SESSION_SECRET` — production session signing
+- `PUBLIC_SITE_URL` — certificate QR origin
+- `CONVEX_URL` / `CONVEX_SELF_HOSTED_URL` — Convex backend
+- `HOST` / `PORT` — web bind
+
+Schema change is a Convex table whitelist in `convex/store.ts` (document store). No separate SQL migrate is applied in production. After deploy of Convex functions, new tables are created on first upsert.
+
 Set `SESSION_SECRET` and optionally `PUBLIC_SITE_URL` in production (used for certificate QR links).
 
 ## Future-ready (not in MVP)
