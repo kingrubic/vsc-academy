@@ -1,0 +1,40 @@
+---
+description: Bản đồ dự án VSC Academy HTML — đọc trước khi sửa bất kỳ trang nào
+alwaysApply: true
+---
+
+# VSC Academy HTML
+
+Site tĩnh HTML/CSS/JS cho VSC Academy (Applied AI Education). Không framework. Tiếng Việt là ngôn ngữ mặc định. Tiếng Anh nằm dưới `/en/`.
+
+## Song ngữ
+
+- VI: URL hiện tại (`index.html`, `gioi-thieu.html`, `khoa-hoc/{slug}/`…)
+- EN: `/en/` (`en/index.html`, `en/about/`, `en/courses/ai-starter/`…)
+- Switcher VI/EN chuyển sang trang tương ứng (giữ query), không về homepage. `i18n.js` + `data-page` + `data-root`.
+- CMS dùng chung: Convex self-hosted local (`http://127.0.0.1:3280`) + `/admin` (Node, `cms/`). Khi server chạy, `schedule-data.js` / `course-data.js` được generate từ Convex — giá, lịch, venue không tách VI/EN. Copy EN overlay vẫn do `course-data-en.js` + `i18n-apply.js`. File JS gốc giữ làm fallback nếu CMS tắt.
+- Không machine-translate trang chính. Insights/Resources ẩn item nếu chưa có `titleEn`.
+
+## File quan trọng
+
+- `index.html` + `styles.css` + `script.js` + `overrides.css` — trang chủ
+- `en/` — toàn bộ site tiếng Anh (cùng CSS/JS, copy native)
+- `i18n.js` + `i18n-ui.js` + `i18n-apply.js` — routing, UI strings, overlay CMS
+- `course-data-en.js` + `content-en.js` — copy EN (không tách giá/lịch/venue)
+- `khoa-hoc/{slug}/index.html` — 3 trang khóa học dùng chung 1 HTML shell
+- `course-data.js` — copy/curriculum/FAQ/outcomes (Object.assign overlay mới hơn array gốc)
+- `course.js` — render theo `body.dataset.program` từ slug URL
+- `course.css` — style chung + override theo `body[data-program="..."]`
+- `schedule-data.js` — `VSC_PROGRAM_INFO` + `VSC_SCHEDULES` (học phí, lịch, địa điểm) — fallback khi CMS không chạy
+- `registration.js` / `dang-ky.html` — form đăng ký (POST `/api/public/registrations`)
+- `cms/` — Admin CMS + Learner Portal. `npm start` ở root → `http://127.0.0.1:4173` (`/admin`, `/hoc-vien`, `/en/student`)
+
+## 3 chương trình
+
+| id | slug URL VI | slug URL EN | cấp độ |
+|---|---|---|---|
+| `ai-starter` | `ai-starter` | `en/courses/ai-starter/` | Bắt đầu, online, 999.000đ |
+| `ai-foundation` | `ai-ung-dung-cong-viec` | `en/courses/applied-ai-for-work/` | Nền tảng, online, 999.000đ |
+| `ai-agent-automation` | `ai-agent-automation` | `en/courses/ai-agent-automation/` | Nâng cao, offline The Comma Coffee, 2.499.000đ |
+
+Khi sửa 1 khóa: chỉ đổi data/CSS scoped `body[data-program="..."]`. Không đụng section khác, không đổi 2 khóa còn lại trừ khi được yêu cầu.

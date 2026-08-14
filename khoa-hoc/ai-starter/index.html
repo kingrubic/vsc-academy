@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Khóa học | VSC Academy</title>
+    <meta
+      name="description"
+      content="Chương trình AI ứng dụng tại VSC Academy."
+    /><link rel="canonical" href="https://vscacademy.vn/khoa-hoc/ai-starter/"><link rel="alternate" hreflang="vi" href="https://vscacademy.vn/khoa-hoc/ai-starter/"><link rel="alternate" hreflang="en" href="https://vscacademy.vn/en/courses/ai-starter/"><link rel="alternate" hreflang="x-default" href="https://vscacademy.vn/khoa-hoc/ai-starter/"><meta property="og:title" content="AI Starter | VSC Academy"><meta property="og:description" content="Chương trình AI ứng dụng tại VSC Academy."><meta property="og:url" content="https://vscacademy.vn/khoa-hoc/ai-starter/"><meta property="og:locale" content="vi_VN"><meta property="og:type" content="website">
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="stylesheet" href="../../overrides.css" />
+    <link rel="stylesheet" href="../../course.css" />
+    <link rel="stylesheet" href="../../footer.css">
+  <link rel="stylesheet" href="../../i18n.css">
+  </head>
+  <body class="course-page is-loading" data-page="course-ai-starter" data-root="../../" data-locale="vi">
+    <div class="vsc-loader">
+      <div class="vsc-loader-grid"></div>
+      <div class="vsc-loader-inner">
+        <div class="vsc-loader-mark">
+          <img
+            src="../../assets/logo-vsc-academy-white.png"
+            alt="VSC Academy"
+          />
+        </div>
+        <div class="vsc-loader-progress"><span></span></div>
+        <p>APPLIED AI EDUCATION</p>
+      </div>
+    </div>
+    <header class="site-header">
+      <div class="container nav-wrap">
+        <a class="brand" href="../../index.html"
+          ><img src="../../assets/logo-vsc-academy-white.png" alt="VSC Academy"
+        /></a>
+        <nav class="desktop-nav">
+          <a href="../../index.html">Trang chủ</a
+          ><a href="../../gioi-thieu.html">Giới thiệu</a>
+          <div class="nav-course active">
+            <a href="../../index.html#programs">Khóa học</a>
+            <div class="course-menu">
+              <a href="../ai-starter/index.html"
+                ><small>BẮT ĐẦU</small><strong>AI STARTER</strong></a
+              ><a href="../ai-ung-dung-cong-viec/index.html"
+                ><small>NỀN TẢNG</small
+                ><strong>AI ỨNG DỤNG CHO CÔNG VIỆC</strong></a
+              ><a href="../ai-agent-automation/index.html"
+                ><small>NÂNG CAO</small
+                ><strong>AI AGENT & AUTOMATION</strong></a
+              >
+            </div>
+          </div>
+          <a href="../../lich-hoc.html">Lịch học</a
+          ><a href="../../tai-lieu-chuyen-mon.html">Tài liệu chuyên môn</a
+          ><a href="../../goc-chia-se.html">Góc chia sẻ</a
+          ><a href="../../lien-he.html">Liên hệ</a>
+        </nav>
+        <div class="nav-actions"><label class="language-picker" aria-label="Chọn ngôn ngữ"><span aria-hidden="true">◎</span><select class="language-select" aria-label="Ngôn ngữ hiển thị"><option value="vi">🇻🇳 VI</option><option value="en">🇬🇧 EN</option></select></label><a class="button button-sm nav-cta" href="../../dang-ky.html"
+            >Đăng ký ngay</a
+          >
+        </div>
+        <button class="menu-toggle"><span></span><span></span></button>
+      </div>
+      <nav class="mobile-nav">
+        <a href="../../index.html">Trang chủ</a
+        ><a href="../../index.html#programs">Khóa học</a
+        ><a class="mobile-course-label" href="../ai-starter/index.html"
+          >CHƯƠNG TRÌNH</a
+        ><a class="mobile-course-link" href="../ai-starter/index.html"
+          >AI Starter</a
+        ><a
+          class="mobile-course-link"
+          href="../ai-ung-dung-cong-viec/index.html"
+          >AI ứng dụng cho Công việc</a
+        ><a class="mobile-course-link" href="../ai-agent-automation/index.html"
+          >AI Agent & Automation</a
+        ><a href="../../lich-hoc.html">Lịch học</a
+        ><a href="../../lien-he.html">Liên hệ</a>
+      <label class="language-picker language-picker-mobile" aria-label="Chọn ngôn ngữ"><span aria-hidden="true">◎</span><select class="language-select" aria-label="Ngôn ngữ hiển thị trên di động"><option value="vi">🇻🇳 Tiếng Việt</option><option value="en">🇬🇧 English</option></select></label></nav>
+    </header>
+    <main>
+      <section class="course-hero">
+        <div class="container course-hero-grid">
+          <div class="course-hero-content reveal">
+            <span id="courseLevel" class="course-level"></span>
+            <div
+              id="courseMeta"
+              class="course-meta"
+              aria-label="Thông tin khóa học"
+            ></div>
+            <h1 id="courseName"></h1>
+            <h2 id="courseTagline" class="course-tagline"></h2>
+            <p id="courseDescription" class="course-desc"></p>
+            <ul id="heroOutcomes" class="hero-outcomes"></ul>
+            <p id="courseMicroNote" class="course-micro-note"></p>
+          </div>
+          <aside id="enrollmentPanel" class="enrollment-panel"></aside>
+        </div>
+      </section>
+      <section class="course-section audience-section">
+        <div class="audience-ambient" aria-hidden="true"></div>
+        <div class="container">
+          <div class="course-heading reveal">
+            <div>
+              <p class="eyebrow dark"><span></span> PHÙ HỢP VỚI BẠN NẾU...</p>
+              <h2>AI STARTER PHÙ HỢP VỚI BẠN NẾU...</h2>
+            </div>
+          </div>
+          <div id="audienceGrid" class="audience-grid"></div>
+        </div>
+      </section>
+      <section class="course-section soft learning-outcomes-section">
+        <div class="learning-outcomes-ambient" aria-hidden="true"></div>
+        <div class="container">
+          <div class="course-heading">
+            <div>
+              <p class="eyebrow dark"><span></span> KẾT QUẢ HỌC TẬP</p>
+              <h2>SAU CHƯƠNG TRÌNH, BẠN CÓ THỂ...</h2>
+            </div>
+          </div>
+          <div id="outcomeGrid" class="outcome-grid"></div>
+          <div id="outcomeClosing" class="outcome-closing"></div>
+        </div>
+      </section>
+      <section class="course-section curriculum-section">
+        <div class="curriculum-ambient" aria-hidden="true">
+          <span></span><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="container">
+          <div class="course-heading">
+            <div>
+              <p class="eyebrow dark"><span></span> CHƯƠNG TRÌNH HỌC</p>
+              <h2>HỌC THEO MỘT LỘ TRÌNH<br />TỪ HIỂU ĐẾN LÀM ĐƯỢC.</h2>
+            </div>
+          </div>
+          <div class="curriculum-intro">
+            <small>02 BUỔI · 04 GIAI ĐOẠN HỌC TẬP</small>
+            <div class="curriculum-progress" aria-label="Lộ trình học">
+              <span>HIỂU</span><i>→</i><span>GIAO TIẾP</span><i>→</i
+              ><span>THỰC HÀNH</span><i>→</i><span>KIỂM CHỨNG</span>
+            </div>
+          </div>
+          <div id="curriculum" class="curriculum"></div>
+        </div>
+      </section>
+      <section class="course-output featured-output-section">
+        <div class="featured-output-grid-bg" aria-hidden="true"></div>
+        <div class="container featured-output-layout">
+          <div class="featured-output-copy">
+            <p class="eyebrow"><span></span> THÀNH QUẢ THỰC TẾ</p>
+            <h2>KHÔNG CHỈ HỌC<br />BẠN HOÀN THÀNH MỘT BÀI TOÁN AI ỨNG DỤNG</h2>
+            <p class="featured-output-description">
+              Trong chương trình, bạn trực tiếp lựa chọn một bài toán, làm việc
+              cùng AI, kiểm tra kết quả và hoàn thiện cách ứng dụng phù hợp với
+              nhu cầu của mình.
+            </p>
+            <p class="featured-output-closing">
+              Đầu ra không phải một bài tập mẫu, mà là một trải nghiệm ứng dụng
+              được xây trên chính bài toán của người học.
+            </p>
+          </div>
+          <div
+            class="output-blueprint"
+            aria-label="Quy trình hoàn thiện bài toán AI ứng dụng"
+          >
+            <div class="blueprint-head">
+              <div>
+                <small>OUTPUT CANVAS · AI STARTER</small>
+                <h3>BÀI TOÁN AI ỨNG DỤNG CỦA BẠN</h3>
+              </div>
+              <span>APPLIED AI</span>
+            </div>
+            <div class="blueprint-flow">
+              <div class="blueprint-line"></div>
+              <div class="blueprint-node">
+                <b>01</b><span>XÁC ĐỊNH<br />VẤN ĐỀ</span>
+              </div>
+              <div class="blueprint-node">
+                <b>02</b><span>MÔ TẢ<br />CHO AI</span>
+              </div>
+              <div class="blueprint-node">
+                <b>03</b><span>THỰC<br />HÀNH</span>
+              </div>
+              <div class="blueprint-node">
+                <b>04</b><span>KIỂM<br />CHỨNG</span>
+              </div>
+              <div class="blueprint-node">
+                <b>05</b><span>HOÀN<br />THIỆN</span>
+              </div>
+            </div>
+          <div class="blueprint-result">
+            <i aria-hidden="true"></i>
+            <strong>BÀI TOÁN AI ỨNG DỤNG HOÀN THIỆN</strong>
+            <i aria-hidden="true"></i>
+          </div>
+          </div>
+        </div>
+      </section>
+      <section class="course-section soft method-section">
+        <div class="container">
+          <div class="method-heading">
+            <p class="eyebrow dark"><span></span> PHƯƠNG PHÁP VSC</p>
+            <h2>TỪ HIỂU ĐÚNG ĐẾN LÀM ĐƯỢC</h2>
+            <p>
+              Mỗi nội dung được thiết kế để người học nhanh chóng chuyển từ
+              hiểu kiến thức sang trực tiếp thử, xây và kiểm chứng trên bài
+              toán thực tế.
+            </p>
+          </div>
+          <div class="method-infographic-v2" aria-label="Phương pháp học VSC: 20% kiến thức nền, 30% hướng dẫn và minh họa, 40% thực hành và xây dựng, 10% phản hồi và tối ưu">
+            <div class="method-flow-track" aria-hidden="true"><i></i></div>
+            <article tabindex="0" style="--weight:20%;--delay:0s">
+              <header><span>01</span><b>20%</b></header>
+              <div class="method-node"><i></i></div>
+              <h3>KIẾN THỨC NỀN</h3>
+              <p>Hiểu đúng trước khi làm</p>
+            </article>
+            <article tabindex="0" style="--weight:30%;--delay:.8s">
+              <header><span>02</span><b>30%</b></header>
+              <div class="method-node"><i></i></div>
+              <h3>HƯỚNG DẪN &amp; MINH HỌA</h3>
+              <p>Quan sát cách tư duy và triển khai</p>
+            </article>
+            <article tabindex="0" class="is-focus" style="--weight:40%;--delay:1.6s">
+              <header><span>03 · TRỌNG TÂM</span><b>40%</b></header>
+              <div class="method-node"><i></i></div>
+              <h3>THỰC HÀNH &amp; XÂY DỰNG</h3>
+              <p>Trực tiếp làm trên bài toán của mình</p>
+            </article>
+            <article tabindex="0" style="--weight:10%;--delay:2.4s">
+              <header><span>04</span><b>10%</b></header>
+              <div class="method-node"><i></i></div>
+              <h3>PHẢN HỒI &amp; TỐI ƯU</h3>
+              <p>Kiểm chứng, điều chỉnh và hoàn thiện</p>
+            </article>
+          </div>
+        </div>
+      </section>
+      <section class="section founder-new" id="founder">
+        <div class="container">
+          <header class="faculty-intro reveal">
+            <p class="eyebrow dark"><span></span> ĐỘI NGŨ DẪN DẮT</p>
+            <h2><span>ĐƯỢC DẪN DẮT BỞI NHỮNG NGƯỜI</span><br><em>THEO ĐUỔI AI ỨNG DỤNG</em><br><span>TRONG CÔNG VIỆC &amp; GIÁO DỤC</span></h2>
+          </header>
+
+          <div class="founder-new-grid founder-featured">
+            <figure class="founder-portrait reveal">
+              <img src="../../assets/tran-anh-vu-founder.jpg" alt="ThS. NCS. Trần Anh Vũ — Nhà sáng lập VSC Academy" loading="lazy">
+              <figcaption><span>FEATURED / LEAD INSTRUCTOR</span><b>TRẦN ANH VŨ</b></figcaption>
+              <i class="founder-photo-mark" aria-hidden="true">01</i>
+            </figure>
+            <div class="founder-new-copy reveal">
+              <p class="founder-role-label">NHÀ SÁNG LẬP / GIẢNG VIÊN DẪN DẮT</p>
+              <h2><em>THS. NCS. TRẦN ANH VŨ</em></h2>
+              <h3>Nhà sáng lập VSC Academy · Giảng viên dẫn dắt</h3>
+              <p class="lead">Trần Anh Vũ tập trung nghiên cứu và ứng dụng AI vào công việc, giáo dục và vận hành thực tế, với định hướng giúp người học xây dựng năng lực làm việc cùng AI một cách có hệ thống.</p>
+
+              <div class="founder-belief">
+                <small>QUAN ĐIỂM ĐÀO TẠO</small>
+                <blockquote>“AI không nên chỉ được học như một tập hợp công cụ. Giá trị thực sự của AI nằm ở cách chúng ta ứng dụng và tích hợp nó vào công việc một cách có hệ thống.”</blockquote>
+                <p>Từ định hướng đó, các chương trình tại VSC Academy được thiết kế theo phương pháp học qua thực hành, giải quyết bài toán thực tế và trực tiếp xây dựng những quy trình, sản phẩm hoặc hệ thống AI có thể tiếp tục sử dụng sau khóa học.</p>
+              </div>
+
+              <div class="founder-focus">
+                <small>LĨNH VỰC CHUYÊN MÔN</small>
+                <div class="founder-focus-grid">
+                  <article><b>AI ỨNG DỤNG</b><p>Đưa AI vào công việc và bài toán thực tế.</p></article>
+                  <article><b>QUY TRÌNH AI &amp; TỰ ĐỘNG HÓA</b><p>Thiết kế quy trình làm việc và tự động hóa với AI.</p></article>
+                  <article><b>AI AGENT</b><p>Xây dựng hệ thống AI hỗ trợ và thực hiện những nhóm nhiệm vụ cụ thể.</p></article>
+                  <article><b>AI TRONG GIÁO DỤC</b><p>Ứng dụng AI trong giảng dạy, học tập và phát triển năng lực.</p></article>
+                </div>
+              </div>
+              <a class="finder-cta" href="../../gioi-thieu.html">Tìm hiểu thêm về VSC Academy <span>→</span></a>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="course-section soft schedule-section">
+        <div class="schedule-motion" aria-hidden="true"><i></i><i></i><i></i><span></span></div>
+        <div class="container">
+          <div class="course-heading schedule-heading">
+            <div>
+              <p class="eyebrow dark"><span></span> LỊCH KHAI GIẢNG</p>
+              <h2>CHỌN LỊCH HỌC PHÙ HỢP VỚI BẠN</h2>
+              <p class="schedule-intro">Các lớp AI Starter sắp khai giảng được cập nhật trực tiếp từ hệ thống lịch học của VSC Academy.</p>
+            </div>
+            <a class="schedule-all-link" href="../../lich-hoc.html?program=ai-starter">Xem toàn bộ lịch học →</a>
+          </div>
+          <div id="sessionList" class="session-list editorial-sessions"></div>
+        </div>
+      </section>
+      <section class="course-section faq-section">
+        <div class="faq-motion" aria-hidden="true"><i></i><i></i><i></i><span></span></div>
+        <div class="container faq-layout">
+          <div class="faq-intro-course">
+            <p class="eyebrow dark"><span></span> FAQ</p>
+            <h2>NHỮNG ĐIỀU<br />BẠN ĐANG<br />THẮC MẮC</h2>
+            <p>Một vài thông tin cần biết trước khi bạn quyết định bắt đầu với AI Starter.</p>
+            <a href="../../lien-he.html">Vẫn còn câu hỏi? Liên hệ VSC Academy →</a>
+          </div>
+          <div id="faqList" class="faq-list faq-course-list"></div>
+        </div>
+      </section>
+      <section class="course-final ai-starter-final">
+        <div class="final-motion" aria-hidden="true"><i></i><i></i><i></i><span></span></div>
+        <div class="container">
+          <p class="eyebrow"><span></span> SẴN SÀNG BẮT ĐẦU?</p>
+          <h2>BẮT ĐẦU HÀNH TRÌNH AI<br />TỪ MỘT BÀI TOÁN THỰC TẾ</h2>
+          <p class="final-description">AI Starter là điểm bắt đầu để bạn hiểu AI, trực tiếp làm việc cùng AI và xác định bước tiếp theo phù hợp với mình.</p>
+          <div class="button-row">
+            <a id="finalRegister" class="button button-light"
+              >ĐĂNG KÝ AI STARTER →</a
+            ><a class="button button-outline-light" href="../../lich-hoc.html?program=ai-starter"
+              >XEM LỊCH KHAI GIẢNG →</a
+            >
+          </div>
+          <p id="finalMicro" class="final-micro"></p>
+        </div>
+      </section>
+    </main>
+    <footer class="footer">
+    <div class="container footer-grid">
+      <div class="footer-brand"><img src="../../assets/logo-vsc-academy-white-footer.png" alt="VSC Academy"><p>Applied AI Learning<br>for Real Work.</p><small>A member of VSC Group.</small></div>
+      <div><h3>KHÓA HỌC</h3><a href="../../khoa-hoc/ai-starter/index.html">AI Starter</a><a href="../../khoa-hoc/ai-ung-dung-cong-viec/index.html">AI ứng dụng cho Công việc</a><a href="../../khoa-hoc/ai-agent-automation/index.html">AI Agent &amp; Automation</a><a href="../../dang-ky.html">Đăng ký ngay</a></div>
+      <div><h3>KHÁM PHÁ</h3><a href="../../gioi-thieu.html">Giới thiệu</a><a href="../../lich-hoc.html">Lịch học</a><a href="../../tai-lieu-chuyen-mon.html">Tài liệu chuyên môn</a><a href="../../goc-chia-se.html">Góc chia sẻ</a><a href="../../lien-he.html">Liên hệ</a></div>
+      <div class="footer-contact"><h3>LIÊN HỆ</h3><a href="mailto:vscacademy8@gmail.com">vscacademy8@gmail.com</a><div class="footer-hotline"><a href="tel:+84888833887"><span>Anh Vũ</span>+84 8888 33 887</a><a class="zalo-link" href="https://zalo.me/84888833887" target="_blank" rel="noopener noreferrer" aria-label="Nhắn Zalo Anh Vũ"><b>Zalo</b></a></div><div class="footer-hotline"><a href="tel:+84786178188"><span>Phan Cẩm</span>+84 786 178 188</a><a class="zalo-link" href="https://zalo.me/84786178188" target="_blank" rel="noopener noreferrer" aria-label="Nhắn Zalo Phan Cẩm"><b>Zalo</b></a></div><a class="footer-social" href="https://www.facebook.com/profile.php?id=61592905828333" target="_blank" rel="noopener noreferrer" aria-label="Facebook VSC Academy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 8.5V7c0-.8.5-1 1-1h2.5V2.1L14.1 2C10.7 2 9 4 9 6.7v1.8H6v4.4h3V22h5v-9.1h3.4l.6-4.4H14Z"/></svg></a></div>
+    </div>
+    <div class="container footer-bottom"><span>© 2026 VSC Academy. All rights reserved.</span><span>APPLIED AI LEARNING FOR REAL WORK</span></div>
+  </footer>
+    <div class="mobile-enroll">
+      <div><small id="mobileCourse"></small><span id="mobilePrice"></span></div>
+      <a id="mobileRegister" class="button">ĐĂNG KÝ</a>
+    </div>
+    <script src="../../loader.js"></script><script src="../../schedule-data.js"></script><script src="../../course-data.js"></script><script src="../../i18n.js"></script><script src="../../i18n-ui.js"></script><script src="../../i18n-apply.js"></script><script src="../../course.js"></script></body>
+</html>

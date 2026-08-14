@@ -1,0 +1,23 @@
+{
+  "name": "vsc-academy",
+  "private": true,
+  "version": "1.0.0",
+  "description": "VSC Academy site + CMS, Convex self-hosted local backend",
+  "scripts": {
+    "start": "node cms/server.js",
+    "dev": "node --watch cms/server.js",
+    "convex:deploy": "./scripts/vsc-academy-convex-env.sh ./node_modules/.bin/convex deploy -y",
+    "convex:dev": "./scripts/vsc-academy-convex-env.sh ./node_modules/.bin/convex dev",
+    "seed": "./scripts/vsc-academy-convex-env.sh node cms/lib/seed-convex.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "convex": "^1.42.3",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "multer": "1.4.5-lts.1"
+  }
+}

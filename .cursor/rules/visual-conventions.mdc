@@ -1,0 +1,17 @@
+---
+description: Visual conventions VSC Academy — hover highlight, typography, Hermes positioning
+alwaysApply: true
+---
+
+# Visual VSC Academy
+
+- VSC Blue `#1769ff`, cyan `#64dcff`, navy `#10213a` / `#0b1324`. Nền section sáng: off-white + lưới xanh rất nhẹ.
+- Không redesign section khi chỉ tinh chỉnh copy/hierarchy.
+- Không highlight sẵn 1 card/node cho “đậm”. Mọi item nhìn đều; hiệu ứng (viền xanh, tint, fill) chỉ khi hover.
+- Micro-label (`TRỌNG TÂM THỰC HÀNH`, `HERMES`) được phép giữ như nội dung, nhưng không kèm nền xanh full.
+- Headline: không dấu chấm trừ khi copy yêu cầu. Không để 1 chữ rớt dòng (`&nbsp;`). Leading ~1.2+, tracking đừng âm quá (`-.038em` làm chữ dính).
+- Accordion: 1 item mở, expanded content nằm trong container, giảm padding 10–15% khi user kêu dư trắng.
+
+## Hermes
+
+Hermes = môi trường thực hành chính của **AI Agent & Automation**, không phải thương hiệu toàn site. Chỉ xuất hiện ở điểm trọng tâm (outcome 03, curriculum 03, output canvas). Không nhét Hermes vào mọi card. Không logo Hermes lớn, không neon, không dashboard kỹ thuật.

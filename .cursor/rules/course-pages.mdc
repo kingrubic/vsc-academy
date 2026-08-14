@@ -1,0 +1,32 @@
+---
+description: Cách sửa trang khóa học VSC Academy — data-driven, không nhân bản HTML
+globs: course-data.js,course.js,course.css,khoa-hoc/**/*.html
+alwaysApply: false
+---
+
+# Trang khóa học
+
+Ba file `khoa-hoc/*/index.html` gần như ident. Copy/structure sống trong `course-data.js` + `course.js`.
+
+## Sửa nội dung
+
+1. Ưu tiên `Object.assign(...)` của program trong `course-data.js`, không sửa array gốc trừ khi overlay chưa có field đó.
+2. Facts vận hành (giá, lịch, venue) lấy từ `schedule-data.js` → `VSC_PROGRAM_INFO`.
+3. Branch trong `course.js` theo `p.id`. Foundation đã có nhiều nhánh riêng; Agent cũng vậy.
+
+## Section Agent đã tinh chỉnh (2026-08-14)
+
+- Outcomes: 6 card 2×3, NUMBER/TITLE/DESCRIPTION, progression line, Hermes chỉ ở 03. Highlight = hover, không đậm sẵn.
+- Curriculum: headline 2 dòng không dấu chấm, leading thoáng. 5 giai đoạn. Stage 03 = XÂY AGENT + label TRỌNG TÂM THỰC HÀNH. Accordion 1 item, animation ~240ms.
+- Thành quả: canvas Hermes Agent, node đều nhau, hover mới sáng. Output 2 dòng, không dùng `/`.
+- FAQ: headline `TRƯỚC KHI BẠN / BẮT ĐẦU XÂY / AI AGENT`. 01 mở sẵn, 1 item/lần.
+- Final CTA: class `agent-final`, headline 2 dòng không lặp tên khóa. Micro = format + Hermes + price từ `VSC_PROGRAM_INFO`. Venue từ `venueName`/`venueAddress`. Primary CTA xanh đặc, secondary ghost.
+
+## Pattern CSS
+
+```css
+/* ✅ scoped */
+body[data-program="ai-agent-automation"] .learning-outcomes-section { }
+
+/* ❌ đừng sửa global .outcome-grid nếu chỉ cho 1 khóa */
+```

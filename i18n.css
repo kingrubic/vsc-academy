@@ -1,0 +1,71 @@
+html[lang="en"] .hero h1,
+html[lang="en"] .course-hero h1,
+html[lang="en"] .schedule-hero h1,
+html[lang="en"] .registration-hero h1,
+html[lang="en"] .contact-hero h1,
+html[lang="en"] .sharing-hero h1,
+html[lang="en"] .resources-hero h1 {
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  max-width: 14.5ch;
+}
+html[lang="en"] .hero h1 span,
+html[lang="en"] .hero h1 em,
+html[lang="en"] .course-hero h1,
+html[lang="en"] .schedule-hero h1 span,
+html[lang="en"] .schedule-hero h1 em,
+html[lang="en"] .registration-hero h1 span,
+html[lang="en"] .registration-hero h1 em {
+  white-space: normal;
+}
+
+/* About hero: two white lines + one cyan line, no overlap with the capability map. */
+html[lang="en"] .about-page .a-hero-in {
+  grid-template-columns: minmax(0, 1.18fr) minmax(340px, 0.82fr);
+  gap: clamp(32px, 3.8vw, 64px);
+  align-items: center;
+}
+html[lang="en"] .about-page .a-hero-copy {
+  min-width: 0;
+  max-width: 100%;
+}
+html[lang="en"] .about-page .a-hero h1 {
+  display: flex;
+  flex-direction: column;
+  white-space: normal;
+  max-width: none;
+  margin-top: 26px;
+  font-size: clamp(28px, 2.55vw, 42px);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+html[lang="en"] .about-page .a-hero h1 > span {
+  display: block;
+  white-space: nowrap;
+}
+html[lang="en"] .about-page .a-hero h1 em {
+  display: block;
+  margin-top: 0.22em;
+  white-space: nowrap;
+}
+html[lang="en"] .about-page .a-lead {
+  margin-top: 28px;
+}
+@media (max-width: 720px) {
+  html[lang="en"] .about-page .a-hero h1 {
+    font-size: clamp(18px, 5.2vw, 28px);
+  }
+}
+html[lang="en"] .section-heading h2,
+html[lang="en"] .path-intro h2,
+html[lang="en"] .finder-heading h2,
+html[lang="en"] .method-new-heading h2,
+html[lang="en"] .faculty-intro h2,
+html[lang="en"] .final-cta h2,
+html[lang="en"] .course-heading h2 {
+  line-height: 1.2;
+  letter-spacing: -0.018em;
+}
+html[lang="en"] .desktop-nav .nav-course .course-menu strong {
+  white-space: normal;
+}

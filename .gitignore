@@ -1,0 +1,10 @@
+node_modules/
+cms/node_modules/
+cms/data/*.sqlite
+cms/data/*.sqlite-*
+cms/data/.secret
+cms/.env
+.env.local
+uploads/cms/
+uploads/learner/
+.DS_Store

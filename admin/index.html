@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>VSC Academy Admin</title>
+    <link rel="stylesheet" href="/admin/admin.css" />
+  </head>
+  <body>
+    <div id="login-view" class="login-page hidden">
+      <form class="login-card" id="login-form">
+        <img src="/assets/logo-vsc-academy-white.png" alt="VSC Academy" />
+        <h1>Admin</h1>
+        <p>Đăng nhập để quản trị khóa học, lịch khai giảng và đăng ký.</p>
+        <label for="email">EMAIL</label>
+        <input id="email" name="email" type="email" autocomplete="username" required />
+        <label for="password">MẬT KHẨU</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required />
+        <p class="login-error" id="login-error"></p>
+        <button type="submit">ĐĂNG NHẬP</button>
+      </form>
+    </div>
+    <div id="shell" class="shell hidden">
+      <aside class="sidebar">
+        <a class="brand" href="/admin">
+          <img src="/assets/logo-vsc-academy-white.png" alt="VSC Academy" />
+          <small>ADMIN CMS</small>
+        </a>
+        <nav class="nav" id="nav"></nav>
+      </aside>
+      <div class="main">
+        <header class="topbar">
+          <h1 id="page-title">Dashboard</h1>
+          <div>
+            <span class="who" id="who"></span>
+            <button class="btn-ghost" id="logout" type="button">Đăng xuất</button>
+          </div>
+        </header>
+        <div class="page" id="app"></div>
+      </div>
+    </div>
+    <div class="toast" id="toast"></div>
+    <script src="/admin/admin.js"></script>
+  </body>
+</html>
