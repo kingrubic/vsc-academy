@@ -333,7 +333,7 @@ function seed(db) {
         logo: "assets/logo-vsc-academy-white.webp",
         logoFooter: "assets/logo-vsc-academy-white-footer.webp",
         favicon: "assets/favicon-32.png",
-        ogImage: "",
+        ogImage: "assets/og-image.png",
       },
       contact: {
         email: "vscacademy8@gmail.com",
