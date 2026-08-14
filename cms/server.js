@@ -49,6 +49,37 @@ async function main() {
     }),
   );
 
+  app.use((req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    let parsed;
+    try {
+      parsed = new URL(req.url || "/", "http://localhost");
+    } catch {
+      return next();
+    }
+    const pathname = decodeURIComponent(parsed.pathname);
+    if (pathname.startsWith("/api/") || pathname === "/healthz") return next();
+    const search = parsed.search;
+    if (pathname === "/index.html") {
+      return res.redirect(301, `/${search}`);
+    }
+    if (pathname.endsWith("/index.html")) {
+      const dest = pathname.slice(0, -10) || "/";
+      return res.redirect(301, dest + search);
+    }
+    if (pathname.endsWith(".html")) {
+      return res.redirect(301, pathname.slice(0, -5) + search);
+    }
+    const assetMatch = pathname.match(/^(\/assets\/.+)\.(png|jpe?g)$/i);
+    if (assetMatch) {
+      const webpPath = path.join(SITE_ROOT, `${assetMatch[1].slice(1)}.webp`);
+      if (fs.existsSync(webpPath)) {
+        return res.redirect(301, `${assetMatch[1]}.webp${search}`);
+      }
+    }
+    next();
+  });
+
   app.use("/api/public", createPublicRouter(store));
   app.use("/api/admin", createAdminRouter(store));
   app.use("/api/learner", createLearnerRouter(store));

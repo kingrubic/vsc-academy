@@ -1,28 +1,28 @@
 (() => {
   const SITE = "https://vscacademy.vn";
   const PAGES = {
-    home: { vi: "index.html", en: "en/index.html" },
-    about: { vi: "gioi-thieu.html", en: "en/about/index.html" },
-    courses: { vi: "khoa-hoc/index.html", en: "en/courses/index.html" },
-    schedule: { vi: "lich-hoc.html", en: "en/schedule/index.html" },
-    resources: { vi: "tai-lieu-chuyen-mon.html", en: "en/resources/index.html" },
-    insights: { vi: "goc-chia-se.html", en: "en/insights/index.html" },
-    contact: { vi: "lien-he.html", en: "en/contact/index.html" },
-    register: { vi: "dang-ky.html", en: "en/register/index.html" },
+    home: { vi: "/", en: "/en" },
+    about: { vi: "/gioi-thieu", en: "/en/about" },
+    courses: { vi: "/khoa-hoc", en: "/en/courses" },
+    schedule: { vi: "/lich-hoc", en: "/en/schedule" },
+    resources: { vi: "/tai-lieu-chuyen-mon", en: "/en/resources" },
+    insights: { vi: "/goc-chia-se", en: "/en/insights" },
+    contact: { vi: "/lien-he", en: "/en/contact" },
+    register: { vi: "/dang-ky", en: "/en/register" },
     "course-ai-starter": {
-      vi: "khoa-hoc/ai-starter/index.html",
-      en: "en/courses/ai-starter/index.html",
+      vi: "/khoa-hoc/ai-starter",
+      en: "/en/courses/ai-starter",
     },
     "course-applied-ai": {
-      vi: "khoa-hoc/ai-ung-dung-cong-viec/index.html",
-      en: "en/courses/applied-ai-for-work/index.html",
+      vi: "/khoa-hoc/ai-ung-dung-cong-viec",
+      en: "/en/courses/applied-ai-for-work",
     },
     "course-agent": {
-      vi: "khoa-hoc/ai-agent-automation/index.html",
-      en: "en/courses/ai-agent-automation/index.html",
+      vi: "/khoa-hoc/ai-agent-automation",
+      en: "/en/courses/ai-agent-automation",
     },
-    article: { vi: "bai-viet.html", en: "en/insights/article.html" },
-    "resource-detail": { vi: "tai-lieu.html", en: "en/resources/item.html" },
+    article: { vi: "/bai-viet", en: "/en/insights/article" },
+    "resource-detail": { vi: "/tai-lieu", en: "/en/resources/item" },
   };
   const PROGRAM_PAGE = {
     "ai-starter": "course-ai-starter",
@@ -39,12 +39,11 @@
 
   function href(pageId, extra = "") {
     const spec = PAGES[pageId] || PAGES.home;
-    return `${root}${spec[locale]}${extra}`;
+    return `${spec[locale]}${extra}`;
   }
   function counterpart(target) {
     const spec = PAGES[page] || PAGES.home;
-    const path = `${root}${spec[target]}${location.search}${location.hash}`;
-    return path;
+    return `${spec[target]}${location.search}${location.hash}`;
   }
   function programHref(programId, extra = "") {
     return href(PROGRAM_PAGE[programId] || "home", extra);

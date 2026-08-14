@@ -69,11 +69,11 @@ function formatLabel(format, locale) {
 }
 
 function detailUrl(program) {
-  return `khoa-hoc/${program.slug_vi}/index.html`;
+  return `/khoa-hoc/${program.slug_vi}`;
 }
 
 function registrationUrl(session) {
-  return `dang-ky.html?session=${encodeURIComponent(session.slug)}`;
+  return `/dang-ky?session=${encodeURIComponent(session.slug)}`;
 }
 
 function getVenue(snap, id) {

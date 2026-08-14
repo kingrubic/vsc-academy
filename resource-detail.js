@@ -1,6 +1,6 @@
 (() => {
   const I=window.VSC_I18N||{locale:"vi",root:""}; const T=window.VSC_T||window.VSC_UI?.vi||{};
-  const resourceHref=slug=>I.href?I.href("resource-detail",`?resource=${slug}`):`tai-lieu.html?resource=${slug}`;
+  const resourceHref=slug=>I.href?I.href("resource-detail",`?resource=${slug}`):`/tai-lieu?resource=${slug}`;
   const rows=(window.VSC_RESOURCES||[]).filter(r=>r.status==="published"), labels=window.VSC_RESOURCE_LABELS||{};
   const slug=new URLSearchParams(location.search).get("resource"), item=rows.find(r=>r.slug===slug)||rows[0];
   const $=s=>document.querySelector(s), fmt=v=>new Intl.DateTimeFormat(T.dateLocale||"vi-VN").format(new Date(v));

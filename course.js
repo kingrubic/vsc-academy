@@ -6,9 +6,9 @@
   const T = window.VSC_T || window.VSC_UI?.vi || {};
   const root = I.root || document.body?.dataset.root || "../../";
   const registerPath = (extra = "") =>
-    I.href ? I.href("register", extra) : `${root}dang-ky.html${extra}`;
+    I.href ? I.href("register", extra) : `/dang-ky${extra}`;
   const schedulePath = (extra = "") =>
-    I.href ? I.href("schedule", extra) : `${root}lich-hoc.html${extra}`;
+    I.href ? I.href("schedule", extra) : `/lich-hoc${extra}`;
   const SLUG_ALIAS = { "applied-ai-for-work": "ai-ung-dung-cong-viec" };
   const pathParts = location.pathname.split("/").filter(Boolean);
   let slug = pathParts.pop()?.replace(/\.html$/, "");

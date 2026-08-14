@@ -330,8 +330,8 @@ function seed(db) {
 
     const settings = {
       brand: {
-        logo: "assets/logo-vsc-academy-white.png",
-        logoFooter: "assets/logo-vsc-academy-white-footer.png",
+        logo: "assets/logo-vsc-academy-white.webp",
+        logoFooter: "assets/logo-vsc-academy-white-footer.webp",
         favicon: "",
         ogImage: "",
       },

@@ -1,5 +1,5 @@
 (()=>{const I=window.VSC_I18N||{locale:"vi",root:""};const T=window.VSC_T||window.VSC_UI?.vi||{};
-const articleHref=slug=>I.href?I.href("article",`?article=${slug}`):`bai-viet.html?article=${slug}`;
+const articleHref=slug=>I.href?I.href("article",`?article=${slug}`):`/bai-viet?article=${slug}`;
 const rows=(window.VSC_ARTICLES||[]).filter(x=>x.status==="published"&&(I.locale!=="en"||x.titleEn||x.titleVi!==x.title)),authors=window.VSC_AUTHORS||{},cats=window.VSC_ARTICLE_CATEGORIES||{};let category="all";const $=s=>document.querySelector(s),fmt=d=>new Intl.DateTimeFormat(T.dateLocale||"vi-VN").format(new Date(d));
 const cover=a=>`<a class="story-cover cover-${a.category}" href="${articleHref(a.slug)}" aria-label="${T.readArticle||"Đọc"} ${a.title}"><i></i><span>${cats[a.category]}</span><b>VSC<br>EDITORIAL</b></a>`;
 const card=(a,cls="")=>`<article class="story-card ${cls}">${cover(a)}<div class="story-copy"><small>${cats[a.category]}</small><h3><a href="${articleHref(a.slug)}">${a.title}</a></h3><p>${a.excerpt}</p><div class="story-meta"><span>${authors[a.authorId]?.name||"VSC Academy"}</span><span>${fmt(a.publishedAt)} · ${T.readingTime?T.readingTime(a.readingTime):a.readingTime+" phút"}</span></div><a class="story-link" href="${articleHref(a.slug)}">${T.readArticle||"Đọc bài viết"} <b>→</b></a></div></article>`;

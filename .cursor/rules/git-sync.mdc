@@ -1,0 +1,16 @@
+---
+description: Mỗi lần có thay đổi trong repo này thì commit và push ngay, không để lệch GitHub
+alwaysApply: true
+---
+
+# Đồng bộ Git
+
+Sau mọi thay đổi xong việc (code, copy, ảnh, config, rule):
+
+1. `git add` các file liên quan (không add secret: `.env`, `cms/data/.secret`, credentials).
+2. `git commit` với message ngắn, tập trung vào *why*.
+3. `git push` lên `origin` branch hiện tại (`main` trừ khi đang ở feature branch).
+
+Không để working tree lệch remote. Không hỏi lại có commit/push không — VSC đã yêu cầu luôn đồng bộ.
+
+Ngoại lệ: không force-push `main`/`master`; không commit file secret.

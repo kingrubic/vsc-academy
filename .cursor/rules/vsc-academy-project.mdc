@@ -9,8 +9,8 @@ Site tĩnh HTML/CSS/JS cho VSC Academy (Applied AI Education). Không framework.
 
 ## Song ngữ
 
-- VI: URL hiện tại (`index.html`, `gioi-thieu.html`, `khoa-hoc/{slug}/`…)
-- EN: `/en/` (`en/index.html`, `en/about/`, `en/courses/ai-starter/`…)
+- VI: URL sạch (`/`, `/gioi-thieu`, `/khoa-hoc/{slug}`…). File HTML vẫn giữ đuôi `.html` trên disk.
+- EN: `/en`, `/en/about`, `/en/courses/ai-starter`, …
 - Switcher VI/EN chuyển sang trang tương ứng (giữ query), không về homepage. `i18n.js` + `data-page` + `data-root`.
 - CMS dùng chung: Convex self-hosted local (`http://127.0.0.1:3280`) + `/admin` (Node, `cms/`). Khi server chạy, `schedule-data.js` / `course-data.js` được generate từ Convex — giá, lịch, venue không tách VI/EN. Copy EN overlay vẫn do `course-data-en.js` + `i18n-apply.js`. File JS gốc giữ làm fallback nếu CMS tắt.
 - Không machine-translate trang chính. Insights/Resources ẩn item nếu chưa có `titleEn`.
@@ -26,7 +26,7 @@ Site tĩnh HTML/CSS/JS cho VSC Academy (Applied AI Education). Không framework.
 - `course.js` — render theo `body.dataset.program` từ slug URL
 - `course.css` — style chung + override theo `body[data-program="..."]`
 - `schedule-data.js` — `VSC_PROGRAM_INFO` + `VSC_SCHEDULES` (học phí, lịch, địa điểm) — fallback khi CMS không chạy
-- `registration.js` / `dang-ky.html` — form đăng ký (POST `/api/public/registrations`)
+- `registration.js` / `/dang-ky` (`dang-ky.html`) — form đăng ký (POST `/api/public/registrations`)
 - `cms/` — Admin CMS + Learner Portal. `npm start` ở root → `http://127.0.0.1:4173` (`/admin`, `/hoc-vien`, `/en/student`)
 
 ## 3 chương trình
@@ -38,3 +38,5 @@ Site tĩnh HTML/CSS/JS cho VSC Academy (Applied AI Education). Không framework.
 | `ai-agent-automation` | `ai-agent-automation` | `en/courses/ai-agent-automation/` | Nâng cao, offline The Comma Coffee, 2.499.000đ |
 
 Khi sửa 1 khóa: chỉ đổi data/CSS scoped `body[data-program="..."]`. Không đụng section khác, không đổi 2 khóa còn lại trừ khi được yêu cầu.
+
+Sau mỗi thay đổi: commit + push lên GitHub (xem `git-sync.mdc`).

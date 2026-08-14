@@ -283,7 +283,7 @@
     const activate = mode === "activate" || location.pathname.includes("kich-hoat") || location.pathname.includes("activate") || token;
     auth.innerHTML = activate
       ? `<form class="auth-card" id="activate-form">
-          <img src="/assets/logo-vsc-academy-white.png" alt="VSC Academy" />
+          <img src="/assets/logo-vsc-academy-white.webp" alt="VSC Academy" />
           <h1>${t.activate}</h1>
           <p>${t.activateLead}</p>
           <label>${t.newPassword}</label>
@@ -292,7 +292,7 @@
           <button type="submit">${t.activate}</button>
         </form>`
       : `<form class="auth-card" id="login-form">
-          <img src="/assets/logo-vsc-academy-white.png" alt="VSC Academy" />
+          <img src="/assets/logo-vsc-academy-white.webp" alt="VSC Academy" />
           <h1>${t.login}</h1>
           <p>${t.loginLead}</p>
           <label>${t.email}</label>

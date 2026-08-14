@@ -39,7 +39,7 @@
       "bio_en": "Nghiên cứu, đào tạo và ứng dụng AI vào công việc, giáo dục và vận hành thực tế.",
       "expertise_vi": "",
       "expertise_en": "",
-      "photo": "assets/tran-anh-vu-founder.jpg",
+      "photo": "assets/tran-anh-vu-founder.webp",
       "featured": 1,
       "active": 1,
       "website": "",
@@ -922,7 +922,7 @@
   "settings": [
     {
       "key": "brand",
-      "value": "{\"logo\":\"assets/logo-vsc-academy-white.png\",\"logoFooter\":\"assets/logo-vsc-academy-white-footer.png\",\"favicon\":\"\",\"ogImage\":\"\"}"
+      "value": "{\"logo\":\"assets/logo-vsc-academy-white.webp\",\"logoFooter\":\"assets/logo-vsc-academy-white-footer.webp\",\"favicon\":\"\",\"ogImage\":\"\"}"
     },
     {
       "key": "contact",
