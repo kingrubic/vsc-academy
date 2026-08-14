@@ -1,7 +1,7 @@
 # VSC Academy Admin — Hướng dẫn vận hành
 
 Đăng nhập: `http://localhost:4173/admin`  
-Tài khoản vận hành: `vutrananh97@gmail.com` — mật khẩu tạm, **bắt buộc đổi ở lần đăng nhập đầu**.  
+Tài khoản vận hành: `vutrananh97@gmail.com` (OWNER), `nnqbao@gmail.com` (ADMIN) — mật khẩu tạm, **bắt buộc đổi ở lần đăng nhập đầu**.  
 Tài khoản seed fallback: `owner@vsc.academy` / `VscAcademy!2026`  
 Đổi mật khẩu ngay trên môi trường thật. Nếu Convex đã có dữ liệu, chạy `npm run seed:admin` để thêm tài khoản (không xóa dữ liệu hiện có).
 

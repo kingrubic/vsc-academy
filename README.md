@@ -12,7 +12,7 @@ Site tĩnh VSC Academy + CMS, backend **Convex self-hosted local** (cùng kiểu
 | Convex API | http://127.0.0.1:3280 |
 | Convex dashboard | http://127.0.0.1:6796 |
 
-Đăng nhập admin: `vutrananh97@gmail.com` (mật khẩu tạm, bắt buộc đổi lần đầu)  
+Đăng nhập admin: `vutrananh97@gmail.com`, `nnqbao@gmail.com` (mật khẩu tạm, bắt buộc đổi lần đầu)  
 Fallback seed: `owner@vsc.academy` / `VscAcademy!2026`  
 Học viên demo: `hoc-vien@vsc.academy` / `VscLearner!2026`
 

@@ -100,6 +100,17 @@ function seed(db) {
     );
 
     db.prepare(
+      `INSERT INTO users (email, name, password_hash, role, active, must_change_password, created_at, updated_at)
+       VALUES (?, ?, ?, 'ADMIN', 1, 1, ?, ?)`,
+    ).run(
+      "nnqbao@gmail.com",
+      "Bao",
+      hashPassword(process.env.VSC_OWNER_TEMP_PASSWORD || "vsc@12345"),
+      ts,
+      ts,
+    );
+
+    db.prepare(
       `INSERT INTO venues (id, name, address_vi, address_en, city, map_url, notes, active, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, '', '', 1, ?, ?)`,
     ).run(
@@ -391,6 +402,7 @@ if (require.main === module) {
   if (result.seeded) {
     console.log("Seeded VSC Academy CMS.");
     console.log("Owner: vutrananh97@gmail.com — mật khẩu tạm, bắt buộc đổi lần đầu.");
+    console.log("Admin: nnqbao@gmail.com — mật khẩu tạm, bắt buộc đổi lần đầu.");
     console.log("Seed fallback: owner@vsc.academy");
     console.log(`Password: ${result.password}`);
   }
