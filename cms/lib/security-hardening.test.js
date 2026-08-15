@@ -186,6 +186,48 @@ test("authoritative certificate mutation defines a single-winner claim and atomi
   assert.match(source, /status: "reissued"/);
 });
 
+test("authoritative account mutations claim resets and write instructor/student atomically", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "..", "convex", "store.ts"), "utf8");
+  const admin = fs.readFileSync(path.join(__dirname, "..", "routes", "admin.js"), "utf8");
+  const learner = fs.readFileSync(path.join(__dirname, "..", "routes", "learner.js"), "utf8");
+  const students = fs.readFileSync(path.join(__dirname, "..", "routes", "admin-learner.js"), "utf8");
+  assert.match(source, /export const consumePasswordReset = mutation/);
+  assert.match(source, /expectedKind/);
+  assert.match(source, /export const issuePasswordReset = mutation/);
+  assert.match(source, /export const consumeActivation = mutation/);
+  assert.match(source, /export const provisionLearnerAccount = mutation/);
+  assert.match(source, /export const abortLearnerProvision = mutation/);
+  assert.match(source, /export const beginResetAccess = mutation/);
+  assert.match(source, /export const cancelPasswordReset = mutation/);
+  assert.match(source, /export const upsertInstructorAccount = mutation/);
+  assert.match(source, /export const createStudentAccount = mutation/);
+  assert.match(source, /session_version/);
+  assert.match(admin, /expectedKind: "users"/);
+  assert.match(admin, /upsertInstructorAccount/);
+  assert.match(learner, /expectedKind: "students"/);
+  assert.match(learner, /consumeActivation/);
+  assert.match(students, /createStudentAccount/);
+  assert.match(students, /publicOutboxRow/);
+  assert.match(students, /sendActivationEmail/);
+});
+
+test("env files stay gitignored and process env wins over file values", () => {
+  const ignore = fs.readFileSync(path.join(__dirname, "..", "..", ".gitignore"), "utf8");
+  assert.match(ignore, /^\.env\*$/m);
+  assert.match(ignore, /^!\.env\.example$/m);
+  assert.match(ignore, /^cms\/\.env\*$/m);
+  const prev = process.env.VSC_ENV_PRECEDENCE_TEST;
+  process.env.VSC_ENV_PRECEDENCE_TEST = "from-process";
+  const Env = require("./env");
+  const file = path.join(os.tmpdir(), `vsc-env-${Date.now()}.env`);
+  fs.writeFileSync(file, "VSC_ENV_PRECEDENCE_TEST=from-file\n");
+  Env.loadEnvFile(file);
+  assert.equal(process.env.VSC_ENV_PRECEDENCE_TEST, "from-process");
+  fs.rmSync(file, { force: true });
+  if (prev == null) delete process.env.VSC_ENV_PRECEDENCE_TEST;
+  else process.env.VSC_ENV_PRECEDENCE_TEST = prev;
+});
+
 test("learner and admin routes recheck active status, deny instructor registration PII, and block replaced PDFs", () => {
   const learner = fs.readFileSync(path.join(__dirname, "..", "routes", "learner.js"), "utf8");
   const admin = fs.readFileSync(path.join(__dirname, "..", "routes", "admin.js"), "utf8");

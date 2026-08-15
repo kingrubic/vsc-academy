@@ -177,7 +177,33 @@ function publicSiteUrl(req, settingsSnap) {
     const proto = req.get("x-forwarded-proto") || req.protocol || "http";
     if (host) return `${proto}://${host}`;
   }
-  return "https://vscacademy.vn";
+  return "https://vscacademy.edu.vn";
+}
+
+function publicEmailOrigin() {
+  const raw = String(process.env.PUBLIC_SITE_URL || "").trim().replace(/\/$/, "");
+  const err = (message) => Object.assign(new Error(message), { status: 503, code: "PUBLIC_SITE_URL_REQUIRED" });
+  if (!raw) throw err("PUBLIC_SITE_URL is required for email links");
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw err("PUBLIC_SITE_URL is invalid");
+  }
+  if (parsed.protocol !== "https:") throw err("PUBLIC_SITE_URL must be https");
+  if (parsed.username || parsed.password || parsed.search || parsed.hash || (parsed.pathname && parsed.pathname !== "/")) {
+    throw err("PUBLIC_SITE_URL must be an origin only");
+  }
+  const host = parsed.hostname.toLowerCase();
+  const extra = String(process.env.PUBLIC_SITE_URL_HOSTS || "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  const allowed = new Set(["vscacademy.edu.vn", ...extra]);
+  if (!allowed.has(host)) {
+    throw err("PUBLIC_SITE_URL host is not allowlisted");
+  }
+  return parsed.origin;
 }
 
 function hashToken(token) {
@@ -204,6 +230,7 @@ module.exports = {
   certificateRules,
   evaluateEligibility,
   publicSiteUrl,
+  publicEmailOrigin,
   hashToken,
   newSecretToken,
 };

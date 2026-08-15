@@ -22,15 +22,18 @@ Học viên demo: `hoc-vien@vsc.academy` / `VscLearner!2026`
 | Variable | Required | Purpose |
 |---|---|---|
 | `SESSION_SECRET` | Production | Express session signing. If unset, CMS writes a local `cms/data/.secret` (do not commit). |
-| `PUBLIC_SITE_URL` | Recommended in production | Origin used in certificate QR / verification links. Default: request host or `https://vscacademy.vn`. |
+| `PUBLIC_SITE_URL` | Required for email links | Exact `https://vscacademy.edu.vn`. Extra hosts only via explicit `PUBLIC_SITE_URL_HOSTS`. Process env wins over `.env` files. |
 | `CONVEX_URL` / `CONVEX_SELF_HOSTED_URL` | Yes | Convex API, default `http://127.0.0.1:3280`. |
 | `HOST` | No | Bind address, default `127.0.0.1`. |
 | `PORT` | No | Web port, default `4173`. |
 | `NODE_ENV` | Production plist | `production` on the LaunchAgent. |
 | `VSC_OWNER_TEMP_PASSWORD` | Seed only | Temporary OWNER password when running `npm run seed`. |
 | `VSC_ADMIN_TEMP_PASSWORD` | Seed only | Temporary ADMIN password when running `npm run seed`. |
+| `SMTP_USER` / `SMTP_PASS` | Password-reset email | Gmail (or SMTP) account used to send learner/instructor reset links. |
+| `SMTP_HOST` | No | Default `smtp.gmail.com`. |
+| `MAIL_FROM` | No | From address, default `vscacademy8@gmail.com`. |
 
-LMS does not add SMTP keys in this MVP. Activation and password-reset messages are stored in `mail_outbox` for admin copy until email is connected.
+Activation and password-reset emails require SMTP plus `PUBLIC_SITE_URL=https://vscacademy.edu.vn`. The CMS fails closed with 503 if either is missing and rolls back any invited student/enrollment it just created. `mail_outbox` is a synchronous delivery audit (metadata only, no raw tokens), not a retry queue. Do not commit SMTP passwords. `.env*` is gitignored; keep `.env.example`.
 
 After pulling LMS changes, run `npm install` and `npm run convex:deploy` so Convex accepts the new document tables (`certificate_templates`, `password_resets`, `notifications`, `mail_outbox`, `audit_logs`). There is no SQL migration: production data lives in Convex documents.
 

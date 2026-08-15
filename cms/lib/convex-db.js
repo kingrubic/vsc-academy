@@ -102,6 +102,72 @@ function createStore() {
     return result;
   }
 
+  async function consumePasswordReset(args) {
+    const result = await client.mutation(anyApi.store.consumePasswordReset, args);
+    invalidate();
+    return result;
+  }
+
+  async function applyPasswordChange(args) {
+    const result = await client.mutation(anyApi.store.applyPasswordChange, args);
+    invalidate();
+    return result;
+  }
+
+  async function upsertInstructorAccount(payload) {
+    const result = await client.mutation(anyApi.store.upsertInstructorAccount, payload);
+    invalidate();
+    return result;
+  }
+
+  async function issuePasswordReset(args) {
+    const result = await client.mutation(anyApi.store.issuePasswordReset, args);
+    invalidate();
+    return result;
+  }
+
+  async function consumeActivation(args) {
+    const result = await client.mutation(anyApi.store.consumeActivation, args);
+    invalidate();
+    return result;
+  }
+
+  async function provisionLearnerAccount(payload) {
+    const result = await client.mutation(anyApi.store.provisionLearnerAccount, { payload });
+    invalidate();
+    return result;
+  }
+
+  async function abortLearnerProvision(payload) {
+    const result = await client.mutation(anyApi.store.abortLearnerProvision, { payload });
+    invalidate();
+    return result;
+  }
+
+  async function beginResetAccess(args) {
+    const result = await client.mutation(anyApi.store.beginResetAccess, args);
+    invalidate();
+    return result;
+  }
+
+  async function abortResetAccess(args) {
+    const result = await client.mutation(anyApi.store.abortResetAccess, args);
+    invalidate();
+    return result;
+  }
+
+  async function cancelPasswordReset(args) {
+    const result = await client.mutation(anyApi.store.cancelPasswordReset, args);
+    invalidate();
+    return result;
+  }
+
+  async function createStudentAccount(student) {
+    const result = await client.mutation(anyApi.store.createStudentAccount, { student });
+    invalidate();
+    return result;
+  }
+
   async function replaceAll(snapshot) {
     const result = await client.mutation(anyApi.store.replaceAll, { snapshot });
     invalidate();
@@ -122,6 +188,17 @@ function createStore() {
     removeWhere,
     claimCertificate,
     finalizeCertificate,
+    consumePasswordReset,
+    applyPasswordChange,
+    upsertInstructorAccount,
+    createStudentAccount,
+    issuePasswordReset,
+    consumeActivation,
+    provisionLearnerAccount,
+    abortLearnerProvision,
+    beginResetAccess,
+    abortResetAccess,
+    cancelPasswordReset,
     replaceAll,
     count,
   };

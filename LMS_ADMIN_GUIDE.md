@@ -16,8 +16,8 @@ Học viên **không** tự có tài khoản khi nộp form `/dang-ky`.
 1. Mở **Đăng ký**.
 2. Đổi trạng thái **Đã xác nhận**.
 3. CMS tạo học viên (nếu email chưa có) + ghi danh.
-4. Link kích hoạt nằm ở chi tiết đăng ký / **Học viên → Cấp lại quyền truy cập**, đồng thời ghi vào **mail outbox** (`/api/admin/mail-outbox`).
-5. Học viên mở `/hoc-vien/kich-hoat?token=...`, đặt mật khẩu (≥ 8 ký tự), vào portal.
+4. CMS gửi email kích hoạt tuyệt đối (`https://vscacademy.edu.vn/hoc-vien/kich-hoat?token=…`). Admin không thấy raw token. Thiếu SMTP/`PUBLIC_SITE_URL` thì xác nhận thất bại, không để học viên invited dở.
+5. Học viên mở link trong email, đặt mật khẩu (≥ 8 ký tự), vào portal.
 
 Tạo tay: **Học viên → + Học viên** → ghi danh vào lớp.
 
@@ -123,7 +123,7 @@ Không encode email/SĐT.
 Trang `/verify` không cần đăng nhập. Hợp lệ: tên, chương trình, ngày hoàn thành, ngày cấp, Certificate ID, issuer VSC Academy, status VALID.  
 Không tồn tại / đã thu hồi: thông báo tương ứng, không lộ dữ liệu nội bộ.
 
-Đặt `PUBLIC_SITE_URL` khi deploy để QR trỏ đúng domain.
+Đặt `PUBLIC_SITE_URL=https://vscacademy.edu.vn` khi deploy để QR và email trỏ đúng domain.
 
 ## Giảng viên
 
@@ -135,4 +135,4 @@ Không xóa khóa, không đổi giá, không cấp/thu hồi chứng nhận. T�
 
 ## Quên mật khẩu
 
-Học viên dùng `/hoc-vien/quen-mat-khau`. Hệ thống luôn trả lời chung (không tiết lộ email có tồn tại). Token hết hạn 1 giờ, lưu hash. Link nằm trong mail outbox cho đến khi gắn SMTP.
+Học viên dùng `/hoc-vien/quen-mat-khau`. Admin bấm **Reset mật khẩu** trên trang Học viên hoặc Giảng viên để gửi link vào email. Token hết hạn 1 giờ, lưu hash. SMTP dùng `SMTP_USER` / `SMTP_PASS` (không commit). Thiếu SMTP hoặc `PUBLIC_SITE_URL` thì API trả 503 — không xếp hàng gửi sau. `mail_outbox` chỉ là nhật ký đã gửi/thất bại, không chứa token.

@@ -1,12 +1,12 @@
 const express = require("express");
 const fs = require("fs");
 const { now, parseJson, alive, aliveById } = require("../lib/convex-db");
-const { verifyPassword, tooManyLogins, recordLogin, hashPassword } = require("../lib/auth");
+const { hashPassword, verifyPassword, tooManyLogins, recordLogin, tooManyPasswordResets, recordPasswordReset, padPasswordReset } = require("../lib/auth");
 const V = require("../lib/validate");
 const L = require("../lib/learner");
 const C = require("../lib/lms-core");
 const Cert = require("../lib/certificate");
-const { queueMail } = require("../lib/notify");
+const PasswordReset = require("../lib/password-reset");
 const Security = require("../lib/lms-security");
 
 
@@ -29,8 +29,21 @@ function createLearnerRouter(store) {
       if (!student || student.status !== "active") {
         return req.session.destroy(() => res.status(401).json({ error: "Unauthorized" }));
       }
+      if (Number(req.session.student.sessionVersion || 0) !== Number(student.session_version || 0)) {
+        return req.session.destroy(() => res.status(401).json({ error: "Unauthorized" }));
+      }
       req.session.student = L.publicStudent(student);
       req.studentSnapshot = snap;
+      const pathOnly = String(req.path || "").split("?")[0];
+      const allowedWhileMustChange =
+        (req.method === "GET" && pathOnly === "/me") ||
+        (req.method === "POST" && (pathOnly === "/me/password" || pathOnly === "/logout"));
+      if (Number(student.must_change_password) === 1 && !allowedWhileMustChange) {
+        return res.status(403).json({
+          error: "Cần đổi mật khẩu trước khi tiếp tục",
+          code: "MUST_CHANGE_PASSWORD",
+        });
+      }
       next();
     } catch (err) {
       next(err);
@@ -70,36 +83,38 @@ function createLearnerRouter(store) {
   });
 
   router.post("/forgot-password", async (req, res) => {
+    const started = Date.now();
     const locale = localeOf(req);
     const message = locale === "en" ? GENERIC_RESET_EN : GENERIC_RESET;
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
     const email = String(req.body?.email || "").trim().toLowerCase();
-    try {
-      if (email) {
-        const snap = await store.dump(true);
-        const student = alive(snap.students).find((row) => row.email === email);
-        if (Security.canRequestPasswordReset(student)) {
-          const token = C.newSecretToken();
-          const ts = now();
-          await store.upsert("password_resets", {
-            id: C.hashToken(token),
-            token_hash: C.hashToken(token),
-            student_id: student.id,
-            expires_at: new Date(Date.now() + C.RESET_TTL_MS).toISOString(),
-            used_at: null,
-            created_at: ts,
-          });
-          await queueMail(
-            store,
-            email,
-            "Đặt lại mật khẩu VSC Academy Learner Portal",
-            `Đặt mật khẩu mới tại:\n/hoc-vien/dat-lai-mat-khau?token=${token}\n\nLink hết hạn sau 1 giờ.`,
-            "password_reset",
-            { studentId: student.id, path: `/hoc-vien/dat-lai-mat-khau?token=${token}` },
-          );
+    const limited = tooManyPasswordResets(ip, email);
+    if (limited !== "ip") {
+      recordPasswordReset(ip, email);
+      if (!limited && email) {
+        try {
+          const snap = await store.dump(true);
+          const student = alive(snap.students).find((row) => row.email === email);
+          if (Security.canRequestPasswordReset(student)) {
+            await PasswordReset.issuePasswordReset(store, req, {
+              studentId: student.id,
+              email,
+              name: student.full_name,
+              path: "/hoc-vien/dat-lai-mat-khau",
+              kind: "password_reset",
+              subject: "Đặt lại mật khẩu VSC Academy Learner Portal",
+            });
+          }
+        } catch (err) {
+          console.error("forgot-password", err);
         }
       }
-    } catch (err) {
-      console.error("forgot-password", err);
+    }
+    await padPasswordReset(started);
+    if (limited === "ip") {
+      return res.status(429).json({
+        error: locale === "en" ? "Too many requests. Try again later." : "Quá nhiều yêu cầu. Thử lại sau.",
+      });
     }
     res.json({ ok: true, message });
   });
@@ -109,19 +124,18 @@ function createLearnerRouter(store) {
       const token = String(req.body?.token || "");
       const password = String(req.body?.password || "");
       if (password.length < 8) throw V.fail("Mật khẩu tối thiểu 8 ký tự");
-      const snap = await store.dump(true);
-      const hash = C.hashToken(token);
-      const row = (snap.password_resets || []).find((r) => r.token_hash === hash || r.id === hash);
-      if (!row || row.used_at || row.expires_at < now()) {
+      const claimed = await store.consumePasswordReset({
+        tokenHash: C.hashToken(token),
+        passwordHash: hashPassword(password),
+        now: now(),
+        expectedKind: "students",
+      });
+      if (!claimed?.claimed) {
+        if (claimed?.reason === "inactive") throw V.fail("Tài khoản không hoạt động");
         throw V.fail("Link đặt lại mật khẩu không còn hiệu lực");
       }
-      const student = aliveById(snap.students, row.student_id);
-      if (!student) throw V.fail("Link đặt lại mật khẩu không còn hiệu lực");
-      if (student.status !== "active") throw V.fail("Tài khoản không hoạt động");
-      await L.setStudentPassword(store, student, password);
-      await store.upsert("password_resets", { ...row, used_at: now() });
       const freshSnap = await store.dump(true);
-      const fresh = aliveById(freshSnap.students, student.id);
+      const fresh = aliveById(freshSnap.students, claimed.targetId);
       req.session.student = L.publicStudent(fresh);
       res.json({ student: req.session.student });
     } catch (err) {
@@ -145,16 +159,14 @@ function createLearnerRouter(store) {
       const token = String(req.body?.token || "");
       const password = String(req.body?.password || "");
       if (password.length < 8) throw V.fail("Mật khẩu tối thiểu 8 ký tự");
-      const snap = await store.dump(true);
-      const student = alive(snap.students).find((row) => row.activation_token === token);
-      if (!student) throw V.fail("Link kích hoạt không còn hiệu lực");
-      if (student.activation_expires_at && student.activation_expires_at < now()) {
-        throw V.fail("Link kích hoạt không còn hiệu lực");
-      }
-      if (student.status !== "invited") throw V.fail("Link kích hoạt không còn hiệu lực");
-      await L.setStudentPassword(store, { ...student, status: "active" }, password);
+      const claimed = await store.consumeActivation({
+        token,
+        passwordHash: hashPassword(password),
+        now: now(),
+      });
+      if (!claimed?.claimed) throw V.fail("Link kích hoạt không còn hiệu lực");
       const freshSnap = await store.dump(true);
-      const fresh = aliveById(freshSnap.students, student.id);
+      const fresh = aliveById(freshSnap.students, claimed.targetId);
       req.session.student = L.publicStudent(fresh);
       res.json({ student: req.session.student });
     } catch (err) {
@@ -199,8 +211,11 @@ function createLearnerRouter(store) {
       const snap = await store.dump(true);
       const row = aliveById(snap.students, req.session.student.id);
       if (!row || !verifyPassword(current, row.password_hash)) throw V.fail("Mật khẩu hiện tại không đúng");
-      await store.upsert("students", { ...row, password_hash: hashPassword(next), updated_at: now() });
-      res.json({ ok: true });
+      await L.setStudentPassword(store, row, next);
+      const freshSnap = await store.dump(true);
+      const fresh = aliveById(freshSnap.students, row.id);
+      req.session.student = L.publicStudent(fresh);
+      res.json({ ok: true, student: req.session.student });
     } catch (err) {
       res.status(err.status || 400).json({ error: err.message });
     }

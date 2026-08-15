@@ -74,7 +74,8 @@ Tài khoản demo: `hoc-vien@vsc.academy` / `VscLearner!2026`
 
 ### Admin vận hành lớp
 
-- **Học viên** — hồ sơ, ghi danh, chuyển lớp, đánh dấu hoàn thành, cấp lại quyền truy cập.
+- **Học viên** — hồ sơ, ghi danh, chuyển lớp, đánh dấu hoàn thành. Tạo mới: nhập mật khẩu tạm (học viên phải đổi khi đăng nhập lần đầu). **Reset mật khẩu** gửi link vào email.
+- **Giảng viên** — hồ sơ + email đăng nhập. Tạo mới: nhập mật khẩu tạm (bắt buộc đổi lần đầu). **Reset mật khẩu** gửi link `/giang-vien/dat-lai-mat-khau`.
 - **Lớp học** — thêm **buổi học** với ngày/giờ/link họp.
 - **Tài liệu** — tài liệu trước / trong / sau buổi, gắn khóa hoặc lớp.
 - **Thông báo** — gửi tất cả / khóa / lớp / học viên, mức thường/quan trọng/khẩn.

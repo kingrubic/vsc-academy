@@ -203,6 +203,7 @@ th { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; font-weight: 
 }
 .repeater-head { display: flex; justify-content: space-between; align-items: center; }
 .empty { padding: 40px 18px; color: var(--muted); text-align: center; }
+.muted { color: var(--muted); font-size: 13px; line-height: 1.45; margin: 0 0 12px; }
 .toast {
   position: fixed;
   right: 20px;

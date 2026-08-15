@@ -2,12 +2,13 @@ const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 const { now, parseJson, alive, aliveById, like, programShortName } = require("../lib/convex-db");
-const { requireRole, randomId, editorLocked } = require("../lib/auth");
+const { requireRole, randomId, editorLocked, hashPassword } = require("../lib/auth");
 const V = require("../lib/validate");
 const L = require("../lib/learner");
 const C = require("../lib/lms-core");
 const Cert = require("../lib/certificate");
-const { notifyStudents, sessionStudentIds, programStudentIds } = require("../lib/notify");
+const { notifyStudents, sessionStudentIds, programStudentIds, publicOutboxRow } = require("../lib/notify");
+const PasswordReset = require("../lib/password-reset");
 const Security = require("../lib/lms-security");
 
 const LEARNER_UPLOAD = Security.MATERIAL_DIR;
@@ -117,25 +118,28 @@ function attachLearnerAdmin(router, store) {
       V.required(req.body, ["fullName", "email"]);
       V.email(req.body.email);
       const email = String(req.body.email).trim().toLowerCase();
-      const snap = await store.dump(true);
-      if ((snap.students || []).some((s) => s.email === email)) throw V.fail("Email already exists");
+      const temporaryPassword = String(req.body.temporaryPassword || "");
+      if (temporaryPassword.length < 8) throw V.fail("Mật khẩu tạm tối thiểu 8 ký tự");
       const id = randomId("stu");
       const ts = now();
-      await store.upsert("students", {
+      const result = await store.createStudentAccount({
         id,
         full_name: req.body.fullName,
         email,
         phone: req.body.phone || "",
         avatar: "",
-        password_hash: null,
+        password_hash: hashPassword(temporaryPassword),
         activation_token: null,
-        status: "invited",
+        must_change_password: 1,
+        status: "active",
         language_preference: req.body.languagePreference || "vi",
         last_login_at: null,
         notes: "",
+        session_version: 0,
         created_at: ts,
         updated_at: ts,
       });
+      if (!result?.ok) throw V.fail(result?.error || "Không tạo được học viên");
       res.json({ ok: true, id });
     } catch (err) {
       res.status(err.status || 400).json({ error: err.message });
@@ -159,23 +163,57 @@ function attachLearnerAdmin(router, store) {
   });
 
   router.post("/students/:id/reset-access", requireRole("OWNER", "ADMIN"), async (req, res) => {
-    const snap = await store.dump(true);
-    const row = aliveById(snap.students, req.params.id);
-    if (!row) return res.status(404).json({ error: "Not found" });
-    if (row.status === "suspended" || row.status === "inactive") {
-      return res.status(409).json({ error: "Inactive accounts cannot be reset" });
+    try {
+      const snap = await store.dump(true);
+      const row = aliveById(snap.students, req.params.id);
+      if (!row) return res.status(404).json({ error: "Not found" });
+      if (row.status === "suspended" || row.status === "inactive") {
+        return res.status(409).json({ error: "Inactive accounts cannot be reset" });
+      }
+      PasswordReset.requireSecurityMail();
+      const token = C.newSecretToken();
+      const started = await store.beginResetAccess({
+        studentId: row.id,
+        activationToken: token,
+        expiresAt: new Date(Date.now() + C.ACTIVATION_TTL_MS).toISOString(),
+        now: now(),
+      });
+      if (!started?.ok) {
+        return res.status(started?.error === "Not found" ? 404 : 409).json({ error: started?.error || "Không cấp lại được quyền truy cập" });
+      }
+      try {
+        const mailed = await L.sendActivationEmail(store, { ...row, status: "invited" }, token);
+        res.setHeader("Cache-Control", "no-store");
+        res.json({ ok: true, emailed: mailed.emailed, to: mailed.to });
+      } catch (err) {
+        await store.abortResetAccess({ studentId: row.id, previous: started.previous, now: now() });
+        throw err;
+      }
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message });
     }
-    const crypto = require("crypto");
-    const token = crypto.randomBytes(24).toString("hex");
-    await store.upsert("students", {
-      ...row,
-      password_hash: null,
-      activation_token: token,
-      activation_expires_at: new Date(Date.now() + C.ACTIVATION_TTL_MS).toISOString(),
-      status: "invited",
-      updated_at: now(),
-    });
-    res.json({ ok: true, activationPath: `/hoc-vien/kich-hoat?token=${token}` });
+  });
+
+  router.post("/students/:id/reset-password", requireRole("OWNER", "ADMIN"), async (req, res) => {
+    try {
+      const snap = await store.dump(true);
+      const row = aliveById(snap.students, req.params.id);
+      if (!row) return res.status(404).json({ error: "Not found" });
+      if (row.status === "suspended" || row.status === "inactive") {
+        return res.status(409).json({ error: "Không thể đặt lại mật khẩu cho tài khoản đang khóa" });
+      }
+      const result = await PasswordReset.issuePasswordReset(store, req, {
+        studentId: row.id,
+        email: row.email,
+        name: row.full_name,
+        path: "/hoc-vien/dat-lai-mat-khau",
+        kind: "password_reset",
+        subject: "Đặt lại mật khẩu VSC Academy Learner Portal",
+      });
+      res.json({ ok: true, emailed: result.emailed, to: result.to });
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message });
+    }
   });
 
   router.post("/students/:id/enroll", requireRole("OWNER", "ADMIN"), async (req, res) => {
@@ -873,7 +911,10 @@ function attachLearnerAdmin(router, store) {
   router.get("/mail-outbox", requireRole("OWNER", "ADMIN"), async (_req, res) => {
     const snap = await store.dump();
     res.json({
-      items: (snap.mail_outbox || []).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 100),
+      items: (snap.mail_outbox || [])
+        .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+        .slice(0, 100)
+        .map(publicOutboxRow),
     });
   });
 }
