@@ -17,6 +17,7 @@ const V = require("../lib/validate");
 const { remainingSeats, parsePrice, pickCopy } = require("../lib/serialize");
 const L = require("../lib/learner");
 const Security = require("../lib/lms-security");
+const StaffPortal = require("../lib/staff-portal");
 const { attachLearnerAdmin } = require("./admin-learner");
 
 const UPLOAD_DIR = path.join(__dirname, "..", "..", "uploads", "cms");
@@ -143,13 +144,8 @@ function createAdminRouter(store) {
         code: "MUST_CHANGE_PASSWORD",
       });
     }
-    if (req.session.user.role === "INSTRUCTOR") {
-      const p = req.path || "";
-      if (p.startsWith("/settings")) return res.status(403).json({ error: "Forbidden" });
-      if (p.startsWith("/registrations")) return res.status(403).json({ error: "Forbidden" });
-      if (req.method !== "GET" && (p.startsWith("/programs") || p.startsWith("/venues") || p.startsWith("/registrations"))) {
-        return res.status(403).json({ error: "Forbidden" });
-      }
+    if (req.session.user.role === "INSTRUCTOR" && !StaffPortal.instructorMayAccessAdmin(req.method, req.path)) {
+      return res.status(403).json({ error: "Không có quyền thực hiện" });
     }
     next();
   });
@@ -787,9 +783,9 @@ function createAdminRouter(store) {
       sendErr(res, err);
     }
   }
-  router.post("/insights", saveInsight);
-  router.put("/insights/:id", saveInsight);
-  router.post("/insights/:id/en-draft", async (req, res) => {
+  router.post("/insights", requireRole("OWNER", "ADMIN", "EDITOR"), saveInsight);
+  router.put("/insights/:id", requireRole("OWNER", "ADMIN", "EDITOR"), saveInsight);
+  router.post("/insights/:id/en-draft", requireRole("OWNER", "ADMIN", "EDITOR"), async (req, res) => {
     const snap = await store.dump(true);
     const row = aliveById(snap.insights, req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
@@ -854,8 +850,8 @@ function createAdminRouter(store) {
       sendErr(res, err);
     }
   }
-  router.post("/resources", saveResource);
-  router.put("/resources/:id", saveResource);
+  router.post("/resources", requireRole("OWNER", "ADMIN", "EDITOR"), saveResource);
+  router.put("/resources/:id", requireRole("OWNER", "ADMIN", "EDITOR"), saveResource);
   router.delete("/resources/:id", requireRole("OWNER", "ADMIN"), async (req, res) => {
     const snap = await store.dump(true);
     const row = aliveById(snap.resources, req.params.id);

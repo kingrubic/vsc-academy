@@ -151,19 +151,50 @@
   }
   function destForUser(user) {
     const want = homeFor(user);
-    const restSegs = segs();
-    const first = restSegs[0] || "";
-    if (user.mustChangePassword) return `${want}/change-password`;
-    if (user.role === "INSTRUCTOR" && !INSTRUCTOR_SEGS.has(first)) return want;
-    if (["OWNER", "ADMIN", "EDITOR"].includes(user.role) && isInstructorPortal()) {
-      const rest = path().replace(/^\/giang-vien/, "") || "";
-      if (rest === "/login") return want;
-      return want + rest + location.search;
+    let storedNext = "";
+    try {
+      storedNext = sessionStorage.getItem("vsc_staff_next") || "";
+    } catch {
+      storedNext = "";
     }
+    if (user.mustChangePassword) return `${want}/change-password`;
+    const fromNext = applyStoredNext(user, storedNext);
+    if (fromNext) {
+      try {
+        sessionStorage.removeItem("vsc_staff_next");
+      } catch {
+        /* ignore */
+      }
+      return fromNext;
+    }
+    const first = segs()[0] || "";
     const rest = path().replace(/^\/(admin|giang-vien)/, "") || "";
-    if (rest === "/login") return want;
+    if (user.role === "INSTRUCTOR" && !INSTRUCTOR_SEGS.has(first)) return want;
+    if (first === "login") return want;
     if (portalBase() === want) return path() + location.search;
     return want + rest + location.search;
+  }
+  function applyStoredNext(user, raw) {
+    if (!raw || !raw.startsWith("/") || raw.startsWith("//") || /[a-z]+:/i.test(raw)) return "";
+    const pathOnly = raw.split("?")[0];
+    if (!pathOnly.startsWith("/admin") && !pathOnly.startsWith("/giang-vien")) return "";
+    const parts = pathOnly.replace(/\/+$/, "").split("/").filter(Boolean);
+    if (parts[0] === "admin" || parts[0] === "giang-vien") parts.shift();
+    const first = parts[0] || "";
+    const rest = parts.length ? `/${parts.join("/")}` : "";
+    const qs = raw.includes("?") ? raw.slice(raw.indexOf("?")) : "";
+    if (!first || first === "login" || first === "change-password") return "";
+    if (user.role === "INSTRUCTOR" && !INSTRUCTOR_SEGS.has(first)) return "";
+    return homeFor(user) + rest + qs;
+  }
+  function captureNext() {
+    const first = segs()[0] || "";
+    if (!first || first === "login" || first === "change-password") return;
+    try {
+      sessionStorage.setItem("vsc_staff_next", path() + location.search);
+    } catch {
+      /* ignore */
+    }
   }
   function fmtPrice(n) {
     return `${String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}đ`;
@@ -1411,11 +1442,11 @@
       <section data-pane="profile">
         <form id="stu-form" class="card" style="padding:18px">
           <div class="form-grid">
-            <div class="field"><label>Họ tên</label><input name="fullName" value="${esc(s.fullName)}" /></div>
+            <div class="field"><label>Họ tên</label><input name="fullName" value="${esc(s.fullName)}" ${canManageStaff() ? "" : "disabled"} /></div>
             <div class="field"><label>Email</label><input value="${esc(s.email)}" disabled /></div>
-            <div class="field"><label>Điện thoại</label><input name="phone" value="${esc(s.phone || "")}" /></div>
+            <div class="field"><label>Điện thoại</label><input name="phone" value="${esc(s.phone || "")}" ${canManageStaff() ? "" : "disabled"} /></div>
             <div class="field"><label>Trạng thái</label>
-              <select name="status">${opts(STUDENT_LABEL, s.status)}</select>
+              ${canManageStaff() ? `<select name="status">${opts(STUDENT_LABEL, s.status)}</select>` : `<input value="${esc(STUDENT_LABEL[s.status] || s.status)}" disabled />`}
             </div>
           </div>
           <div class="toolbar">${canManageStaff() ? `<button class="btn btn-primary">Lưu</button>
@@ -1424,26 +1455,22 @@
       </section>
       <section data-pane="enroll" class="hidden">
         ${table(
-          ["Khóa", "Lớp", "Trạng thái", "Thanh toán", "Chuyển lớp"],
+          canManageStaff() ? ["Khóa", "Lớp", "Trạng thái", "Thanh toán", "Chuyển lớp"] : ["Khóa", "Lớp", "Trạng thái", "Thanh toán"],
           d.enrollments.map(
             (e) => `<tr>
               <td>${esc(e.program_name)}</td>
               <td>${esc(e.session_name)}</td>
               <td>
-                <select data-enr="${e.id}">
-                  ${opts(ENROLL_LABEL, e.status)}
-                </select>
+                ${canManageStaff() ? `<select data-enr="${e.id}">${opts(ENROLL_LABEL, e.status)}</select>` : esc(ENROLL_LABEL[e.status] || e.status)}
               </td>
               <td>
-                <select data-pay="${e.id}">
-                  ${opts(PAY_LABEL, e.payment_status)}
-                </select>
+                ${canManageStaff() ? `<select data-pay="${e.id}">${opts(PAY_LABEL, e.payment_status)}</select>` : esc(PAY_LABEL[e.payment_status] || e.payment_status)}
               </td>
-              <td>
+              ${canManageStaff() ? `<td>
                 <select data-move="${e.id}">
                   ${sessions.items.map((x) => `<option value="${x.id}" ${e.session_id === x.id ? "selected" : ""}>${esc(x.session_name)}</option>`).join("")}
                 </select>
-              </td>
+              </td>` : ""}
             </tr>`,
           ),
         )}
@@ -1471,8 +1498,8 @@
       </section>
       <section data-pane="notes" class="hidden">
         <form id="note-form" class="card" style="padding:18px">
-          <textarea name="notes">${esc(s.notes || "")}</textarea>
-          <button class="btn btn-primary" style="margin-top:10px">Lưu ghi chú</button>
+          <textarea name="notes" ${canManageStaff() ? "" : "disabled"}>${esc(s.notes || "")}</textarea>
+          ${canManageStaff() ? `<button class="btn btn-primary" style="margin-top:10px">Lưu ghi chú</button>` : ""}
         </form>
       </section>
       <section data-pane="activity" class="hidden">
@@ -1533,25 +1560,32 @@
         render();
       };
     }
-    app.querySelectorAll("[data-enr]").forEach((sel) =>
-      sel.addEventListener("change", async () => {
-        await api(`/enrollments/${sel.dataset.enr}`, { method: "PUT", body: { status: sel.value } });
-        toast("Đã cập nhật ghi danh");
-      }),
-    );
-    app.querySelectorAll("[data-pay]").forEach((sel) =>
-      sel.addEventListener("change", async () => {
-        await api(`/enrollments/${sel.dataset.pay}`, { method: "PUT", body: { paymentStatus: sel.value } });
-        toast("Đã cập nhật thanh toán");
-      }),
-    );
-    app.querySelectorAll("[data-move]").forEach((sel) =>
-      sel.addEventListener("change", async () => {
-        await api(`/enrollments/${sel.dataset.move}`, { method: "PUT", body: { sessionId: sel.value } });
-        toast("Đã chuyển lớp");
-        render();
-      }),
-    );
+    if (canManageStaff()) {
+      app.querySelectorAll("[data-enr]").forEach((sel) =>
+        sel.addEventListener("change", async () => {
+          await api(`/enrollments/${sel.dataset.enr}`, { method: "PUT", body: { status: sel.value } });
+          toast("Đã cập nhật ghi danh");
+        }),
+      );
+      app.querySelectorAll("[data-pay]").forEach((sel) =>
+        sel.addEventListener("change", async () => {
+          await api(`/enrollments/${sel.dataset.pay}`, { method: "PUT", body: { paymentStatus: sel.value } });
+          toast("Đã cập nhật thanh toán");
+        }),
+      );
+      app.querySelectorAll("[data-move]").forEach((sel) =>
+        sel.addEventListener("change", async () => {
+          await api(`/enrollments/${sel.dataset.move}`, { method: "PUT", body: { sessionId: sel.value } });
+          toast("Đã chuyển lớp");
+          render();
+        }),
+      );
+      $("#note-form")?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        await api(`/students/${id}`, { method: "PUT", body: { notes: e.target.notes.value } });
+        toast("Đã lưu ghi chú");
+      });
+    }
     app.querySelectorAll("[data-att]").forEach((sel) =>
       sel.addEventListener("change", async () => {
         await api("/attendance", {
@@ -1561,11 +1595,6 @@
         toast("Đã ghi nhận điểm danh");
       }),
     );
-    $("#note-form").onsubmit = async (e) => {
-      e.preventDefault();
-      await api(`/students/${id}`, { method: "PUT", body: { notes: e.target.notes.value } });
-      toast("Đã lưu ghi chú");
-    };
     app.querySelectorAll("[data-revoke]").forEach((b) =>
       b.addEventListener("click", async () => {
         const reason = prompt("Lý do thu hồi chứng nhận?");
@@ -1613,7 +1642,7 @@
         <div class="field full"><label>Tải file lên</label><input type="file" name="file" /></div>
       </div>
       <div class="toolbar"><button class="btn btn-primary">Lưu</button>
-      ${editing !== "new" ? `<button type="button" class="btn-danger" id="mat-del">Xóa</button>` : ""}</div>
+      ${editing !== "new" && canManageStaff() ? `<button type="button" class="btn-danger" id="mat-del">Xóa</button>` : ""}</div>
     </form>`;
     $("#mat-form").onsubmit = async (e) => {
       e.preventDefault();
@@ -1665,7 +1694,7 @@
         <div class="field"><label>Mã học viên (nếu gửi cho một người)</label><input name="studentId" value="${esc(item.student_id || "")}" /></div>
       </div>
       <div class="toolbar"><button class="btn btn-primary">Đăng</button>
-      ${editing !== "new" ? `<button type="button" class="btn-danger" id="ann-del">Xóa</button>` : ""}</div>
+      ${editing !== "new" && canManageStaff() ? `<button type="button" class="btn-danger" id="ann-del">Xóa</button>` : ""}</div>
     </form>`;
     $("#ann-form").onsubmit = async (e) => {
       e.preventDefault();
@@ -1864,6 +1893,7 @@
       $("#login-view").classList.remove("hidden");
       $("#password-view").classList.add("hidden");
       $("#shell").classList.add("hidden");
+      captureNext();
       if (route[0] !== "login") history.replaceState({}, "", href("/login"));
       return;
     }
@@ -1942,7 +1972,8 @@
       });
       state.user = data.user;
       toast("Đã đổi mật khẩu");
-      go(href("/"));
+      history.replaceState({}, "", destForUser(data.user));
+      render();
     } catch (err) {
       $("#password-error").textContent = err.message;
     }

@@ -185,7 +185,7 @@ test("learner and admin routes recheck active status, deny instructor registrati
   assert.match(learner, /student\.status !== "active"/);
   assert.match(learner, /req\.session\.destroy/);
   assert.match(learner, /row\.status !== "issued"/);
-  assert.match(admin, /p\.startsWith\("\/registrations"\)/);
+  assert.match(admin, /instructorMayAccessAdmin/);
   assert.match(admin, /const latestRegs = req\.lmsScope\?\.type === "instructor" \? \[\]/);
   assert.match(server, /\["\/uploads\/learner", "\/uploads\/certificates"\]/);
 });

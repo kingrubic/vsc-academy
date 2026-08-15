@@ -1,7 +1,8 @@
 # VSC Academy Admin — Hướng dẫn vận hành
 
-Đăng nhập: `http://localhost:4173/admin`  
-Giảng viên: `http://localhost:4173/giang-vien`
+- Admin: `http://localhost:4173/admin`
+- Giảng viên: `http://localhost:4173/giang-vien`
+
 Tài khoản vận hành: `vutrananh97@gmail.com` (OWNER), `nnqbao@gmail.com` (ADMIN) — dùng hai mật khẩu tạm riêng từ `VSC_OWNER_TEMP_PASSWORD` và `VSC_ADMIN_TEMP_PASSWORD`, **bắt buộc đổi ở lần đăng nhập đầu**.
 Đổi mật khẩu ngay trên môi trường thật. Nếu Convex đã có dữ liệu, đặt hai biến mật khẩu khác nhau (mỗi biến tối thiểu 12 ký tự) rồi chạy `npm run seed:admin`. Lệnh chỉ tạo tài khoản còn thiếu, không đặt lại mật khẩu hay quyền của tài khoản đã tồn tại. Không ghi mật khẩu vào repository hoặc tài liệu.
 
@@ -37,13 +38,16 @@ Mở lớp → đổi trạng thái **Full** hoặc **Completed**, hoặc đặt
 
 ## Xem học viên
 
-**Đăng ký**: lọc theo khóa / lớp / trạng thái, tìm tên-email-SĐT.  
-Mở chi tiết để đổi Mới → Đã liên hệ → Chờ thanh toán → Đã thanh toán → Đã xác nhận, thêm ghi chú, chuyển lớp.  
+**Đăng ký**: lọc theo khóa / lớp / trạng thái, tìm tên-email-SĐT.
+
+Mở chi tiết để đổi Mới → Đã liên hệ → Chờ thanh toán → Đã thanh toán → Đã xác nhận, thêm ghi chú, chuyển lớp.
+
 **Tải CSV** tải danh sách.
 
 ## Publish VI / EN
 
-Mỗi ngôn ngữ có trạng thái riêng: Chưa tạo → Nháp AI → Chờ duyệt → Đã xuất bản.  
+Mỗi ngôn ngữ có trạng thái riêng: Chưa tạo → Nháp AI → Chờ duyệt → Đã xuất bản.
+
 Website EN chỉ hiện copy khi Status EN = Published. Insights không có `titleEn` thì vẫn ẩn trên bản EN như hiện tại.
 
 ## Tạo bài viết

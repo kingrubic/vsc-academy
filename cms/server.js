@@ -9,6 +9,7 @@ const { createPublicRouter } = require("./routes/public");
 const { createAdminRouter } = require("./routes/admin");
 const { createLearnerRouter } = require("./routes/learner");
 const Security = require("./lib/lms-security");
+const StaffPortal = require("./lib/staff-portal");
 
 const SITE_ROOT = path.join(__dirname, "..");
 const ADMIN_DIR = path.join(SITE_ROOT, "admin");
@@ -112,20 +113,20 @@ async function main() {
   });
 
   app.use("/admin", express.static(ADMIN_DIR, { index: false, extensions: ["html"] }));
-  app.get(/^\/admin(?:\/.*)?$/, (req, res) => {
-    if (req.session?.user?.role === "INSTRUCTOR") {
-      const dest = String(req.originalUrl || "/admin").replace(/^\/admin/, "/giang-vien") || "/giang-vien";
-      return res.redirect(302, dest);
+  function sendStaffShell(req, res) {
+    const user = req.session?.user;
+    if (user) {
+      const dest = StaffPortal.staffShellRedirect(
+        req.path,
+        new URL(req.originalUrl || req.url, "http://localhost").search,
+        user,
+      );
+      if (dest) return res.redirect(302, dest);
     }
     res.sendFile(path.join(ADMIN_DIR, "index.html"));
-  });
-  app.get(/^\/giang-vien(?:\/.*)?$/, (req, res) => {
-    if (req.session?.user && req.session.user.role !== "INSTRUCTOR") {
-      const dest = String(req.originalUrl || "/giang-vien").replace(/^\/giang-vien/, "/admin") || "/admin";
-      return res.redirect(302, dest);
-    }
-    res.sendFile(path.join(ADMIN_DIR, "index.html"));
-  });
+  }
+  app.get(/^\/admin(?:\/.*)?$/, sendStaffShell);
+  app.get(/^\/giang-vien(?:\/.*)?$/, sendStaffShell);
 
   app.use("/portal", express.static(PORTAL_DIR));
   app.use("/hoc-vien", express.static(PORTAL_DIR, { index: false }));

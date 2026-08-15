@@ -1,9 +1,9 @@
 # VSC Academy Learner Portal — Hướng dẫn quản trị
 
-Cổng học viên: `http://localhost:4173/hoc-vien` (EN: `/en/student`)  
-Admin: `http://localhost:4173/admin`  
-Giảng viên: `http://localhost:4173/giang-vien`  
-Xác minh công khai: `http://localhost:4173/verify`
+- Cổng học viên: `http://localhost:4173/hoc-vien` (EN: `/en/student`)
+- Admin: `http://localhost:4173/admin`
+- Giảng viên: `http://localhost:4173/giang-vien`
+- Xác minh công khai: `http://localhost:4173/verify`
 
 Học viên demo: `hoc-vien@vsc.academy` / `VscLearner!2026`
 
