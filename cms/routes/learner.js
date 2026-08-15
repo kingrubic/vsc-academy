@@ -68,8 +68,13 @@ function createLearnerRouter(store) {
     recordLogin(ip, ok);
     if (!ok) return res.status(401).json({ error: "Email hoặc mật khẩu không đúng" });
     const ts = now();
-    const fresh = { ...student, last_login_at: ts, updated_at: ts };
-    await store.upsert("students", fresh);
+    const patched = await store.patchStudentFields({
+      id: student.id,
+      expectedSessionVersion: Number(student.session_version || 0),
+      fields: { last_login_at: ts, updated_at: ts },
+    });
+    if (!patched?.ok) return res.status(401).json({ error: "Email hoặc mật khẩu không đúng" });
+    const fresh = patched.student;
     if (req.session) {
       req.session.cookie.maxAge = remember ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
     }
@@ -190,15 +195,23 @@ function createLearnerRouter(store) {
     const snap = await store.dump(true);
     const row = aliveById(snap.students, id);
     const language = req.body.languagePreference === "en" ? "en" : "vi";
-    const fresh = {
-      ...row,
-      full_name: req.body.fullName || row.full_name,
-      phone: req.body.phone ?? row.phone,
-      avatar: req.body.avatar ?? row.avatar,
-      language_preference: language,
-      updated_at: now(),
-    };
-    await store.upsert("students", fresh);
+    const patched = await store.patchStudentFields({
+      id,
+      expectedSessionVersion: Number(row.session_version || 0),
+      fields: {
+        full_name: req.body.fullName || row.full_name,
+        phone: req.body.phone ?? row.phone,
+        avatar: req.body.avatar ?? row.avatar,
+        language_preference: language,
+        updated_at: now(),
+      },
+    });
+    if (!patched?.ok) {
+      return res.status(patched?.stale ? 409 : 404).json({
+        error: patched?.stale ? "Tài khoản vừa thay đổi, vui lòng thử lại" : "Not found",
+      });
+    }
+    const fresh = patched.student;
     req.session.student = L.publicStudent(fresh);
     res.json({ student: req.session.student });
   });

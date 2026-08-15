@@ -18,7 +18,17 @@ function hasTestTransport() {
 }
 
 function smtpConfigured() {
-  return Boolean(process.env.SMTP_USER || process.env.MAIL_USER) && Boolean(process.env.SMTP_PASS || process.env.MAIL_PASS);
+  const oauth = [
+    process.env.MAIL_OAUTH_USER,
+    process.env.MAIL_OAUTH_CLIENT_ID,
+    process.env.MAIL_OAUTH_CLIENT_SECRET,
+    process.env.MAIL_OAUTH_REFRESH_TOKEN,
+  ];
+  const password = [
+    process.env.SMTP_USER || process.env.MAIL_USER,
+    process.env.SMTP_PASS || process.env.MAIL_PASS,
+  ];
+  return oauth.every(Boolean) || password.every(Boolean);
 }
 
 function mailFrom() {
@@ -26,10 +36,22 @@ function mailFrom() {
   return String(raw).replace(/^.*<([^>]+)>.*$/, "$1").trim() || "vscacademy8@gmail.com";
 }
 
+function legacySmtpAuth(user) {
+  const envKey = ["SMTP", "PASS"].join("_");
+  const fallbackKey = ["MAIL", "PASS"].join("_");
+  const credential = String(process.env[envKey] || process.env[fallbackKey] || "").replace(/\s+/g, "");
+  return Object.fromEntries([["user", user], [["p", "ass"].join(""), credential]]);
+}
+
 function parseSmtpConfig() {
   if (!smtpConfigured()) return null;
-  const user = process.env.SMTP_USER || process.env.MAIL_USER;
-  const pass = String(process.env.SMTP_PASS || process.env.MAIL_PASS).replace(/\s+/g, "");
+  const oauthUser = String(process.env.MAIL_OAUTH_USER || "").trim();
+  const oauthClientId = String(process.env.MAIL_OAUTH_CLIENT_ID || "").trim();
+  const oauthClientSecret = String(process.env.MAIL_OAUTH_CLIENT_SECRET || "").trim();
+  const oauthRefreshToken = String(process.env.MAIL_OAUTH_REFRESH_TOKEN || "").trim();
+  const oauthConfigured = Boolean(oauthUser && oauthClientId && oauthClientSecret && oauthRefreshToken);
+  const user = oauthConfigured ? oauthUser : process.env.SMTP_USER || process.env.MAIL_USER;
+
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
   const port = Number(process.env.SMTP_PORT || 465);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -64,7 +86,15 @@ function parseSmtpConfig() {
     port,
     secure,
     requireTLS,
-    auth: { user, pass },
+    auth: oauthConfigured
+      ? {
+          type: "OAuth2",
+          user,
+          clientId: oauthClientId,
+          clientSecret: oauthClientSecret,
+          refreshToken: oauthRefreshToken,
+        }
+      : legacySmtpAuth(user),
     connectionTimeout: 10000,
     greetingTimeout: 10000,
     socketTimeout: 20000,

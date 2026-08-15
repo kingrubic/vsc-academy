@@ -30,6 +30,9 @@ function consumePasswordResetInSnap(snap, { tokenHash, passwordHash, now, expect
     student.session_version = nextSessionVersion(student);
     student.password_changed_at = now;
     student.updated_at = now;
+    delete student.reset_access_operation_id;
+    delete student.reset_access_operation_expires_at;
+    delete student.reset_access_previous;
     return { claimed: true, kind: "students", targetId: student.id, sessionVersion: student.session_version };
   }
   if (userId) {
@@ -123,6 +126,9 @@ function consumeActivationInSnap(snap, { token, passwordHash, now }) {
   student.session_version = nextSessionVersion(student);
   student.password_changed_at = now;
   student.updated_at = now;
+  delete student.reset_access_operation_id;
+  delete student.reset_access_operation_expires_at;
+  delete student.reset_access_previous;
   return { claimed: true, targetId: student.id, sessionVersion: student.session_version };
 }
 
@@ -135,7 +141,21 @@ function revokeStudentResets(snap, studentId, now) {
   }
 }
 
+function markLearnerProvision(row, operationId) {
+  row.provision_operation_id = operationId;
+  row.provision_revision = Number(row.provision_revision || 0) + 1;
+  return { id: row.id, revision: row.provision_revision };
+}
+
+function ownsLearnerProvision(row, operationId, ownership) {
+  return !!row &&
+    String(row.provision_operation_id || "") === String(operationId || "") &&
+    Number(row.provision_revision || 0) === Number(ownership?.revision || 0);
+}
+
 function provisionLearnerAccountInSnap(snap, payload) {
+  const operationId = String(payload.operationId || "");
+  if (!operationId) return { ok: false, error: "Missing learner provision operation id" };
   const registration = { ...(payload.registration || {}) };
   const email = String(registration.email || "").trim().toLowerCase();
   const now = payload.now;
@@ -149,6 +169,8 @@ function provisionLearnerAccountInSnap(snap, payload) {
     students.push(student);
     createdStudent = true;
   }
+  const previousStudent = createdStudent ? null : { ...student };
+  const studentOwnership = markLearnerProvision(student, operationId);
   let enrollment = enrollments.find(
     (row) => String(row.student_id) === String(student.id) && String(row.session_id) === String(registration.session_id),
   );
@@ -158,48 +180,99 @@ function provisionLearnerAccountInSnap(snap, payload) {
     enrollments.push(enrollment);
     createdEnrollment = true;
   }
+  const previousEnrollment = createdEnrollment ? null : { ...enrollment };
+  enrollment.registration_id = registration.id;
+  const enrollmentOwnership = markLearnerProvision(enrollment, operationId);
   const previousRegistration = registrations.find((row) => String(row.id) === String(registration.id)) || null;
   const previousCopy = previousRegistration ? { ...previousRegistration } : null;
-  const nextRegistration = { ...registration, email, student_id: student.id, updated_at: now };
+  const nextRegistration = previousRegistration
+    ? { ...previousRegistration, ...registration, email, student_id: student.id, updated_at: now }
+    : { ...registration, email, student_id: student.id, updated_at: now };
+  const registrationOwnership = markLearnerProvision(nextRegistration, operationId);
   const idx = registrations.findIndex((row) => String(row.id) === String(registration.id));
-  if (idx >= 0) registrations[idx] = { ...registrations[idx], ...nextRegistration };
+  if (idx >= 0) registrations[idx] = nextRegistration;
   else registrations.push(nextRegistration);
   return {
     ok: true,
+    operationId,
     student,
     enrollment,
     createdStudent,
     createdEnrollment,
+    previousStudent,
+    previousEnrollment,
     previousRegistration: previousCopy,
-    activationToken: createdStudent ? student.activation_token : null,
+    activationToken: student.status === "invited" ? student.activation_token || null : null,
+    ownership: {
+      student: { ...studentOwnership, created: createdStudent },
+      enrollment: { ...enrollmentOwnership, created: createdEnrollment },
+      registration: { ...registrationOwnership, created: !previousCopy },
+    },
   };
 }
 
-function abortLearnerProvisionInSnap(snap, payload) {
-  if (payload.createdStudentId) {
-    snap.students = (snap.students || []).filter((row) => String(row.id) !== String(payload.createdStudentId));
-  }
-  if (payload.createdEnrollmentId) {
-    snap.enrollments = (snap.enrollments || []).filter((row) => String(row.id) !== String(payload.createdEnrollmentId));
-  }
-  const registrations = snap.registrations || (snap.registrations = []);
-  if (payload.previousRegistration) {
-    const idx = registrations.findIndex((row) => String(row.id) === String(payload.previousRegistration.id));
-    if (idx >= 0) registrations[idx] = { ...payload.previousRegistration };
-    else registrations.push({ ...payload.previousRegistration });
-  } else if (payload.registrationId) {
-    snap.registrations = registrations.filter((row) => String(row.id) !== String(payload.registrationId));
+function finalizeLearnerProvisionInSnap(snap, payload) {
+  const operationId = String(payload.operationId || "");
+  const ownership = payload.ownership || {};
+  const rows = [
+    [(snap.students || []).find((row) => String(row.id) === String(ownership.student?.id)), ownership.student],
+    [(snap.enrollments || []).find((row) => String(row.id) === String(ownership.enrollment?.id)), ownership.enrollment],
+    [(snap.registrations || []).find((row) => String(row.id) === String(ownership.registration?.id)), ownership.registration],
+  ];
+  for (const [row, claimed] of rows) {
+    if (ownsLearnerProvision(row, operationId, claimed)) {
+      delete row.provision_operation_id;
+      delete row.provision_revision;
+    }
   }
   return { ok: true };
 }
 
-function beginResetAccessInSnap(snap, { studentId, activationToken, expiresAt, now }) {
+function abortLearnerProvisionInSnap(snap, payload) {
+  const operationId = String(payload.operationId || "");
+  const ownership = payload.ownership || {};
+  const student = (snap.students || []).find((row) => String(row.id) === String(ownership.student?.id));
+  const enrollment = (snap.enrollments || []).find((row) => String(row.id) === String(ownership.enrollment?.id));
+  const registration = (snap.registrations || []).find((row) => String(row.id) === String(ownership.registration?.id));
+  if (ownsLearnerProvision(student, operationId, ownership.student)) {
+    if (ownership.student?.created) {
+      snap.students = (snap.students || []).filter((row) => String(row.id) !== String(ownership.student.id));
+    } else if (payload.previousStudent) {
+      const idx = (snap.students || []).findIndex((row) => String(row.id) === String(ownership.student.id));
+      if (idx >= 0) snap.students[idx] = { ...payload.previousStudent };
+    }
+  }
+  if (ownsLearnerProvision(enrollment, operationId, ownership.enrollment)) {
+    if (ownership.enrollment?.created) {
+      snap.enrollments = (snap.enrollments || []).filter((row) => String(row.id) !== String(ownership.enrollment.id));
+    } else if (payload.previousEnrollment) {
+      const idx = (snap.enrollments || []).findIndex((row) => String(row.id) === String(ownership.enrollment.id));
+      if (idx >= 0) snap.enrollments[idx] = { ...payload.previousEnrollment };
+    }
+  }
+  if (ownsLearnerProvision(registration, operationId, ownership.registration)) {
+    if (payload.previousRegistration) {
+      const registrations = snap.registrations || (snap.registrations = []);
+      const idx = registrations.findIndex((row) => String(row.id) === String(ownership.registration.id));
+      if (idx >= 0) registrations[idx] = { ...payload.previousRegistration };
+    } else if (ownership.registration?.created) {
+      snap.registrations = (snap.registrations || []).filter((row) => String(row.id) !== String(ownership.registration.id));
+    }
+  }
+  return { ok: true };
+}
+
+function beginResetAccessInSnap(snap, { studentId, operationId, activationToken, expiresAt, operationExpiresAt, now }) {
   const student = (snap.students || []).find((row) => String(row.id) === String(studentId) && !row.deleted_at);
   if (!student) return { ok: false, error: "Not found" };
+  if (!operationId) return { ok: false, error: "Missing reset operation id" };
   if (student.status === "suspended" || student.status === "inactive") {
     return { ok: false, error: "Inactive accounts cannot be reset" };
   }
-  const previous = {
+  if (student.reset_access_operation_id && String(student.reset_access_operation_expires_at || "") > now) {
+    return { ok: false, error: "Reset access already in progress" };
+  }
+  const previous = student.reset_access_previous || {
     password_hash: student.password_hash,
     activation_token: student.activation_token,
     activation_expires_at: student.activation_expires_at,
@@ -214,14 +287,48 @@ function beginResetAccessInSnap(snap, { studentId, activationToken, expiresAt, n
   student.status = "invited";
   student.must_change_password = 0;
   student.session_version = nextSessionVersion(student);
+  student.reset_access_operation_id = operationId;
+  student.reset_access_operation_expires_at = operationExpiresAt;
+  student.reset_access_previous = previous;
   student.updated_at = now;
-  return { ok: true, previous, sessionVersion: student.session_version };
+  return {
+    ok: true,
+    previous,
+    operationId,
+    activationToken,
+    sessionVersion: student.session_version,
+  };
 }
 
-function abortResetAccessInSnap(snap, { studentId, previous, now }) {
+function finalizeResetAccessInSnap(snap, { studentId, operationId, activationToken, sessionVersion }) {
+  const student = (snap.students || []).find((row) => String(row.id) === String(studentId));
+  if (!student) return { ok: false, error: "Not found" };
+  if (
+    String(student.reset_access_operation_id || "") !== String(operationId || "") ||
+    student.activation_token !== activationToken ||
+    Number(student.session_version || 0) !== Number(sessionVersion || 0)
+  ) return { ok: true, stale: true };
+  delete student.reset_access_operation_id;
+  delete student.reset_access_operation_expires_at;
+  delete student.reset_access_previous;
+  return { ok: true };
+}
+
+function abortResetAccessInSnap(snap, { studentId, operationId, activationToken, sessionVersion, previous, now }) {
   const student = (snap.students || []).find((row) => String(row.id) === String(studentId));
   if (!student || !previous) return { ok: false, error: "Not found" };
-  Object.assign(student, previous, { updated_at: now });
+  if (
+    String(student.reset_access_operation_id || "") !== String(operationId || "") ||
+    student.activation_token !== activationToken ||
+    Number(student.session_version || 0) !== Number(sessionVersion || 0)
+  ) return { ok: true, stale: true };
+  Object.assign(student, previous, {
+    session_version: nextSessionVersion(student),
+    updated_at: now,
+  });
+  delete student.reset_access_operation_id;
+  delete student.reset_access_operation_expires_at;
+  delete student.reset_access_previous;
   return { ok: true };
 }
 
@@ -245,7 +352,32 @@ function applyPasswordChangeInSnap(snap, { table, id, passwordHash, now }) {
   row.session_version = nextSessionVersion(row);
   row.password_changed_at = now;
   row.updated_at = now;
+  if (table === "students") {
+    delete row.reset_access_operation_id;
+    delete row.reset_access_operation_expires_at;
+    delete row.reset_access_previous;
+  }
   return { sessionVersion: row.session_version };
+}
+
+const STUDENT_PATCH_FIELDS = new Set([
+  "full_name", "phone", "avatar", "language_preference", "notes", "status", "last_login_at", "updated_at",
+]);
+
+function patchStudentFieldsInSnap(snap, { id, expectedSessionVersion, fields }) {
+  const student = (snap.students || []).find((row) => String(row.id) === String(id) && !row.deleted_at);
+  if (!student) return { ok: false, error: "Not found" };
+  if (Number(student.session_version || 0) !== Number(expectedSessionVersion || 0)) {
+    return { ok: false, stale: true };
+  }
+  const previousStatus = student.status;
+  for (const [key, value] of Object.entries(fields || {})) {
+    if (STUDENT_PATCH_FIELDS.has(key)) student[key] = value;
+  }
+  if (Object.prototype.hasOwnProperty.call(fields || {}, "status") && student.status !== previousStatus) {
+    student.session_version = nextSessionVersion(student);
+  }
+  return { ok: true, student: { ...student } };
 }
 
 function withSnapLock(store, fn) {
@@ -260,6 +392,12 @@ function withSnapLock(store, fn) {
 }
 
 function attachAccountTx(store, snap) {
+  const baseUpsert = store.upsert.bind(store);
+  store.upsert = (table, data) =>
+    withSnapLock(store, () => {
+      if (table === "students") return { id: data.id, rejected: true, reason: "dedicated_mutation_required" };
+      return baseUpsert(table, data);
+    });
   store.consumePasswordReset = (args) =>
     withSnapLock(store, () => consumePasswordResetInSnap(snap, args));
   store.upsertInstructorAccount = (payload) =>
@@ -268,16 +406,22 @@ function attachAccountTx(store, snap) {
     withSnapLock(store, () => createStudentAccountInSnap(snap, student));
   store.applyPasswordChange = (args) =>
     withSnapLock(store, () => applyPasswordChangeInSnap(snap, args));
+  store.patchStudentFields = (args) =>
+    withSnapLock(store, () => patchStudentFieldsInSnap(snap, args));
   store.issuePasswordReset = (args) =>
     withSnapLock(store, () => issuePasswordResetInSnap(snap, args));
   store.consumeActivation = (args) =>
     withSnapLock(store, () => consumeActivationInSnap(snap, args));
   store.provisionLearnerAccount = (payload) =>
     withSnapLock(store, () => provisionLearnerAccountInSnap(snap, payload));
+  store.finalizeLearnerProvision = (payload) =>
+    withSnapLock(store, () => finalizeLearnerProvisionInSnap(snap, payload));
   store.abortLearnerProvision = (payload) =>
     withSnapLock(store, () => abortLearnerProvisionInSnap(snap, payload));
   store.beginResetAccess = (args) =>
     withSnapLock(store, () => beginResetAccessInSnap(snap, args));
+  store.finalizeResetAccess = (args) =>
+    withSnapLock(store, () => finalizeResetAccessInSnap(snap, args));
   store.abortResetAccess = (args) =>
     withSnapLock(store, () => abortResetAccessInSnap(snap, args));
   store.cancelPasswordReset = (args) =>
@@ -293,8 +437,10 @@ module.exports = {
   issuePasswordResetInSnap,
   consumeActivationInSnap,
   provisionLearnerAccountInSnap,
+  finalizeLearnerProvisionInSnap,
   abortLearnerProvisionInSnap,
   beginResetAccessInSnap,
+  finalizeResetAccessInSnap,
   abortResetAccessInSnap,
   cancelPasswordResetInSnap,
   attachAccountTx,

@@ -150,15 +150,23 @@ function attachLearnerAdmin(router, store) {
     const snap = await store.dump(true);
     const row = aliveById(snap.students, req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
-    await store.upsert("students", {
-      ...row,
-      full_name: req.body.fullName || row.full_name,
-      phone: req.body.phone ?? row.phone,
-      status: req.body.status || row.status,
-      language_preference: req.body.languagePreference || row.language_preference,
-      notes: req.body.notes ?? row.notes,
-      updated_at: now(),
+    const patched = await store.patchStudentFields({
+      id: row.id,
+      expectedSessionVersion: Number(row.session_version || 0),
+      fields: {
+        full_name: req.body.fullName || row.full_name,
+        phone: req.body.phone ?? row.phone,
+        status: req.body.status || row.status,
+        language_preference: req.body.languagePreference || row.language_preference,
+        notes: req.body.notes ?? row.notes,
+        updated_at: now(),
+      },
     });
+    if (!patched?.ok) {
+      return res.status(patched?.stale ? 409 : 404).json({
+        error: patched?.stale ? "Tài khoản vừa thay đổi, vui lòng thử lại" : "Not found",
+      });
+    }
     res.json({ ok: true });
   });
 
@@ -172,10 +180,13 @@ function attachLearnerAdmin(router, store) {
       }
       PasswordReset.requireSecurityMail();
       const token = C.newSecretToken();
+      const operationId = randomId("reset-access");
       const started = await store.beginResetAccess({
         studentId: row.id,
+        operationId,
         activationToken: token,
         expiresAt: new Date(Date.now() + C.ACTIVATION_TTL_MS).toISOString(),
+        operationExpiresAt: new Date(Date.now() + 60_000).toISOString(),
         now: now(),
       });
       if (!started?.ok) {
@@ -183,10 +194,23 @@ function attachLearnerAdmin(router, store) {
       }
       try {
         const mailed = await L.sendActivationEmail(store, { ...row, status: "invited" }, token);
+        await store.finalizeResetAccess({
+          studentId: row.id,
+          operationId,
+          activationToken: token,
+          sessionVersion: started.sessionVersion,
+        });
         res.setHeader("Cache-Control", "no-store");
         res.json({ ok: true, emailed: mailed.emailed, to: mailed.to });
       } catch (err) {
-        await store.abortResetAccess({ studentId: row.id, previous: started.previous, now: now() });
+        await store.abortResetAccess({
+          studentId: row.id,
+          operationId,
+          activationToken: token,
+          sessionVersion: started.sessionVersion,
+          previous: started.previous,
+          now: now(),
+        });
         throw err;
       }
     } catch (err) {

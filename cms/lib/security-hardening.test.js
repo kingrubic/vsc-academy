@@ -46,12 +46,17 @@ test("attendance requires an existing enrollment and meeting in the same owned s
   assert.equal(crossSession, false);
 });
 
-test("student password changes preserve administrative account status", async () => {
-  let saved;
-  await L.setStudentPassword({ upsert: async (_table, row) => { saved = row; } }, { id: "st", status: "suspended", activation_token: "x" }, "safe-password");
-  assert.equal(saved.status, "suspended");
-  assert.equal(saved.activation_token, null);
-  assert.ok(saved.password_hash);
+test("student password changes use the atomic mutation and preserve administrative account status", async () => {
+  let mutation;
+  const result = await L.setStudentPassword(
+    { applyPasswordChange: async (args) => { mutation = args; return { sessionVersion: 4 }; } },
+    { id: "st", status: "suspended", activation_token: "x" },
+    "safe-password",
+  );
+  assert.equal(mutation.table, "students");
+  assert.equal(mutation.id, "st");
+  assert.ok(mutation.passwordHash);
+  assert.equal(result.sessionVersion, 4);
 });
 
 test("effective join URL falls back to the session URL", () => {

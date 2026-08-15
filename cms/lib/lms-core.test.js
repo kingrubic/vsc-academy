@@ -90,30 +90,28 @@ test("reset tokens are hashed and not reversible from hash", () => {
   assert.equal(C.hashToken(token), hash);
 });
 
-test("publicEmailOrigin requires an allowlisted https origin", () => {
+test("publicEmailOrigin requires the canonical production https origin", () => {
   const prevUrl = process.env.PUBLIC_SITE_URL;
-  const prevHosts = process.env.PUBLIC_SITE_URL_HOSTS;
   try {
     delete process.env.PUBLIC_SITE_URL;
     assert.throws(() => C.publicEmailOrigin(), /PUBLIC_SITE_URL/);
     process.env.PUBLIC_SITE_URL = "http://vscacademy.edu.vn";
     assert.throws(() => C.publicEmailOrigin(), /https/);
-    process.env.PUBLIC_SITE_URL = "https://evil.example";
-    assert.throws(() => C.publicEmailOrigin(), /allowlist/);
-    process.env.PUBLIC_SITE_URL = "https://vscacademy.vn";
-    assert.throws(() => C.publicEmailOrigin(), /allowlist/);
+    for (const origin of [
+      "https://evil.example",
+      "https://vscacademy.vn",
+      "https://www.vscacademy.edu.vn",
+      "https://vscacademy.edu.vn:8443",
+    ]) {
+      process.env.PUBLIC_SITE_URL = origin;
+      assert.throws(() => C.publicEmailOrigin(), /canonical production origin/);
+    }
     process.env.PUBLIC_SITE_URL = "https://vscacademy.edu.vn/path";
     assert.throws(() => C.publicEmailOrigin(), /origin only/);
     process.env.PUBLIC_SITE_URL = "https://vscacademy.edu.vn";
     assert.equal(C.publicEmailOrigin(), "https://vscacademy.edu.vn");
-    process.env.PUBLIC_SITE_URL = "https://www.vscacademy.edu.vn";
-    assert.throws(() => C.publicEmailOrigin(), /allowlist/);
-    process.env.PUBLIC_SITE_URL_HOSTS = "www.vscacademy.edu.vn";
-    assert.equal(C.publicEmailOrigin(), "https://www.vscacademy.edu.vn");
   } finally {
     if (prevUrl == null) delete process.env.PUBLIC_SITE_URL;
     else process.env.PUBLIC_SITE_URL = prevUrl;
-    if (prevHosts == null) delete process.env.PUBLIC_SITE_URL_HOSTS;
-    else process.env.PUBLIC_SITE_URL_HOSTS = prevHosts;
   }
 });

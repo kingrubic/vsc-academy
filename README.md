@@ -22,18 +22,19 @@ Học viên demo: `hoc-vien@vsc.academy` / `VscLearner!2026`
 | Variable | Required | Purpose |
 |---|---|---|
 | `SESSION_SECRET` | Production | Express session signing. If unset, CMS writes a local `cms/data/.secret` (do not commit). |
-| `PUBLIC_SITE_URL` | Required for email links | Exact `https://vscacademy.edu.vn`. Extra hosts only via explicit `PUBLIC_SITE_URL_HOSTS`. Process env wins over `.env` files. |
+| `PUBLIC_SITE_URL` | Required for email links | Canonical origin `https://vscacademy.edu.vn` only. Process env wins over `.env` files. |
 | `CONVEX_URL` / `CONVEX_SELF_HOSTED_URL` | Yes | Convex API, default `http://127.0.0.1:3280`. |
 | `HOST` | No | Bind address, default `127.0.0.1`. |
 | `PORT` | No | Web port, default `4173`. |
 | `NODE_ENV` | Production plist | `production` on the LaunchAgent. |
 | `VSC_OWNER_TEMP_PASSWORD` | Seed only | Temporary OWNER password when running `npm run seed`. |
 | `VSC_ADMIN_TEMP_PASSWORD` | Seed only | Temporary ADMIN password when running `npm run seed`. |
-| `SMTP_USER` / `SMTP_PASS` | Password-reset email | Gmail (or SMTP) account used to send learner/instructor reset links. |
+| `SMTP_USER` / `SMTP_PASS` | Optional password SMTP | Legacy SMTP/app-password authentication. Do not commit values. |
+| `MAIL_OAUTH_USER` / `MAIL_OAUTH_CLIENT_ID` / `MAIL_OAUTH_CLIENT_SECRET` / `MAIL_OAUTH_REFRESH_TOKEN` | Preferred Gmail auth | Complete OAuth2 credential set. Production injects it from macOS Keychain through `ops/production/start-web-with-keychain.py`. |
 | `SMTP_HOST` | No | Default `smtp.gmail.com`. |
 | `MAIL_FROM` | No | From address, default `vscacademy8@gmail.com`. |
 
-Activation and password-reset emails require SMTP plus `PUBLIC_SITE_URL=https://vscacademy.edu.vn`. The CMS fails closed with 503 if either is missing and rolls back any invited student/enrollment it just created. `mail_outbox` is a synchronous delivery audit (metadata only, no raw tokens), not a retry queue. Do not commit SMTP passwords. `.env*` is gitignored; keep `.env.example`.
+Activation and password-reset emails require a complete SMTP password or OAuth2 credential set plus `PUBLIC_SITE_URL=https://vscacademy.edu.vn`. The CMS fails closed with 503 if either is missing and rolls back any invited student/enrollment it just created. `mail_outbox` is a synchronous delivery audit (metadata only, no raw tokens), not a retry queue. Never commit mail credentials; production uses macOS Keychain and the checked-in startup wrapper.
 
 After pulling LMS changes, run `npm install` and `npm run convex:deploy` so Convex accepts the new document tables (`certificate_templates`, `password_resets`, `notifications`, `mail_outbox`, `audit_logs`). There is no SQL migration: production data lives in Convex documents.
 

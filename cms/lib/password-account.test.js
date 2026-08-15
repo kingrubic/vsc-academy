@@ -804,6 +804,7 @@ test("concurrent learner provision keeps a single email identity", async () => {
   };
   const make = (id) =>
     store.provisionLearnerAccount({
+      operationId: `operation-${id}`,
       registration,
       student: {
         id,
@@ -863,4 +864,218 @@ test("outbox reserve failure does not send mail", async () => {
   } finally {
     Mailer.setTestTransport(null);
   }
+});
+
+test("stale learner provision abort cannot delete state finalized by a newer request", async () => {
+  const store = mockStore();
+  const ts = new Date().toISOString();
+  const provision = (operationId, registrationId, studentId, enrollmentId) =>
+    store.provisionLearnerAccount({
+      operationId,
+      registration: {
+        id: registrationId,
+        email: "shared@vsc.academy",
+        full_name: "Shared",
+        session_id: "s1",
+        program_id: "p1",
+        status: "confirmed",
+      },
+      student: {
+        id: studentId,
+        full_name: "Shared",
+        email: "shared@vsc.academy",
+        status: "invited",
+        activation_token: `token-${operationId}`,
+        created_at: ts,
+        updated_at: ts,
+      },
+      enrollment: {
+        id: enrollmentId,
+        session_id: "s1",
+        program_id: "p1",
+        status: "active",
+      },
+      now: ts,
+    });
+
+  const a = await provision("operation-a", "reg-a", "student-a", "enrollment-a");
+  const b = await provision("operation-b", "reg-b", "student-b", "enrollment-b");
+  assert.equal(a.createdStudent, true);
+  assert.equal(b.createdStudent, false);
+  assert.equal(b.activationToken, a.activationToken);
+  await store.finalizeLearnerProvision({ operationId: "operation-b", ownership: b.ownership });
+  await store.abortLearnerProvision({
+    operationId: "operation-a",
+    ownership: a.ownership,
+    previousRegistration: a.previousRegistration,
+  });
+
+  assert.equal(store.data.students.some((row) => row.id === a.student.id), true);
+  const survivingEnrollment = store.data.enrollments.find((row) => row.id === a.enrollment.id);
+  assert.ok(survivingEnrollment);
+  assert.equal(survivingEnrollment.registration_id, "reg-b");
+  assert.equal(store.data.registrations.some((row) => row.id === "reg-a"), false);
+  assert.equal(store.data.registrations.find((row) => row.id === "reg-b").student_id, a.student.id);
+
+  const c = await provision("operation-c", "reg-c", "student-c", "enrollment-c");
+  assert.equal(c.previousEnrollment.registration_id, "reg-b");
+  await store.abortLearnerProvision({
+    operationId: "operation-c",
+    ownership: c.ownership,
+    previousStudent: c.previousStudent,
+    previousEnrollment: c.previousEnrollment,
+    previousRegistration: c.previousRegistration,
+  });
+  const restoredEnrollment = store.data.enrollments.find((row) => row.id === a.enrollment.id);
+  assert.equal(restoredEnrollment.registration_id, "reg-b");
+  assert.equal(restoredEnrollment.provision_operation_id, undefined);
+  assert.equal(restoredEnrollment.provision_revision, undefined);
+  assert.equal(store.data.registrations.some((row) => row.id === "reg-c"), false);
+});
+
+test("reset-access lease blocks overlap and expired takeover makes stale abort harmless", async () => {
+  const store = mockStore();
+  const student = store.data.students.find((row) => row.id === "st1");
+  student.session_version = 4;
+  const base = Date.now();
+  const args = (operationId, activationToken, nowMs) => ({
+    studentId: "st1",
+    operationId,
+    activationToken,
+    expiresAt: new Date(nowMs + 60_000).toISOString(),
+    operationExpiresAt: new Date(nowMs + 10_000).toISOString(),
+    now: new Date(nowMs).toISOString(),
+  });
+  const a = await store.beginResetAccess(args("reset-a", "activation-a", base));
+  const blocked = await store.beginResetAccess(args("reset-b", "activation-b", base + 1_000));
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.error, /in progress/);
+
+  const b = await store.beginResetAccess(args("reset-b", "activation-b", base + 11_000));
+  assert.equal(b.ok, true);
+  assert.equal(b.previous.session_version, 4);
+  const stale = await store.abortResetAccess({
+    studentId: "st1",
+    operationId: "reset-a",
+    activationToken: "activation-a",
+    sessionVersion: a.sessionVersion,
+    previous: a.previous,
+    now: new Date(base + 12_000).toISOString(),
+  });
+  assert.equal(stale.stale, true);
+  assert.equal(student.activation_token, "activation-b");
+  assert.equal(student.session_version, b.sessionVersion);
+
+  const restored = await store.abortResetAccess({
+    studentId: "st1",
+    operationId: "reset-b",
+    activationToken: "activation-b",
+    sessionVersion: b.sessionVersion,
+    previous: b.previous,
+    now: new Date(base + 13_000).toISOString(),
+  });
+  assert.equal(restored.ok, true);
+  assert.equal(student.session_version, b.sessionVersion + 1);
+  assert.equal(student.status, "active");
+});
+
+test("credential change clears pending reset-access so its abort cannot restore stale state", async () => {
+  const store = mockStore();
+  const student = store.data.students.find((row) => row.id === "st1");
+  const started = await store.beginResetAccess({
+    studentId: "st1",
+    operationId: "reset-pending",
+    activationToken: "activation-pending",
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    now: new Date().toISOString(),
+  });
+  const changed = await store.applyPasswordChange({
+    table: "students",
+    id: "st1",
+    passwordHash: hashPassword(LEARNER_NEXT),
+    now: new Date().toISOString(),
+  });
+  assert.equal(student.reset_access_operation_id, undefined);
+  const stale = await store.abortResetAccess({
+    studentId: "st1",
+    operationId: "reset-pending",
+    activationToken: "activation-pending",
+    sessionVersion: started.sessionVersion,
+    previous: started.previous,
+    now: new Date().toISOString(),
+  });
+  assert.equal(stale.stale, true);
+  assert.equal(student.session_version, changed.sessionVersion);
+  assert.equal(student.status, "active");
+});
+
+test("stale student writes cannot restore credentials or roll session_version backward", async () => {
+  const store = mockStore();
+  const student = store.data.students.find((row) => row.id === "st1");
+  student.status = "active";
+  student.session_version = 7;
+  student.password_hash = hashPassword(STUDENT_PW);
+  const staleSnapshot = { ...student };
+
+  const started = await store.beginResetAccess({
+    studentId: "st1",
+    operationId: "reset-cas",
+    activationToken: "activation-cas",
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    operationExpiresAt: new Date(Date.now() + 10_000).toISOString(),
+    now: new Date().toISOString(),
+  });
+  assert.equal(started.ok, true);
+  assert.equal(student.session_version, 8);
+
+  const narrow = await store.patchStudentFields({
+    id: "st1",
+    expectedSessionVersion: 7,
+    fields: {
+      full_name: "Stale Name",
+      password_hash: staleSnapshot.password_hash,
+      activation_token: null,
+      session_version: 7,
+    },
+  });
+  assert.equal(narrow.stale, true);
+
+  const broad = await store.upsert("students", { ...staleSnapshot, full_name: "Stale Broad" });
+  assert.equal(broad.rejected, true);
+  assert.equal(student.session_version, 8);
+  assert.equal(student.password_hash, null);
+  assert.equal(student.activation_token, "activation-cas");
+  assert.notEqual(student.full_name, "Stale Name");
+  assert.notEqual(student.full_name, "Stale Broad");
+
+  const safe = await store.patchStudentFields({
+    id: "st1",
+    expectedSessionVersion: 8,
+    fields: {
+      full_name: "Current Name",
+      password_hash: staleSnapshot.password_hash,
+      activation_token: null,
+      session_version: 1,
+    },
+  });
+  assert.equal(safe.ok, true);
+  assert.equal(student.full_name, "Current Name");
+  assert.equal(student.password_hash, null);
+  assert.equal(student.activation_token, "activation-cas");
+  assert.equal(student.session_version, 8);
+
+  const suspended = await store.patchStudentFields({
+    id: "st1",
+    expectedSessionVersion: 8,
+    fields: { status: "suspended" },
+  });
+  assert.equal(suspended.ok, true);
+  assert.equal(student.session_version, 9);
+  const reactivated = await store.patchStudentFields({
+    id: "st1",
+    expectedSessionVersion: 9,
+    fields: { status: "active" },
+  });
+  assert.equal(reactivated.ok, true);
+  assert.equal(student.session_version, 10);
 });

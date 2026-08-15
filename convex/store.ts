@@ -110,6 +110,7 @@ export const upsert = mutation({
     const id = rowId(table, data);
     if (!id) throw new Error(`Missing id for ${table}`);
     data.id = id;
+    if (table === "students") return { id, rejected: true, reason: "dedicated_mutation_required" };
     const existing = await ctx.db
       .query("documents")
       .withIndex("by_table_id", (q) => q.eq("table", table).eq("id", id))
@@ -212,19 +213,21 @@ export const consumePasswordReset = mutation({
         }
       }
       const sessionVersion = nextSessionVersion(student);
-      await ctx.db.patch(studentDoc._id, {
-        data: {
-          ...student,
-          password_hash: args.passwordHash,
-          activation_token: null,
-          activation_expires_at: null,
-          must_change_password: 0,
-          status: student.status === "invited" ? "active" : student.status,
-          session_version: sessionVersion,
-          password_changed_at: args.now,
-          updated_at: args.now,
-        },
-      });
+      const changed: Record<string, unknown> = {
+        ...student,
+        password_hash: args.passwordHash,
+        activation_token: null,
+        activation_expires_at: null,
+        must_change_password: 0,
+        status: student.status === "invited" ? "active" : student.status,
+        session_version: sessionVersion,
+        password_changed_at: args.now,
+        updated_at: args.now,
+      };
+      delete changed.reset_access_operation_id;
+      delete changed.reset_access_operation_expires_at;
+      delete changed.reset_access_previous;
+      await ctx.db.patch(studentDoc._id, { data: changed });
       return { claimed: true, kind: "students", targetId: studentId, sessionVersion };
     }
     if (userId) {
@@ -274,8 +277,36 @@ export const applyPasswordChange = mutation({
     data.session_version = sessionVersion;
     data.password_changed_at = args.now;
     data.updated_at = args.now;
+    if (table === "students") {
+      delete data.reset_access_operation_id;
+      delete data.reset_access_operation_expires_at;
+      delete data.reset_access_previous;
+    }
     await ctx.db.patch(doc._id, { data });
     return { sessionVersion };
+  },
+});
+
+const STUDENT_PATCH_FIELDS = new Set([
+  "full_name", "phone", "avatar", "language_preference", "notes", "status", "last_login_at", "updated_at",
+]);
+
+export const patchStudentFields = mutation({
+  args: { id: v.string(), expectedSessionVersion: v.number(), fields: v.any() },
+  handler: async (ctx, args) => {
+    const doc = await findDoc(ctx, "students", args.id);
+    if (!doc || (doc.data as Record<string, unknown>).deleted_at) return { ok: false, error: "Not found" };
+    const student = { ...(doc.data as Record<string, unknown>) };
+    if (Number(student.session_version || 0) !== args.expectedSessionVersion) return { ok: false, stale: true };
+    const previousStatus = student.status;
+    for (const [key, value] of Object.entries(args.fields as Record<string, unknown>)) {
+      if (STUDENT_PATCH_FIELDS.has(key)) student[key] = value;
+    }
+    if (Object.prototype.hasOwnProperty.call(args.fields as Record<string, unknown>, "status") && student.status !== previousStatus) {
+      student.session_version = nextSessionVersion(student);
+    }
+    await ctx.db.patch(doc._id, { data: student });
+    return { ok: true, student };
   },
 });
 
@@ -363,8 +394,7 @@ export const consumeActivation = mutation({
       return { claimed: false, reason: "expired" };
     }
     const sessionVersion = nextSessionVersion(student);
-    await ctx.db.patch(studentDoc._id, {
-      data: {
+    const activated: Record<string, unknown> = {
         ...student,
         password_hash: args.passwordHash,
         activation_token: null,
@@ -374,16 +404,33 @@ export const consumeActivation = mutation({
         session_version: sessionVersion,
         password_changed_at: args.now,
         updated_at: args.now,
-      },
-    });
+    };
+    delete activated.reset_access_operation_id;
+    delete activated.reset_access_operation_expires_at;
+    delete activated.reset_access_previous;
+    await ctx.db.patch(studentDoc._id, { data: activated });
     return { claimed: true, targetId: String(student.id || studentDoc.id), sessionVersion };
   },
 });
+
+function markLearnerProvision(row: Record<string, unknown>, operationId: string) {
+  row.provision_operation_id = operationId;
+  row.provision_revision = Number(row.provision_revision || 0) + 1;
+  return { id: String(row.id || ""), revision: row.provision_revision };
+}
+
+function ownsLearnerProvision(row: Record<string, unknown> | null, operationId: string, ownership: any) {
+  return !!row &&
+    String(row.provision_operation_id || "") === operationId &&
+    Number(row.provision_revision || 0) === Number(ownership?.revision || 0);
+}
 
 export const provisionLearnerAccount = mutation({
   args: { payload: v.any() },
   handler: async (ctx, args) => {
     const payload = args.payload as Record<string, unknown>;
+    const operationId = String(payload.operationId || "");
+    if (!operationId) return { ok: false, error: "Missing learner provision operation id" };
     const registration = { ...(payload.registration as Record<string, unknown>) };
     const email = String(registration.email || "").trim().toLowerCase();
     const ts = String(payload.now || "");
@@ -393,67 +440,108 @@ export const provisionLearnerAccount = mutation({
       return String(data.email || "").toLowerCase() === email && !data.deleted_at;
     });
     let student: Record<string, unknown>;
-    let createdStudent = false;
-    if (existing) {
-      student = { ...(existing.data as Record<string, unknown>), id: existing.id };
-    } else {
+    let studentDoc = existing || null;
+    const createdStudent = !existing;
+    if (existing) student = { ...(existing.data as Record<string, unknown>), id: existing.id };
+    else {
       student = { ...(payload.student as Record<string, unknown>), email };
       const id = rowId("students", student);
       if (!id) throw new Error("Missing student id");
       student.id = id;
-      await ctx.db.insert("documents", { table: "students", id, data: student });
-      createdStudent = true;
     }
+    const previousStudent = createdStudent ? null : { ...student };
+    const studentOwnership = markLearnerProvision(student, operationId);
+    if (studentDoc) await ctx.db.patch(studentDoc._id, { data: student });
+    else await ctx.db.insert("documents", { table: "students", id: String(student.id), data: student });
+
     const enrollments = await collectTable(ctx, "enrollments");
     const existingEnroll = enrollments.find((doc) => {
       const data = doc.data as Record<string, unknown>;
-      return String(data.student_id || "") === String(student.id) &&
-        String(data.session_id || "") === String(registration.session_id || "");
+      return String(data.student_id || "") === String(student.id) && String(data.session_id || "") === String(registration.session_id || "");
     });
     let enrollment: Record<string, unknown>;
-    let createdEnrollment = false;
-    if (existingEnroll) {
-      enrollment = { ...(existingEnroll.data as Record<string, unknown>), id: existingEnroll.id };
-    } else {
+    let enrollmentDoc = existingEnroll || null;
+    const createdEnrollment = !existingEnroll;
+    if (existingEnroll) enrollment = { ...(existingEnroll.data as Record<string, unknown>), id: existingEnroll.id };
+    else {
       enrollment = { ...(payload.enrollment as Record<string, unknown>), student_id: student.id };
-      const enrollmentId = rowId("enrollments", enrollment);
-      if (!enrollmentId) throw new Error("Missing enrollment id");
-      enrollment.id = enrollmentId;
-      await ctx.db.insert("documents", { table: "enrollments", id: enrollmentId, data: enrollment });
-      createdEnrollment = true;
+      const id = rowId("enrollments", enrollment);
+      if (!id) throw new Error("Missing enrollment id");
+      enrollment.id = id;
     }
+    const previousEnrollment = createdEnrollment ? null : { ...enrollment };
+    enrollment.registration_id = registration.id;
+    const enrollmentOwnership = markLearnerProvision(enrollment, operationId);
+    if (enrollmentDoc) await ctx.db.patch(enrollmentDoc._id, { data: enrollment });
+    else await ctx.db.insert("documents", { table: "enrollments", id: String(enrollment.id), data: enrollment });
+
     const previousDoc = registration.id ? await findDoc(ctx, "registrations", String(registration.id)) : null;
     const previousRegistration = previousDoc ? { ...(previousDoc.data as Record<string, unknown>) } : null;
-    await writeDoc(ctx, "registrations", { ...registration, email, student_id: student.id, updated_at: ts });
-    return {
-      ok: true,
-      student,
-      enrollment,
-      createdStudent,
-      createdEnrollment,
-      previousRegistration,
-      activationToken: createdStudent ? student.activation_token || null : null,
+    const nextRegistration: Record<string, unknown> = {
+      ...(previousRegistration || {}), ...registration, email, student_id: student.id, updated_at: ts,
     };
+    const registrationId = rowId("registrations", nextRegistration);
+    if (!registrationId) throw new Error("Missing registration id");
+    nextRegistration.id = registrationId;
+    const registrationOwnership = markLearnerProvision(nextRegistration, operationId);
+    if (previousDoc) await ctx.db.patch(previousDoc._id, { data: nextRegistration });
+    else await ctx.db.insert("documents", { table: "registrations", id: registrationId, data: nextRegistration });
+    return {
+      ok: true, operationId, student, enrollment, createdStudent, createdEnrollment,
+      previousStudent, previousEnrollment, previousRegistration,
+      activationToken: student.status === "invited" ? student.activation_token || null : null,
+      ownership: {
+        student: { ...studentOwnership, created: createdStudent },
+        enrollment: { ...enrollmentOwnership, created: createdEnrollment },
+        registration: { ...registrationOwnership, created: !previousRegistration },
+      },
+    };
+  },
+});
+
+export const finalizeLearnerProvision = mutation({
+  args: { payload: v.any() },
+  handler: async (ctx, args) => {
+    const payload = args.payload as Record<string, any>;
+    const operationId = String(payload.operationId || "");
+    for (const [table, ownership] of Object.entries(payload.ownership || {})) {
+      const doc = await findDoc(ctx, table === "student" ? "students" : table === "enrollment" ? "enrollments" : "registrations", String((ownership as any)?.id || ""));
+      if (!doc) continue;
+      const row = { ...(doc.data as Record<string, unknown>) };
+      if (ownsLearnerProvision(row, operationId, ownership)) {
+        delete row.provision_operation_id;
+        delete row.provision_revision;
+        await ctx.db.patch(doc._id, { data: row });
+      }
+    }
+    return { ok: true };
   },
 });
 
 export const abortLearnerProvision = mutation({
   args: { payload: v.any() },
   handler: async (ctx, args) => {
-    const payload = args.payload as Record<string, unknown>;
-    if (payload.createdStudentId) {
-      const doc = await findDoc(ctx, "students", String(payload.createdStudentId));
-      if (doc) await ctx.db.delete(doc._id);
+    const payload = args.payload as Record<string, any>;
+    const operationId = String(payload.operationId || "");
+    const ownership = payload.ownership || {};
+    for (const [key, table, previousKey] of [
+      ["student", "students", "previousStudent"],
+      ["enrollment", "enrollments", "previousEnrollment"],
+    ] as const) {
+      const claimed = ownership[key];
+      const doc = await findDoc(ctx, table, String(claimed.id || ""));
+      if (doc && ownsLearnerProvision(doc.data as Record<string, unknown>, operationId, claimed)) {
+        if (claimed.created) await ctx.db.delete(doc._id);
+        else if (payload[previousKey]) await ctx.db.patch(doc._id, { data: payload[previousKey] });
+      }
     }
-    if (payload.createdEnrollmentId) {
-      const doc = await findDoc(ctx, "enrollments", String(payload.createdEnrollmentId));
-      if (doc) await ctx.db.delete(doc._id);
-    }
-    if (payload.previousRegistration) {
-      await writeDoc(ctx, "registrations", payload.previousRegistration as Record<string, unknown>);
-    } else if (payload.registrationId) {
-      const doc = await findDoc(ctx, "registrations", String(payload.registrationId));
-      if (doc) await ctx.db.delete(doc._id);
+    const claimed = ownership.registration;
+    if (claimed) {
+      const doc = await findDoc(ctx, "registrations", String(claimed.id || ""));
+      if (doc && ownsLearnerProvision(doc.data as Record<string, unknown>, operationId, claimed)) {
+        if (payload.previousRegistration) await ctx.db.patch(doc._id, { data: payload.previousRegistration });
+        else if (claimed.created) await ctx.db.delete(doc._id);
+      }
     }
     return { ok: true };
   },
@@ -462,8 +550,10 @@ export const abortLearnerProvision = mutation({
 export const beginResetAccess = mutation({
   args: {
     studentId: v.string(),
+    operationId: v.string(),
     activationToken: v.string(),
     expiresAt: v.string(),
+    operationExpiresAt: v.string(),
     now: v.string(),
   },
   handler: async (ctx, args) => {
@@ -473,7 +563,10 @@ export const beginResetAccess = mutation({
     if (student.status === "suspended" || student.status === "inactive") {
       return { ok: false, error: "Inactive accounts cannot be reset" };
     }
-    const previous = {
+    if (student.reset_access_operation_id && String(student.reset_access_operation_expires_at || "") > args.now) {
+      return { ok: false, error: "Reset access already in progress" };
+    }
+    const previous = (student.reset_access_previous as Record<string, unknown> | undefined) || {
       password_hash: student.password_hash,
       activation_token: student.activation_token,
       activation_expires_at: student.activation_expires_at,
@@ -498,6 +591,9 @@ export const beginResetAccess = mutation({
         status: "invited",
         must_change_password: 0,
         session_version: sessionVersion,
+        reset_access_operation_id: args.operationId,
+        reset_access_operation_expires_at: args.operationExpiresAt,
+        reset_access_previous: previous,
         updated_at: args.now,
       },
     });
@@ -505,12 +601,57 @@ export const beginResetAccess = mutation({
   },
 });
 
+export const finalizeResetAccess = mutation({
+  args: {
+    studentId: v.string(),
+    operationId: v.string(),
+    activationToken: v.string(),
+    sessionVersion: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const studentDoc = await findDoc(ctx, "students", args.studentId);
+    if (!studentDoc) return { ok: false, error: "Not found" };
+    const student = { ...(studentDoc.data as Record<string, unknown>) };
+    if (
+      String(student.reset_access_operation_id || "") !== args.operationId ||
+      student.activation_token !== args.activationToken ||
+      Number(student.session_version || 0) !== args.sessionVersion
+    ) return { ok: true, stale: true };
+    delete student.reset_access_operation_id;
+    delete student.reset_access_operation_expires_at;
+    delete student.reset_access_previous;
+    await ctx.db.patch(studentDoc._id, { data: student });
+    return { ok: true };
+  },
+});
+
 export const abortResetAccess = mutation({
-  args: { studentId: v.string(), previous: v.any(), now: v.string() },
+  args: {
+    studentId: v.string(),
+    operationId: v.string(),
+    activationToken: v.string(),
+    sessionVersion: v.number(),
+    previous: v.any(),
+    now: v.string(),
+  },
   handler: async (ctx, args) => {
     const studentDoc = await findDoc(ctx, "students", args.studentId);
     if (!studentDoc || !args.previous) return { ok: false, error: "Not found" };
-    const student = { ...(studentDoc.data as Record<string, unknown>), ...(args.previous as Record<string, unknown>), updated_at: args.now };
+    const current = { ...(studentDoc.data as Record<string, unknown>) };
+    if (
+      String(current.reset_access_operation_id || "") !== args.operationId ||
+      current.activation_token !== args.activationToken ||
+      Number(current.session_version || 0) !== args.sessionVersion
+    ) return { ok: true, stale: true };
+    const student: Record<string, unknown> = {
+      ...current,
+      ...(args.previous as Record<string, unknown>),
+      session_version: nextSessionVersion(current),
+      updated_at: args.now,
+    };
+    delete student.reset_access_operation_id;
+    delete student.reset_access_operation_expires_at;
+    delete student.reset_access_previous;
     await ctx.db.patch(studentDoc._id, { data: student });
     return { ok: true };
   },

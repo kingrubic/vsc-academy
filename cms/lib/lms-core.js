@@ -194,16 +194,9 @@ function publicEmailOrigin() {
   if (parsed.username || parsed.password || parsed.search || parsed.hash || (parsed.pathname && parsed.pathname !== "/")) {
     throw err("PUBLIC_SITE_URL must be an origin only");
   }
-  const host = parsed.hostname.toLowerCase();
-  const extra = String(process.env.PUBLIC_SITE_URL_HOSTS || "")
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
-  const allowed = new Set(["vscacademy.edu.vn", ...extra]);
-  if (!allowed.has(host)) {
-    throw err("PUBLIC_SITE_URL host is not allowlisted");
-  }
-  return parsed.origin;
+  const canonical = "https://vscacademy.edu.vn";
+  if (parsed.origin !== canonical) throw err("PUBLIC_SITE_URL must be the canonical production origin");
+  return canonical;
 }
 
 function hashToken(token) {

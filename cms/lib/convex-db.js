@@ -114,6 +114,12 @@ function createStore() {
     return result;
   }
 
+  async function patchStudentFields(args) {
+    const result = await client.mutation(anyApi.store.patchStudentFields, args);
+    invalidate();
+    return result;
+  }
+
   async function upsertInstructorAccount(payload) {
     const result = await client.mutation(anyApi.store.upsertInstructorAccount, payload);
     invalidate();
@@ -138,6 +144,12 @@ function createStore() {
     return result;
   }
 
+  async function finalizeLearnerProvision(payload) {
+    const result = await client.mutation(anyApi.store.finalizeLearnerProvision, { payload });
+    invalidate();
+    return result;
+  }
+
   async function abortLearnerProvision(payload) {
     const result = await client.mutation(anyApi.store.abortLearnerProvision, { payload });
     invalidate();
@@ -146,6 +158,12 @@ function createStore() {
 
   async function beginResetAccess(args) {
     const result = await client.mutation(anyApi.store.beginResetAccess, args);
+    invalidate();
+    return result;
+  }
+
+  async function finalizeResetAccess(args) {
+    const result = await client.mutation(anyApi.store.finalizeResetAccess, args);
     invalidate();
     return result;
   }
@@ -190,13 +208,16 @@ function createStore() {
     finalizeCertificate,
     consumePasswordReset,
     applyPasswordChange,
+    patchStudentFields,
     upsertInstructorAccount,
     createStudentAccount,
     issuePasswordReset,
     consumeActivation,
     provisionLearnerAccount,
+    finalizeLearnerProvision,
     abortLearnerProvision,
     beginResetAccess,
+    finalizeResetAccess,
     abortResetAccess,
     cancelPasswordReset,
     replaceAll,

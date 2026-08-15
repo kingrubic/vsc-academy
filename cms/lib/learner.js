@@ -323,7 +323,9 @@ async function ensureStudentAndEnrollment(store, snap, registration) {
     created_at: ts,
     updated_at: ts,
   };
+  const operationId = randomId("provision");
   const provisioned = await store.provisionLearnerAccount({
+    operationId,
     registration: { ...registration, email },
     student: studentDraft,
     enrollment: enrollmentDraft,
@@ -334,10 +336,11 @@ async function ensureStudentAndEnrollment(store, snap, registration) {
   }
   try {
     let emailed = false;
-    if (provisioned.createdStudent && provisioned.activationToken) {
+    if (provisioned.activationToken) {
       await sendActivationEmail(store, provisioned.student, provisioned.activationToken);
       emailed = true;
     }
+    await store.finalizeLearnerProvision({ operationId, ownership: provisioned.ownership });
     return {
       created: true,
       student: publicStudent(provisioned.student),
@@ -347,9 +350,10 @@ async function ensureStudentAndEnrollment(store, snap, registration) {
     };
   } catch (err) {
     await store.abortLearnerProvision({
-      createdStudentId: provisioned.createdStudent ? provisioned.student.id : null,
-      createdEnrollmentId: provisioned.createdEnrollment ? provisioned.enrollment.id : null,
-      registrationId: registration.id,
+      operationId,
+      ownership: provisioned.ownership,
+      previousStudent: provisioned.previousStudent,
+      previousEnrollment: provisioned.previousEnrollment,
       previousRegistration: provisioned.previousRegistration,
     });
     throw err;
@@ -362,19 +366,7 @@ async function setStudentPassword(store, student, password) {
   if (typeof store.applyPasswordChange === "function") {
     return store.applyPasswordChange({ table: "students", id: student.id, passwordHash, now: ts });
   }
-  const sessionVersion = Number(student.session_version || 0) + 1;
-  await store.upsert("students", {
-    ...student,
-    password_hash: passwordHash,
-    activation_token: null,
-    activation_expires_at: null,
-    must_change_password: 0,
-    status: student.status === "invited" ? "active" : student.status,
-    session_version: sessionVersion,
-    password_changed_at: ts,
-    updated_at: ts,
-  });
-  return { sessionVersion };
+  throw new Error("Atomic student password mutation is unavailable");
 }
 
 function instructorScope(snap, user) {
