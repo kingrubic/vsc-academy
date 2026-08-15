@@ -98,6 +98,57 @@ export const upsert = mutation({
   },
 });
 
+export const claimCertificate = mutation({
+  args: { data: v.any(), replacesId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const data: Record<string, unknown> = { ...(args.data as Record<string, unknown>), status: "generating" };
+    const id = rowId("certificates", data);
+    if (!id) throw new Error("Missing certificate id");
+    const docs = await ctx.db.query("documents").withIndex("by_table", (q) => q.eq("table", "certificates")).collect();
+    const enrollmentId = String(data.enrollment_id ?? "");
+    const conflict = docs.find((doc) => {
+      const row = doc.data as Record<string, unknown>;
+      return String(row.enrollment_id ?? "") === enrollmentId &&
+        (row.status === "issued" || row.status === "generating") && doc.id !== args.replacesId;
+    });
+    if (conflict) return { claimed: false, id: conflict.id };
+    if (args.replacesId) {
+      const old = docs.find((doc) => doc.id === args.replacesId);
+      if (!old || (old.data as Record<string, unknown>).status !== "issued") return { claimed: false, id: args.replacesId };
+    }
+    data.id = id;
+    await ctx.db.insert("documents", { table: "certificates", id, data });
+    return { claimed: true, id };
+  },
+});
+
+export const finalizeCertificate = mutation({
+  args: { certificate: v.any(), enrollment: v.any(), replacesId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const certificate = { ...(args.certificate as Record<string, unknown>) };
+    const certificateId = rowId("certificates", certificate);
+    const pending = await ctx.db.query("documents")
+      .withIndex("by_table_id", (q) => q.eq("table", "certificates").eq("id", certificateId)).unique();
+    if (!pending || (pending.data as Record<string, unknown>).status !== "generating") throw new Error("Certificate claim is no longer valid");
+    const enrollment = { ...(args.enrollment as Record<string, unknown>) };
+    const enrollmentId = rowId("enrollments", enrollment);
+    const enrollmentDoc = await ctx.db.query("documents")
+      .withIndex("by_table_id", (q) => q.eq("table", "enrollments").eq("id", enrollmentId)).unique();
+    if (!enrollmentDoc) throw new Error("Enrollment disappeared during certificate issuance");
+    if (args.replacesId) {
+      const old = await ctx.db.query("documents")
+        .withIndex("by_table_id", (q) => q.eq("table", "certificates").eq("id", args.replacesId!)).unique();
+      if (!old || (old.data as Record<string, unknown>).status !== "issued") throw new Error("Certificate being replaced is no longer issued");
+      await ctx.db.patch(old._id, { data: { ...(old.data as Record<string, unknown>), status: "reissued", updated_at: certificate.updated_at } });
+    }
+    certificate.id = certificateId;
+    await ctx.db.patch(pending._id, { data: certificate });
+    enrollment.id = enrollmentId;
+    await ctx.db.patch(enrollmentDoc._id, { data: enrollment });
+    return { ok: true, id: certificateId };
+  },
+});
+
 export const remove = mutation({
   args: {
     table: v.string(),

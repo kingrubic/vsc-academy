@@ -8,8 +8,9 @@ const L = require("../lib/learner");
 const C = require("../lib/lms-core");
 const Cert = require("../lib/certificate");
 const { notifyStudents, sessionStudentIds, programStudentIds } = require("../lib/notify");
+const Security = require("../lib/lms-security");
 
-const LEARNER_UPLOAD = path.join(__dirname, "..", "..", "uploads", "learner");
+const LEARNER_UPLOAD = Security.MATERIAL_DIR;
 fs.mkdirSync(LEARNER_UPLOAD, { recursive: true });
 
 const upload = multer({
@@ -50,8 +51,8 @@ function attachLearnerAdmin(router, store) {
         language_preference: s.language_preference,
         last_login_at: s.last_login_at,
         created_at: s.created_at,
-        active_courses: (snap.enrollments || []).filter((e) => e.student_id === s.id && e.status === "active").length,
-        completed_courses: (snap.enrollments || []).filter((e) => e.student_id === s.id && e.status === "completed").length,
+        active_courses: (snap.enrollments || []).filter((e) => e.student_id === s.id && e.status === "active" && Security.instructorOwnsSession(req.lmsScope, e.session_id)).length,
+        completed_courses: (snap.enrollments || []).filter((e) => e.student_id === s.id && e.status === "completed" && Security.instructorOwnsSession(req.lmsScope, e.session_id)).length,
       }));
     res.json({ items });
   });
@@ -68,6 +69,7 @@ function attachLearnerAdmin(router, store) {
     }
     const enrollments = (snap.enrollments || [])
       .filter((e) => e.student_id === student.id)
+      .filter((e) => Security.instructorOwnsSession(req.lmsScope, e.session_id))
       .sort((a, b) => String(b.joined_at).localeCompare(String(a.joined_at)))
       .map((row) => {
         const session = aliveById(snap.sessions, row.session_id);
@@ -81,6 +83,7 @@ function attachLearnerAdmin(router, store) {
         };
       });
     const meetings = alive(snap.class_meetings)
+      .filter((m) => Security.instructorOwnsSession(req.lmsScope, m.session_id))
       .flatMap((m) => {
         return (snap.enrollments || [])
           .filter((e) => e.student_id === student.id && e.session_id === m.session_id && e.status !== "cancelled")
@@ -103,7 +106,9 @@ function attachLearnerAdmin(router, store) {
       enrollments,
       meetings,
       attendance: meetings,
-      certificates: (snap.certificates || []).filter((c) => c.student_id === student.id),
+      certificates: (snap.certificates || []).filter(
+        (c) => c.student_id === student.id && Security.instructorOwnsSession(req.lmsScope, c.session_id),
+      ),
     });
   });
 
@@ -157,12 +162,16 @@ function attachLearnerAdmin(router, store) {
     const snap = await store.dump(true);
     const row = aliveById(snap.students, req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
+    if (row.status === "suspended" || row.status === "inactive") {
+      return res.status(409).json({ error: "Inactive accounts cannot be reset" });
+    }
     const crypto = require("crypto");
     const token = crypto.randomBytes(24).toString("hex");
     await store.upsert("students", {
       ...row,
       password_hash: null,
       activation_token: token,
+      activation_expires_at: new Date(Date.now() + C.ACTIVATION_TTL_MS).toISOString(),
       status: "invited",
       updated_at: now(),
     });
@@ -269,6 +278,14 @@ function attachLearnerAdmin(router, store) {
     try {
       V.required(req.body, ["enrollmentId", "meetingId", "status"]);
       const snap = await store.dump(true);
+      const enrollment = (snap.enrollments || []).find((row) => row.id === req.body.enrollmentId && !row.deleted_at);
+      const meeting = aliveById(snap.class_meetings, req.body.meetingId);
+      if (!enrollment || !meeting || enrollment.session_id !== meeting.session_id) {
+        throw V.fail("Enrollment and meeting must belong to the same session");
+      }
+      if (!Security.instructorOwnsSession(req.lmsScope, meeting.session_id)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
       const id = `${req.body.enrollmentId}::${req.body.meetingId}`;
       const existing = (snap.attendance || []).find(
         (a) => a.enrollment_id === req.body.enrollmentId && a.meeting_id === req.body.meetingId,
@@ -297,6 +314,7 @@ function attachLearnerAdmin(router, store) {
     const sessionId = req.query.sessionId || null;
     const snap = await store.dump();
     const items = alive(snap.class_meetings)
+      .filter((m) => Security.instructorOwnsSession(req.lmsScope, m.session_id))
       .filter((m) => !sessionId || m.session_id === sessionId)
       .sort((a, b) => `${a.date}${a.start_time}`.localeCompare(`${b.date}${b.start_time}`));
     res.json({ items });
@@ -305,6 +323,7 @@ function attachLearnerAdmin(router, store) {
   router.post("/meetings", requireRole("OWNER", "ADMIN", "INSTRUCTOR"), async (req, res) => {
     try {
       V.required(req.body, ["sessionId", "date", "startTime", "endTime"]);
+      if (!Security.instructorOwnsSession(req.lmsScope, req.body.sessionId)) return res.status(403).json({ error: "Forbidden" });
       const id = randomId("mtg");
       const ts = now();
       await store.upsert("class_meetings", {
@@ -340,6 +359,7 @@ function attachLearnerAdmin(router, store) {
     const snap = await store.dump(true);
     const row = aliveById(snap.class_meetings, req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
+    if (!Security.instructorOwnsSession(req.lmsScope, row.session_id)) return res.status(403).json({ error: "Forbidden" });
     const nextDate = req.body.date || row.date;
     const nextStart = req.body.startTime || row.start_time;
     const nextStatus = req.body.status || row.status;
@@ -383,23 +403,31 @@ function attachLearnerAdmin(router, store) {
     res.json({ ok: true });
   });
 
-  router.get("/materials", async (_req, res) => {
+  router.get("/materials", async (req, res) => {
     const snap = await store.dump();
     res.json({
-      items: alive(snap.learning_materials).sort(
+      items: Security.scopedTargetRows(req.lmsScope, snap, alive(snap.learning_materials)).sort(
         (a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(b.published_at).localeCompare(String(a.published_at)),
       ),
     });
   });
 
   router.post("/materials", requireRole("OWNER", "ADMIN", "EDITOR", "INSTRUCTOR"), upload.single("file"), async (req, res) => {
+    let persisted = false;
     try {
       const body = req.body || {};
       if (!body.titleVi) throw V.fail("titleVi is required");
       const id = randomId("mat");
       const ts = now();
       let filePath = "";
-      if (req.file) filePath = path.join("uploads", "learner", req.file.filename);
+      if (req.file) {
+        Security.validateUploadedFile(req.file);
+        filePath = req.file.filename;
+      }
+      const scopeSnap = await store.dump(true);
+      if (!Security.instructorCanAccessTarget(req.lmsScope, scopeSnap, {
+        programId: body.programId, sessionId: body.sessionId, meetingId: body.meetingId,
+      })) throw Object.assign(V.fail("Forbidden"), { status: 403 });
       await store.upsert("learning_materials", {
         id,
         program_id: body.programId || null,
@@ -424,6 +452,7 @@ function attachLearnerAdmin(router, store) {
         updated_at: ts,
         created_by: req.session.user.id,
       });
+      persisted = true;
       if ((body.status || "published") === "published") {
         const fresh = await store.dump(true);
         const ids = body.sessionId
@@ -431,17 +460,22 @@ function attachLearnerAdmin(router, store) {
           : body.programId
             ? programStudentIds(fresh, body.programId)
             : [];
-        await notifyStudents(store, ids, {
-          type: "material",
-          titleVi: "Tài liệu mới",
-          titleEn: "New material",
-          bodyVi: `${body.titleVi} đã được cập nhật.`,
-          bodyEn: `${body.titleEn || body.titleVi} has been published.`,
-          link: "/hoc-vien/tai-lieu",
-        });
+        try {
+          await notifyStudents(store, ids, {
+            type: "material",
+            titleVi: "Tài liệu mới",
+            titleEn: "New material",
+            bodyVi: `${body.titleVi} đã được cập nhật.`,
+            bodyEn: `${body.titleEn || body.titleVi} has been published.`,
+            link: "/hoc-vien/tai-lieu",
+          });
+        } catch (err) {
+          console.error("material notification failed", err);
+        }
       }
       res.json({ ok: true, id });
     } catch (err) {
+      Security.cleanupUploadOnFailure(req.file?.path, persisted);
       res.status(err.status || 400).json({ error: err.message });
     }
   });
@@ -450,6 +484,12 @@ function attachLearnerAdmin(router, store) {
     const snap = await store.dump(true);
     const row = aliveById(snap.learning_materials, req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
+    if (!Security.instructorCanAccessTarget(req.lmsScope, snap, { sessionId: row.session_id, programId: row.program_id, meetingId: row.meeting_id })) return res.status(403).json({ error: "Forbidden" });
+    if (!Security.instructorCanAccessTarget(req.lmsScope, snap, {
+      sessionId: req.body.sessionId ?? row.session_id,
+      programId: req.body.programId ?? row.program_id,
+      meetingId: req.body.meetingId ?? row.meeting_id,
+    })) return res.status(403).json({ error: "Forbidden" });
     await store.upsert("learning_materials", {
       ...row,
       program_id: req.body.programId ?? row.program_id,
@@ -479,16 +519,18 @@ function attachLearnerAdmin(router, store) {
     res.json({ ok: true });
   });
 
-  router.get("/announcements", async (_req, res) => {
+  router.get("/announcements", async (req, res) => {
     const snap = await store.dump();
     res.json({
-      items: (snap.announcements || []).sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || ""))),
+      items: Security.scopedTargetRows(req.lmsScope, snap, snap.announcements || []).sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || ""))),
     });
   });
 
   router.post("/announcements", requireRole("OWNER", "ADMIN", "EDITOR", "INSTRUCTOR"), async (req, res) => {
     try {
       V.required(req.body, ["titleVi"]);
+      if (req.lmsScope?.type === "instructor" && (req.body.targetType || "all") === "all") return res.status(403).json({ error: "Forbidden" });
+      if (!Security.instructorCanAccessTarget(req.lmsScope, await store.dump(true), { programId: req.body.programId, sessionId: req.body.sessionId, studentId: req.body.studentId })) return res.status(403).json({ error: "Forbidden" });
       const id = randomId("ann");
       const ts = now();
       await store.upsert("announcements", {
@@ -535,6 +577,13 @@ function attachLearnerAdmin(router, store) {
     const snap = await store.dump(true);
     const row = (snap.announcements || []).find((a) => a.id === req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
+    if (!Security.instructorCanAccessTarget(req.lmsScope, snap, { programId: row.program_id, sessionId: row.session_id, studentId: row.student_id })) return res.status(403).json({ error: "Forbidden" });
+    if (req.lmsScope?.type === "instructor" && (req.body.targetType || row.target_type) === "all") return res.status(403).json({ error: "Forbidden" });
+    if (!Security.instructorCanAccessTarget(req.lmsScope, snap, {
+      programId: req.body.programId ?? row.program_id,
+      sessionId: req.body.sessionId ?? row.session_id,
+      studentId: req.body.studentId ?? row.student_id,
+    })) return res.status(403).json({ error: "Forbidden" });
     await store.upsert("announcements", {
       ...row,
       title_vi: req.body.titleVi ?? row.title_vi,
@@ -563,6 +612,7 @@ function attachLearnerAdmin(router, store) {
     const snap = await store.dump();
     const q = String(req.query.q || "").trim().toLowerCase();
     const items = (snap.enrollments || [])
+      .filter((row) => Security.instructorOwnsSession(req.lmsScope, row.session_id))
       .map((row) => {
         const student = aliveById(snap.students, row.student_id);
         const session = aliveById(snap.sessions, row.session_id);
@@ -594,6 +644,7 @@ function attachLearnerAdmin(router, store) {
     const snap = await store.dump();
     const session = aliveById(snap.sessions, req.params.id);
     if (!session) return res.status(404).json({ error: "Not found" });
+    if (!Security.instructorOwnsSession(req.lmsScope, session.id)) return res.status(403).json({ error: "Forbidden" });
     const program = aliveById(snap.programs, session.program_id);
     const enrollments = (snap.enrollments || [])
       .filter((e) => e.session_id === session.id)
@@ -703,8 +754,7 @@ function attachLearnerAdmin(router, store) {
 
   router.get("/certificates", async (req, res) => {
     const snap = await store.dump();
-    const items = (snap.certificates || [])
-      .filter((c) => !req.query.sessionId || c.session_id === req.query.sessionId)
+    const items = Security.scopedCertificates(req.lmsScope, snap.certificates, req.query.sessionId)
       .sort((a, b) => String(b.issued_at || "").localeCompare(String(a.issued_at || "")));
     res.json({ items });
   });
@@ -782,10 +832,11 @@ function attachLearnerAdmin(router, store) {
   router.get("/certificates/:id/pdf", requireRole("OWNER", "ADMIN"), async (req, res) => {
     const snap = await store.dump();
     const row = (snap.certificates || []).find((c) => c.id === req.params.id || c.certificate_code === req.params.id);
-    if (!row) return res.status(404).json({ error: "Not found" });
+    if (!row || row.status !== "issued") return res.status(404).json({ error: "Not found" });
     const abs = Cert.pdfAbsolutePath(row);
     if (!abs) return res.status(404).json({ error: "PDF missing" });
     res.setHeader("Content-Type", "application/pdf");
+    Security.setPrivateDownloadHeaders(res);
     res.sendFile(abs);
   });
 

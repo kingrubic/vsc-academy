@@ -4,6 +4,7 @@ const PDFDocument = require("pdfkit");
 const QRCode = require("qrcode");
 const { now, parseJson, alive, aliveById } = require("./convex-db");
 const { randomId } = require("./auth");
+const Security = require("./lms-security");
 const {
   generateCertificateCode,
   evaluateEligibility,
@@ -11,7 +12,7 @@ const {
   programCode,
 } = require("./lms-core");
 
-const CERT_DIR = path.join(__dirname, "..", "..", "uploads", "certificates");
+const CERT_DIR = Security.CERTIFICATE_DIR;
 fs.mkdirSync(CERT_DIR, { recursive: true });
 
 const FONT_REG =
@@ -270,7 +271,7 @@ async function issueCertificate(store, snap, enrollmentId, actor, req) {
     session_name_snapshot: session?.session_name || "",
     completion_date: completionDate,
     issue_date: ts.slice(0, 10),
-    status: "issued",
+    status: "generating",
     issued_by: actor?.id || null,
     issued_at: ts,
     pdf_url: "",
@@ -286,21 +287,35 @@ async function issueCertificate(store, snap, enrollmentId, actor, req) {
     updated_by: actor?.id || null,
   };
 
-  const pdf = await renderCertificatePdf(cert, template);
-  const filename = `${code}.pdf`;
-  fs.writeFileSync(path.join(CERT_DIR, filename), pdf);
-  cert.pdf_url = `uploads/certificates/${filename}`;
-
-  await store.upsert("certificates", cert);
-  await store.upsert("enrollments", {
-    ...enrollment,
-    certificate_status: "issued",
-    completion_status: "completed",
-    status: enrollment.status === "cancelled" ? enrollment.status : "completed",
-    completed_at: enrollment.completed_at || ts,
-    updated_at: ts,
-    updated_by: actor?.id || null,
-  });
+  const claim = await store.claimCertificate(cert);
+  if (!claim.claimed) throw Object.assign(new Error("Certificate already issued or issuance is in progress"), { status: 409 });
+  const filename = `${cert.id}.pdf`;
+  const pdfPath = path.join(CERT_DIR, filename);
+  try {
+    const pdf = await renderCertificatePdf(cert, template);
+    fs.writeFileSync(pdfPath, pdf, { flag: "wx", mode: 0o600 });
+  } catch (err) {
+    Security.removeFile(pdfPath);
+    await store.remove("certificates", cert.id).catch(() => {});
+    throw err;
+  }
+  cert.pdf_url = filename;
+  cert.status = "issued";
+  try {
+    await store.finalizeCertificate(cert, {
+      ...enrollment,
+      certificate_status: "issued",
+      completion_status: "completed",
+      status: enrollment.status === "cancelled" ? enrollment.status : "completed",
+      completed_at: enrollment.completed_at || ts,
+      updated_at: ts,
+      updated_by: actor?.id || null,
+    });
+  } catch (err) {
+    Security.removeFile(pdfPath);
+    await store.remove("certificates", cert.id).catch(() => {});
+    throw err;
+  }
   await writeAudit(store, "certificate.issue", actor, { type: "certificate", id: cert.id }, { code });
   return cert;
 }
@@ -336,18 +351,14 @@ async function revokeCertificate(store, snap, certificateId, actor, reason) {
 async function reissueCertificate(store, snap, certificateId, actor, req) {
   const old = (snap.certificates || []).find((c) => c.id === certificateId || c.certificate_code === certificateId);
   if (!old) throw Object.assign(new Error("Certificate not found"), { status: 404 });
+  if (old.status !== "issued") throw Object.assign(new Error("Only an issued certificate can be reissued"), { status: 409 });
   const ts = now();
-  await store.upsert("certificates", {
-    ...old,
-    status: "reissued",
-    updated_at: ts,
-    updated_by: actor?.id || null,
-  });
   const enrollment = (snap.enrollments || []).find((e) => e.id === old.enrollment_id);
   if (!enrollment) throw Object.assign(new Error("Enrollment not found"), { status: 404 });
   const student = aliveById(snap.students, enrollment.student_id);
   const program = aliveById(snap.programs, enrollment.program_id);
   const session = aliveById(snap.sessions, enrollment.session_id);
+  if (!student || !program || !session) throw Object.assign(new Error("Student, program, or session missing"), { status: 400 });
   const template = resolveTemplate(snap, program?.certificate_template_id || old.template_id);
   const existingCodes = new Set((snap.certificates || []).map((c) => c.certificate_code));
   existingCodes.add(old.certificate_code);
@@ -369,7 +380,7 @@ async function reissueCertificate(store, snap, certificateId, actor, req) {
     session_name_snapshot: session?.session_name || "",
     completion_date: old.completion_date,
     issue_date: ts.slice(0, 10),
-    status: "issued",
+    status: "generating",
     issued_by: actor?.id || null,
     issued_at: ts,
     pdf_url: "",
@@ -384,17 +395,32 @@ async function reissueCertificate(store, snap, certificateId, actor, req) {
     created_by: actor?.id || null,
     updated_by: actor?.id || null,
   };
-  const pdf = await renderCertificatePdf(cert, template);
-  const filename = `${code}.pdf`;
-  fs.writeFileSync(path.join(CERT_DIR, filename), pdf);
-  cert.pdf_url = `uploads/certificates/${filename}`;
-  await store.upsert("certificates", cert);
-  await store.upsert("enrollments", {
-    ...enrollment,
-    certificate_status: "issued",
-    updated_at: ts,
-    updated_by: actor?.id || null,
-  });
+  const claim = await store.claimCertificate(cert, old.id);
+  if (!claim.claimed) throw Object.assign(new Error("Certificate reissue conflict"), { status: 409 });
+  const filename = `${cert.id}.pdf`;
+  const pdfPath = path.join(CERT_DIR, filename);
+  try {
+    const pdf = await renderCertificatePdf(cert, template);
+    fs.writeFileSync(pdfPath, pdf, { flag: "wx", mode: 0o600 });
+  } catch (err) {
+    Security.removeFile(pdfPath);
+    await store.remove("certificates", cert.id).catch(() => {});
+    throw err;
+  }
+  cert.pdf_url = filename;
+  cert.status = "issued";
+  try {
+    await store.finalizeCertificate(cert, {
+      ...enrollment,
+      certificate_status: "issued",
+      updated_at: ts,
+      updated_by: actor?.id || null,
+    }, old.id);
+  } catch (err) {
+    Security.removeFile(pdfPath);
+    await store.remove("certificates", cert.id).catch(() => {});
+    throw err;
+  }
   await writeAudit(store, "certificate.reissue", actor, { type: "certificate", id: cert.id }, {
     replaces: old.id,
     code,
@@ -410,7 +436,8 @@ function findByCode(snap, code) {
 function pdfAbsolutePath(row) {
   if (!row?.pdf_url) return null;
   const root = path.resolve(CERT_DIR);
-  const abs = path.resolve(path.join(__dirname, "..", "..", row.pdf_url));
+  const abs = Security.privateFilePath(CERT_DIR, row.pdf_url, "uploads/certificates");
+  if (!abs) return null;
   if (abs !== root && !abs.startsWith(root + path.sep)) return null;
   return fs.existsSync(abs) ? abs : null;
 }

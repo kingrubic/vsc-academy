@@ -83,6 +83,25 @@ function createStore() {
     return result;
   }
 
+  async function claimCertificate(data, replacesId) {
+    const result = await client.mutation(anyApi.store.claimCertificate, {
+      data,
+      ...(replacesId ? { replacesId: String(replacesId) } : {}),
+    });
+    invalidate();
+    return result;
+  }
+
+  async function finalizeCertificate(certificate, enrollment, replacesId) {
+    const result = await client.mutation(anyApi.store.finalizeCertificate, {
+      certificate,
+      enrollment,
+      ...(replacesId ? { replacesId: String(replacesId) } : {}),
+    });
+    invalidate();
+    return result;
+  }
+
   async function replaceAll(snapshot) {
     const result = await client.mutation(anyApi.store.replaceAll, { snapshot });
     invalidate();
@@ -101,6 +120,8 @@ function createStore() {
     upsert,
     remove,
     removeWhere,
+    claimCertificate,
+    finalizeCertificate,
     replaceAll,
     count,
   };

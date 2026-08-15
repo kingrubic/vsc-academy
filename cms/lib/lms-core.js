@@ -64,9 +64,10 @@ function joinWindow(meeting, minutesBefore = 30, nowMs = Date.now()) {
   const closeAt = end.getTime() + JOIN_GRACE_MINUTES_AFTER_END * 60 * 1000;
   const status = meetingComputedStatus(meeting, nowMs);
   const online = format !== "offline";
+  const effectiveUrl = meeting.meeting_url || meeting.session_meeting_url || "";
   const canJoin =
     online &&
-    !!meeting.meeting_url &&
+    !!effectiveUrl &&
     status !== "cancelled" &&
     nowMs >= openAt &&
     nowMs <= closeAt;

@@ -16,6 +16,7 @@ const {
 const V = require("../lib/validate");
 const { remainingSeats, parsePrice, pickCopy } = require("../lib/serialize");
 const L = require("../lib/learner");
+const Security = require("../lib/lms-security");
 const { attachLearnerAdmin } = require("./admin-learner");
 
 const UPLOAD_DIR = path.join(__dirname, "..", "..", "uploads", "cms");
@@ -145,6 +146,7 @@ function createAdminRouter(store) {
     if (req.session.user.role === "INSTRUCTOR") {
       const p = req.path || "";
       if (p.startsWith("/settings")) return res.status(403).json({ error: "Forbidden" });
+      if (p.startsWith("/registrations")) return res.status(403).json({ error: "Forbidden" });
       if (req.method !== "GET" && (p.startsWith("/programs") || p.startsWith("/venues") || p.startsWith("/registrations"))) {
         return res.status(403).json({ error: "Forbidden" });
       }
@@ -152,20 +154,27 @@ function createAdminRouter(store) {
     next();
   });
 
-  router.get("/dashboard", async (_req, res) => {
+  router.get("/dashboard", async (req, res) => {
     const snap = await store.dump();
     const today = now().slice(0, 10);
-    const programs = alive(snap.programs).filter((p) => p.status !== "hidden").length;
-    const upcoming = alive(snap.sessions).filter(
+    const programs = alive(snap.programs).filter(
+      (p) => p.status !== "hidden" && Security.instructorOwnsProgram(req.lmsScope, p.id),
+    ).length;
+    const scopedSessions = alive(snap.sessions).filter(
+      (s) => Security.instructorOwnsSession(req.lmsScope, s.id),
+    );
+    const upcoming = scopedSessions.filter(
       (s) => ["open", "upcoming", "limited"].includes(s.status) && s.start_date >= today,
     ).length;
-    const openReg = alive(snap.sessions).filter((s) => ["open", "limited"].includes(s.status)).length;
-    const registrations = alive(snap.registrations).length;
-    const newRegs = alive(snap.registrations).filter((r) => r.status === "new").length;
-    const learners = alive(snap.students).length;
+    const openReg = scopedSessions.filter((s) => ["open", "limited"].includes(s.status)).length;
+    const registrations = req.lmsScope?.type === "instructor" ? 0 : alive(snap.registrations).length;
+    const newRegs = req.lmsScope?.type === "instructor" ? 0 : alive(snap.registrations).filter((r) => r.status === "new").length;
+    const learners = alive(snap.students).filter(
+      (student) => Security.instructorOwnsStudent(req.lmsScope, snap, student.id),
+    ).length;
     const drafts = alive(snap.insights).filter((i) => ["draft", "review", "ai_draft"].includes(i.status_vi)).length;
     const enIncomplete = alive(snap.programs).filter((p) => p.status === "published" && p.status_en !== "published").length;
-    const upcomingRows = alive(snap.sessions)
+    const upcomingRows = scopedSessions
       .filter((s) => ["open", "upcoming", "limited"].includes(s.status))
       .sort((a, b) => String(a.start_date).localeCompare(String(b.start_date)))
       .slice(0, 6)
@@ -183,14 +192,18 @@ function createAdminRouter(store) {
           programName: programShortName(program) || row.program_id,
         };
       });
-    const latestRegs = alive(snap.registrations)
+    const latestRegs = req.lmsScope?.type === "instructor" ? [] : alive(snap.registrations)
       .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
       .slice(0, 8)
       .map((row) => {
         const session = aliveById(snap.sessions, row.session_id);
         const program = aliveById(snap.programs, row.program_id);
         return {
-          ...row,
+          id: row.id,
+          status: row.status,
+          created_at: row.created_at,
+          program_id: row.program_id,
+          session_id: row.session_id,
           session_name: session?.session_name,
           start_date: session?.start_date,
           programName: programShortName(program),
@@ -208,6 +221,7 @@ function createAdminRouter(store) {
     const status = req.query.status;
     const snap = await store.dump();
     const rows = alive(snap.programs)
+      .filter((row) => Security.instructorOwnsProgram(req.lmsScope, row.id))
       .filter((row) => !status || row.status === status)
       .filter((row) => !q || like(row.id, q) || like(row.slug_vi, q) || like(row.content_vi, q))
       .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.id).localeCompare(String(b.id)))
@@ -232,6 +246,7 @@ function createAdminRouter(store) {
     const snap = await store.dump();
     const row = aliveById(snap.programs, req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
+    if (!Security.instructorOwnsProgram(req.lmsScope, row.id)) return res.status(403).json({ error: "Forbidden" });
     const instructors = (snap.program_instructors || [])
       .filter((x) => x.program_id === row.id)
       .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
@@ -412,6 +427,7 @@ function createAdminRouter(store) {
     const snap = await store.dump();
     const row = aliveById(snap.sessions, req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
+    if (!Security.instructorOwnsSession(req.lmsScope, row.id)) return res.status(403).json({ error: "Forbidden" });
     res.json(row);
   });
 

@@ -1,6 +1,5 @@
 const express = require("express");
 const fs = require("fs");
-const path = require("path");
 const { now, parseJson, alive, aliveById } = require("../lib/convex-db");
 const { verifyPassword, tooManyLogins, recordLogin, hashPassword } = require("../lib/auth");
 const V = require("../lib/validate");
@@ -8,11 +7,8 @@ const L = require("../lib/learner");
 const C = require("../lib/lms-core");
 const Cert = require("../lib/certificate");
 const { queueMail } = require("../lib/notify");
+const Security = require("../lib/lms-security");
 
-function requireStudent(req, res, next) {
-  if (!req.session?.student) return res.status(401).json({ error: "Unauthorized" });
-  next();
-}
 
 function localeOf(req) {
   if (req.query.locale === "en" || req.query.locale === "vi") return req.query.locale;
@@ -25,6 +21,21 @@ const GENERIC_RESET_EN =
 
 function createLearnerRouter(store) {
   const router = express.Router();
+  const requireStudent = async (req, res, next) => {
+    if (!req.session?.student) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const snap = await store.dump(true);
+      const student = aliveById(snap.students, req.session.student.id);
+      if (!student || student.status !== "active") {
+        return req.session.destroy(() => res.status(401).json({ error: "Unauthorized" }));
+      }
+      req.session.student = L.publicStudent(student);
+      req.studentSnapshot = snap;
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
 
   router.post("/login", async (req, res) => {
     const ip = req.ip || req.socket.remoteAddress || "unknown";
@@ -65,8 +76,8 @@ function createLearnerRouter(store) {
     try {
       if (email) {
         const snap = await store.dump(true);
-        const student = alive(snap.students).find((row) => row.email === email && row.status !== "suspended");
-        if (student && student.password_hash) {
+        const student = alive(snap.students).find((row) => row.email === email);
+        if (Security.canRequestPasswordReset(student)) {
           const token = C.newSecretToken();
           const ts = now();
           await store.upsert("password_resets", {
@@ -106,6 +117,7 @@ function createLearnerRouter(store) {
       }
       const student = aliveById(snap.students, row.student_id);
       if (!student) throw V.fail("Link đặt lại mật khẩu không còn hiệu lực");
+      if (student.status !== "active") throw V.fail("Tài khoản không hoạt động");
       await L.setStudentPassword(store, student, password);
       await store.upsert("password_resets", { ...row, used_at: now() });
       const freshSnap = await store.dump(true);
@@ -121,7 +133,7 @@ function createLearnerRouter(store) {
     const token = String(req.query.token || "");
     const snap = await store.dump();
     const student = alive(snap.students).find((row) => row.activation_token === token);
-    if (!student) return res.status(400).json({ error: "Link kích hoạt không còn hiệu lực" });
+    if (!Security.canExposeActivation(student)) return res.status(400).json({ error: "Link kích hoạt không còn hiệu lực" });
     if (student.activation_expires_at && student.activation_expires_at < now()) {
       return res.status(400).json({ error: "Link kích hoạt không còn hiệu lực" });
     }
@@ -139,7 +151,8 @@ function createLearnerRouter(store) {
       if (student.activation_expires_at && student.activation_expires_at < now()) {
         throw V.fail("Link kích hoạt không còn hiệu lực");
       }
-      await L.setStudentPassword(store, student, password);
+      if (student.status !== "invited") throw V.fail("Link kích hoạt không còn hiệu lực");
+      await L.setStudentPassword(store, { ...student, status: "active" }, password);
       const freshSnap = await store.dump(true);
       const fresh = aliveById(freshSnap.students, student.id);
       req.session.student = L.publicStudent(fresh);
@@ -152,10 +165,7 @@ function createLearnerRouter(store) {
   router.get("/me", requireStudent, async (req, res) => {
     const snap = await store.dump();
     const student = aliveById(snap.students, req.session.student.id);
-    if (!student || student.status === "suspended") {
-      delete req.session.student;
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    if (!student || student.status !== "active") return res.status(401).json({ error: "Unauthorized" });
     req.session.student = L.publicStudent(student);
     res.json({
       student: req.session.student,
@@ -333,10 +343,10 @@ function createLearnerRouter(store) {
     }
     if (row.external_url) return res.redirect(row.external_url);
     if (row.file_path) {
-      const root = path.resolve(path.join(__dirname, "..", "..", "uploads", "learner"));
-      const abs = path.resolve(path.join(__dirname, "..", "..", row.file_path));
-      if (abs !== root && !abs.startsWith(root + path.sep)) return res.status(403).json({ error: "Forbidden" });
+      const abs = Security.privateFilePath(Security.MATERIAL_DIR, row.file_path);
+      if (!abs) return res.status(403).json({ error: "Forbidden" });
       if (!fs.existsSync(abs)) return res.status(404).json({ error: "File missing" });
+      Security.setPrivateDownloadHeaders(res);
       return res.sendFile(abs);
     }
     if (row.file_url) return res.redirect(row.file_url);
@@ -408,10 +418,12 @@ function createLearnerRouter(store) {
         c.student_id === req.session.student.id &&
         (c.id === req.params.id || c.certificate_code === req.params.id),
     );
-    if (!row || row.status === "revoked") return res.status(404).json({ error: "Not found" });
+    if (!row || row.status !== "issued") return res.status(404).json({ error: "Not found" });
     const abs = Cert.pdfAbsolutePath(row);
     if (!abs) return res.status(404).json({ error: "PDF missing" });
     res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "private, no-store, max-age=0");
     res.setHeader("Content-Disposition", `attachment; filename="${row.certificate_code}.pdf"`);
     res.sendFile(abs);
   });

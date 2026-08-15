@@ -246,7 +246,7 @@ function resolveJoinUrl(snap, meeting) {
   const session = aliveById(snap.sessions, meeting.session_id);
   const program = byProgram(snap, session?.program_id);
   const minutes = C.joinLinkOpenMinutes(program, session);
-  const window = C.joinWindow(meeting, minutes);
+  const window = C.joinWindow({ ...meeting, session_meeting_url: session?.meeting_url }, minutes);
   const url = meeting.meeting_url || session?.meeting_url || "";
   return { ...window, url, session, program, minutes };
 }
@@ -330,7 +330,6 @@ async function setStudentPassword(store, student, password) {
     password_hash: hashPassword(password),
     activation_token: null,
     activation_expires_at: null,
-    status: "active",
     updated_at: now(),
   });
 }

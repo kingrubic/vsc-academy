@@ -8,6 +8,7 @@ const serialize = require("./lib/serialize");
 const { createPublicRouter } = require("./routes/public");
 const { createAdminRouter } = require("./routes/admin");
 const { createLearnerRouter } = require("./routes/learner");
+const Security = require("./lib/lms-security");
 
 const SITE_ROOT = path.join(__dirname, "..");
 const ADMIN_DIR = path.join(SITE_ROOT, "admin");
@@ -30,6 +31,7 @@ function sessionSecret() {
 
 async function main() {
   const store = createStore();
+  await Security.migrateLegacyPrivateFiles(store, SITE_ROOT);
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
@@ -84,6 +86,9 @@ async function main() {
   app.use("/api/admin", createAdminRouter(store));
   app.use("/api/learner", createLearnerRouter(store));
   app.use("/uploads/cms", express.static(path.join(SITE_ROOT, "uploads", "cms")));
+  app.use(["/uploads/learner", "/uploads/certificates"], (_req, res) => {
+    res.status(404).json({ error: "Not found" });
+  });
 
   const generated = [
     [/schedule-data\.js$/, serialize.scheduleDataJs],
