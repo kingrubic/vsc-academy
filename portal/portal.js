@@ -409,7 +409,7 @@
 
   function authShell(inner, visualLead) {
     return `<div class="auth-visual">
-        <img src="/assets/logo-vsc-academy-white.webp" alt="VSC Academy" width="166" height="62" />
+        <img src="/assets/logo-vsc-academy-white.webp" alt="VSC Academy" width="640" height="463" />
         <small>VSC ACADEMY · LEARNER PORTAL</small>
         <h2>${esc(t.welcomeBack)}</h2>
         <p>${esc(visualLead || t.loginLead)}</p>
@@ -430,7 +430,7 @@
     let card = "";
     if (activate) {
       card = `<form class="auth-card" id="activate-form">
-        <img class="auth-logo" src="/assets/logo-vsc-academy-white.webp" alt="" width="166" height="62" />
+        <img class="auth-logo" src="/assets/logo-vsc-academy-white.webp" alt="" width="640" height="463" />
         <h1>${t.activate}</h1>
         <p>${t.activateLead}</p>
         <label>${t.newPassword}</label>
@@ -440,7 +440,7 @@
       </form>`;
     } else if (forgot) {
       card = `<form class="auth-card" id="forgot-form">
-        <img class="auth-logo" src="/assets/logo-vsc-academy-white.webp" alt="" width="166" height="62" />
+        <img class="auth-logo" src="/assets/logo-vsc-academy-white.webp" alt="" width="640" height="463" />
         <h1>${t.forgotTitle}</h1>
         <p>${t.forgotLead}</p>
         <label>${t.email}</label>
@@ -451,7 +451,7 @@
       </form>`;
     } else if (reset) {
       card = `<form class="auth-card" id="reset-form">
-        <img class="auth-logo" src="/assets/logo-vsc-academy-white.webp" alt="" width="166" height="62" />
+        <img class="auth-logo" src="/assets/logo-vsc-academy-white.webp" alt="" width="640" height="463" />
         <h1>${t.resetTitle}</h1>
         <label>${t.newPassword}</label>
         <input name="password" type="password" minlength="8" required />
@@ -460,7 +460,7 @@
       </form>`;
     } else {
       card = `<form class="auth-card" id="login-form">
-        <img class="auth-logo" src="/assets/logo-vsc-academy-white.webp" alt="" width="166" height="62" />
+        <img class="auth-logo" src="/assets/logo-vsc-academy-white.webp" alt="" width="640" height="463" />
         <h1>${t.welcomeBack}</h1>
         <p>${t.loginLead}</p>
         <label>${t.email}</label>
