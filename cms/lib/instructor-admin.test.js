@@ -203,6 +203,20 @@ test("admin UI hides instructor-forbidden enrollment and delete controls", () =>
   assert.doesNotMatch(ui, /\$\("#note-form"\)\.onsubmit/);
 });
 
+test("admin shell uses Vietnamese navigation and versioned assets", () => {
+  const root = path.join(__dirname, "..", "..", "admin");
+  const ui = fs.readFileSync(path.join(root, "admin.js"), "utf8");
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  for (const label of ["Tổng quan", "Khóa học", "Lớp học", "Đăng ký", "Học viên", "Ghi danh", "Tài liệu", "Chứng nhận", "Giảng viên", "Cài đặt"]) {
+    assert.match(ui, new RegExp(`\\["${label}"`), `missing Vietnamese navigation label: ${label}`);
+  }
+  for (const obsolete of ["Dashboard", "Programs", "Sessions", "Registrations", "Students", "Enrollments", "Materials", "Certificates", "Instructors", "Settings"]) {
+    assert.doesNotMatch(ui, new RegExp(`\\["${obsolete}"`), `obsolete English navigation label: ${obsolete}`);
+  }
+  assert.match(html, /\/admin\/admin\.css\?v=[0-9-]+/);
+  assert.match(html, /\/admin\/admin\.js\?v=[0-9-]+/);
+});
+
 test("instructor cannot create or clear unscoped materials", async () => {
   const { app, store } = harnessFor();
   const create = await request(app, {
