@@ -70,6 +70,37 @@ function randomId(prefix) {
   return `${prefix}-${crypto.randomBytes(4).toString("hex")}`;
 }
 
+function destroySession(req) {
+  return new Promise((resolve) => {
+    if (!req.session || typeof req.session.destroy !== "function") return resolve();
+    req.session.destroy(() => resolve());
+  });
+}
+
+function staffUserFromRow(user) {
+  return {
+    id: String(user.id),
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    instructorId: user.instructor_id || user.instructorId || "",
+    mustChangePassword: Number(user.must_change_password ?? user.mustChangePassword) === 1,
+  };
+}
+
+async function refreshStaffSessionUser(store, req) {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser || !sessionUser.id) return { ok: false, status: 401 };
+  const snap = await store.dump(true);
+  const user = (snap.users || []).find((row) => String(row.id) === String(sessionUser.id));
+  if (!user || Number(user.active) !== 1) {
+    await destroySession(req);
+    return { ok: false, status: 401 };
+  }
+  req.session.user = staffUserFromRow(user);
+  return { ok: true, user: req.session.user, snap };
+}
+
 module.exports = {
   hashPassword,
   verifyPassword,
@@ -81,4 +112,7 @@ module.exports = {
   canDelete,
   editorLocked,
   randomId,
+  destroySession,
+  staffUserFromRow,
+  refreshStaffSessionUser,
 };

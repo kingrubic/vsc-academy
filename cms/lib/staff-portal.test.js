@@ -56,6 +56,8 @@ test("stored next is sanitized and remapped to the role portal", () => {
 });
 
 test("instructor admin allowlist is fail-closed for CMS mutations and private admin reads", () => {
+  assert.equal(P.instructorMayAccessAdmin("GET", "/me"), true);
+  assert.equal(P.instructorMayAccessAdmin("POST", "/change-password"), true);
   assert.equal(P.instructorMayAccessAdmin("GET", "/sessions/s1/lms"), true);
   assert.equal(P.instructorMayAccessAdmin("PUT", "/attendance"), true);
   assert.equal(P.instructorMayAccessAdmin("POST", "/enrollments/e1/recommend-completion"), true);

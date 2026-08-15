@@ -12,6 +12,7 @@ const {
   recordLogin,
   editorLocked,
   randomId,
+  refreshStaffSessionUser,
 } = require("../lib/auth");
 const V = require("../lib/validate");
 const { remainingSeats, parsePrice, pickCopy } = require("../lib/serialize");
@@ -80,11 +81,23 @@ function createAdminRouter(store) {
     req.session.destroy(() => res.json({ ok: true }));
   });
 
-  router.get("/me", requireAuth, (req, res) => {
+  router.use(requireAuth);
+  router.use(async (req, res, next) => {
+    try {
+      const result = await refreshStaffSessionUser(store, req);
+      if (!result.ok) return res.status(401).json({ error: "Unauthorized" });
+      req.lmsScope = L.instructorScope(result.snap, req.session.user);
+      next();
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get("/me", (req, res) => {
     res.json({ user: req.session.user });
   });
 
-  router.post("/change-password", requireAuth, async (req, res) => {
+  router.post("/change-password", async (req, res) => {
     try {
       const current = String(req.body?.currentPassword || "");
       const next = String(req.body?.newPassword || "");
@@ -115,29 +128,7 @@ function createAdminRouter(store) {
     }
   });
 
-  router.use(requireAuth);
-  router.use(async (req, res, next) => {
-    try {
-      const snap = await store.dump(true);
-      const currentUser = (snap.users || []).find(
-        (row) => String(row.id) === String(req.session.user.id),
-      );
-      if (!currentUser || Number(currentUser.active) !== 1) {
-        req.session.destroy(() => {});
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-      req.session.user = {
-        ...req.session.user,
-        email: currentUser.email,
-        name: currentUser.name,
-        role: currentUser.role,
-        instructorId: currentUser.instructor_id || null,
-        mustChangePassword: Number(currentUser.must_change_password) === 1,
-      };
-      req.lmsScope = L.instructorScope(snap, req.session.user);
-    } catch (err) {
-      return next(err);
-    }
+  router.use((req, res, next) => {
     if (req.session.user.mustChangePassword) {
       return res.status(403).json({
         error: "Cần đổi mật khẩu trước khi tiếp tục",

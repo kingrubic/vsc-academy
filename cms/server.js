@@ -113,18 +113,7 @@ async function main() {
   });
 
   app.use("/admin", express.static(ADMIN_DIR, { index: false, extensions: ["html"] }));
-  function sendStaffShell(req, res) {
-    const user = req.session?.user;
-    if (user) {
-      const dest = StaffPortal.staffShellRedirect(
-        req.path,
-        new URL(req.originalUrl || req.url, "http://localhost").search,
-        user,
-      );
-      if (dest) return res.redirect(302, dest);
-    }
-    res.sendFile(path.join(ADMIN_DIR, "index.html"));
-  }
+  const sendStaffShell = StaffPortal.createStaffShellHandler(store, ADMIN_DIR);
   app.get(/^\/admin(?:\/.*)?$/, sendStaffShell);
   app.get(/^\/giang-vien(?:\/.*)?$/, sendStaffShell);
 

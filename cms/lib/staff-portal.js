@@ -9,6 +9,7 @@ const INSTRUCTOR_PORTAL_SEGS = new Set([
 ]);
 
 const INSTRUCTOR_GET = [
+  /^\/me$/,
   /^\/dashboard$/,
   /^\/programs(?:\/[^/]+)?$/,
   /^\/sessions(?:\/[^/]+)?$/,
@@ -22,6 +23,7 @@ const INSTRUCTOR_GET = [
 ];
 
 const INSTRUCTOR_MUTATE = [
+  { method: "POST", re: /^\/change-password$/ },
   { method: "POST", re: /^\/meetings$/ },
   { method: "PUT", re: /^\/meetings\/[^/]+$/ },
   { method: "PUT", re: /^\/attendance$/ },
@@ -165,6 +167,33 @@ function instructorMayAccessAdmin(method, reqPath) {
   return INSTRUCTOR_MUTATE.some((row) => row.method === m && row.re.test(p));
 }
 
+function staffShellSearch(req) {
+  try {
+    return new URL(req.originalUrl || req.url || req.path || "/", "http://localhost").search;
+  } catch {
+    return "";
+  }
+}
+
+function createStaffShellHandler(store, adminDir) {
+  const path = require("path");
+  const { refreshStaffSessionUser } = require("./auth");
+  return async function sendStaffShell(req, res, next) {
+    try {
+      if (req.session?.user?.id) {
+        const result = await refreshStaffSessionUser(store, req);
+        if (result.ok) {
+          const dest = staffShellRedirect(req.path, staffShellSearch(req), req.session.user);
+          if (dest) return res.redirect(302, dest);
+        }
+      }
+      res.sendFile(path.join(adminDir, "index.html"));
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
 module.exports = {
   INSTRUCTOR_PORTAL_SEGS,
   ADMIN_MUTATION_SAMPLES,
@@ -176,4 +205,5 @@ module.exports = {
   resolveStaffDestination,
   staffShellRedirect,
   instructorMayAccessAdmin,
+  createStaffShellHandler,
 };

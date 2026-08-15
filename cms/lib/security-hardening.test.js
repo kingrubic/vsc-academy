@@ -26,6 +26,14 @@ test("instructor authorization centrally limits programs, sessions, students, me
   assert.equal(Security.instructorOwnsStudent(scope, snap, "st2"), false);
   assert.equal(Security.instructorCanAccessTarget(scope, snap, { meetingId: "m1" }), true);
   assert.equal(Security.instructorCanAccessTarget(scope, snap, { meetingId: "m2" }), false);
+  assert.equal(Security.instructorCanAccessTarget(scope, snap, {}), false);
+  assert.equal(Security.instructorCanAccessTarget(scope, snap, { sessionId: "", programId: "" }), false);
+  assert.equal(Security.hasInstructorTarget({ sessionId: "s1" }), true);
+  assert.equal(Security.announcementTargetSpec("session", {}).ok, false);
+  assert.equal(Security.announcementTargetSpec("program", { programId: "p1" }).ok, true);
+  assert.equal(Security.evaluateAnnouncementTarget(scope, snap, { targetType: "all" }).status, 403);
+  assert.equal(Security.evaluateAnnouncementTarget(scope, snap, { targetType: "session" }).status, 400);
+  assert.equal(Security.evaluateAnnouncementTarget(scope, snap, { targetType: "session", sessionId: "s1" }).ok, true);
   assert.deepEqual(Security.scopedRows(scope, [{ id: "a", session_id: "s1" }, { id: "b", session_id: "s2" }]).map((r) => r.id), ["a"]);
 });
 

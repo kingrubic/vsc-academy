@@ -143,16 +143,71 @@ function instructorOwnsStudent(scope, snap, studentId) {
   );
 }
 
+function coalesceTargetId(incoming, existing) {
+  if (incoming === undefined) return existing || null;
+  if (incoming == null || incoming === "") return null;
+  return String(incoming);
+}
+
+function targetId(value) {
+  if (value == null) return "";
+  return String(value).trim();
+}
+
+function hasInstructorTarget(target = {}) {
+  return Boolean(
+    targetId(target.sessionId) ||
+      targetId(target.programId) ||
+      targetId(target.studentId) ||
+      targetId(target.meetingId),
+  );
+}
+
 function instructorCanAccessTarget(scope, snap, target = {}) {
   if (scope?.type !== "instructor") return true;
-  if (target.sessionId && !instructorOwnsSession(scope, target.sessionId)) return false;
-  if (target.programId && !instructorOwnsProgram(scope, target.programId)) return false;
-  if (target.studentId && !instructorOwnsStudent(scope, snap, target.studentId)) return false;
-  if (target.meetingId) {
-    const meeting = (snap.class_meetings || []).find((row) => row.id === target.meetingId && !row.deleted_at);
+  if (!hasInstructorTarget(target)) return false;
+  const sessionId = targetId(target.sessionId);
+  const programId = targetId(target.programId);
+  const studentId = targetId(target.studentId);
+  const meetingId = targetId(target.meetingId);
+  if (sessionId && !instructorOwnsSession(scope, sessionId)) return false;
+  if (programId && !instructorOwnsProgram(scope, programId)) return false;
+  if (studentId && !instructorOwnsStudent(scope, snap, studentId)) return false;
+  if (meetingId) {
+    const meeting = (snap.class_meetings || []).find((row) => row.id === meetingId && !row.deleted_at);
     if (!meeting || !instructorOwnsSession(scope, meeting.session_id)) return false;
   }
   return true;
+}
+
+function announcementTargetSpec(targetType, target = {}) {
+  const type = String(targetType || "all").trim().toLowerCase() || "all";
+  if (type === "all") return { ok: true, type };
+  if (type === "session") {
+    if (!targetId(target.sessionId)) return { ok: false, error: "sessionId is required" };
+    return { ok: true, type };
+  }
+  if (type === "program") {
+    if (!targetId(target.programId)) return { ok: false, error: "programId is required" };
+    return { ok: true, type };
+  }
+  if (type === "student") {
+    if (!targetId(target.studentId)) return { ok: false, error: "studentId is required" };
+    return { ok: true, type };
+  }
+  return { ok: false, error: "Invalid targetType" };
+}
+
+function evaluateAnnouncementTarget(scope, snap, input = {}) {
+  const spec = announcementTargetSpec(input.targetType, input);
+  if (!spec.ok) return { ok: false, status: 400, error: spec.error };
+  if (scope?.type === "instructor" && spec.type === "all") {
+    return { ok: false, status: 403, error: "Forbidden" };
+  }
+  if (!instructorCanAccessTarget(scope, snap, input)) {
+    return { ok: false, status: 403, error: "Forbidden" };
+  }
+  return { ok: true, type: spec.type };
 }
 
 function scopedRows(scope, rows, sessionField = "session_id", programField = "program_id") {
@@ -164,16 +219,14 @@ function scopedRows(scope, rows, sessionField = "session_id", programField = "pr
 }
 
 function scopedTargetRows(scope, snap, rows) {
-  return (rows || []).filter((row) => {
-    const target = {
+  return (rows || []).filter((row) =>
+    instructorCanAccessTarget(scope, snap, {
       sessionId: row.session_id,
       programId: row.program_id,
       meetingId: row.meeting_id,
       studentId: row.student_id,
-    };
-    if (scope?.type === "instructor" && !Object.values(target).some(Boolean)) return false;
-    return instructorCanAccessTarget(scope, snap, target);
-  });
+    }),
+  );
 }
 
 function scopedCertificates(scope, rows, requestedSessionId) {
@@ -209,7 +262,11 @@ module.exports = {
   instructorOwnsSession,
   instructorOwnsProgram,
   instructorOwnsStudent,
+  coalesceTargetId,
+  hasInstructorTarget,
   instructorCanAccessTarget,
+  announcementTargetSpec,
+  evaluateAnnouncementTarget,
   scopedRows,
   scopedTargetRows,
   scopedCertificates,

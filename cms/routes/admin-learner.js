@@ -425,14 +425,19 @@ function attachLearnerAdmin(router, store) {
         filePath = req.file.filename;
       }
       const scopeSnap = await store.dump(true);
-      if (!Security.instructorCanAccessTarget(req.lmsScope, scopeSnap, {
-        programId: body.programId, sessionId: body.sessionId, meetingId: body.meetingId,
-      })) throw Object.assign(V.fail("Forbidden"), { status: 403 });
+      const target = {
+        programId: Security.coalesceTargetId(body.programId),
+        sessionId: Security.coalesceTargetId(body.sessionId),
+        meetingId: Security.coalesceTargetId(body.meetingId),
+      };
+      if (!Security.instructorCanAccessTarget(req.lmsScope, scopeSnap, target)) {
+        throw Object.assign(V.fail("Forbidden"), { status: 403 });
+      }
       await store.upsert("learning_materials", {
         id,
-        program_id: body.programId || null,
-        session_id: body.sessionId || null,
-        meeting_id: body.meetingId || null,
+        program_id: target.programId,
+        session_id: target.sessionId,
+        meeting_id: target.meetingId,
         title_vi: body.titleVi,
         title_en: body.titleEn || "",
         description_vi: body.descriptionVi || "",
@@ -484,17 +489,27 @@ function attachLearnerAdmin(router, store) {
     const snap = await store.dump(true);
     const row = aliveById(snap.learning_materials, req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
-    if (!Security.instructorCanAccessTarget(req.lmsScope, snap, { sessionId: row.session_id, programId: row.program_id, meetingId: row.meeting_id })) return res.status(403).json({ error: "Forbidden" });
-    if (!Security.instructorCanAccessTarget(req.lmsScope, snap, {
-      sessionId: req.body.sessionId ?? row.session_id,
-      programId: req.body.programId ?? row.program_id,
-      meetingId: req.body.meetingId ?? row.meeting_id,
-    })) return res.status(403).json({ error: "Forbidden" });
+    const currentTarget = {
+      sessionId: row.session_id,
+      programId: row.program_id,
+      meetingId: row.meeting_id,
+    };
+    const nextTarget = {
+      sessionId: Security.coalesceTargetId(req.body.sessionId, row.session_id),
+      programId: Security.coalesceTargetId(req.body.programId, row.program_id),
+      meetingId: Security.coalesceTargetId(req.body.meetingId, row.meeting_id),
+    };
+    if (!Security.instructorCanAccessTarget(req.lmsScope, snap, currentTarget)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    if (!Security.instructorCanAccessTarget(req.lmsScope, snap, nextTarget)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     await store.upsert("learning_materials", {
       ...row,
-      program_id: req.body.programId ?? row.program_id,
-      session_id: req.body.sessionId ?? row.session_id,
-      meeting_id: req.body.meetingId ?? row.meeting_id,
+      program_id: nextTarget.programId,
+      session_id: nextTarget.sessionId,
+      meeting_id: nextTarget.meetingId,
       title_vi: req.body.titleVi ?? row.title_vi,
       title_en: req.body.titleEn ?? row.title_en,
       description_vi: req.body.descriptionVi ?? row.description_vi,
@@ -529,8 +544,14 @@ function attachLearnerAdmin(router, store) {
   router.post("/announcements", requireRole("OWNER", "ADMIN", "EDITOR", "INSTRUCTOR"), async (req, res) => {
     try {
       V.required(req.body, ["titleVi"]);
-      if (req.lmsScope?.type === "instructor" && (req.body.targetType || "all") === "all") return res.status(403).json({ error: "Forbidden" });
-      if (!Security.instructorCanAccessTarget(req.lmsScope, await store.dump(true), { programId: req.body.programId, sessionId: req.body.sessionId, studentId: req.body.studentId })) return res.status(403).json({ error: "Forbidden" });
+      const target = {
+        targetType: req.body.targetType || "all",
+        programId: Security.coalesceTargetId(req.body.programId),
+        sessionId: Security.coalesceTargetId(req.body.sessionId),
+        studentId: Security.coalesceTargetId(req.body.studentId),
+      };
+      const check = Security.evaluateAnnouncementTarget(req.lmsScope, await store.dump(true), target);
+      if (!check.ok) return res.status(check.status).json({ error: check.error });
       const id = randomId("ann");
       const ts = now();
       await store.upsert("announcements", {
@@ -539,10 +560,10 @@ function attachLearnerAdmin(router, store) {
         title_en: req.body.titleEn || "",
         content_vi: req.body.contentVi || "",
         content_en: req.body.contentEn || "",
-        target_type: req.body.targetType || "all",
-        program_id: req.body.programId || null,
-        session_id: req.body.sessionId || null,
-        student_id: req.body.studentId || null,
+        target_type: check.type,
+        program_id: target.programId,
+        session_id: target.sessionId,
+        student_id: target.studentId,
         priority: req.body.priority || "normal",
         published_at: req.body.publishedAt || ts,
         expires_at: req.body.expiresAt || null,
@@ -554,9 +575,9 @@ function attachLearnerAdmin(router, store) {
       if ((req.body.status || "published") === "published") {
         const fresh = await store.dump(true);
         let ids = [];
-        if (req.body.targetType === "student") ids = [req.body.studentId];
-        else if (req.body.targetType === "session") ids = sessionStudentIds(fresh, req.body.sessionId);
-        else if (req.body.targetType === "program") ids = programStudentIds(fresh, req.body.programId);
+        if (check.type === "student") ids = [target.studentId];
+        else if (check.type === "session") ids = sessionStudentIds(fresh, target.sessionId);
+        else if (check.type === "program") ids = programStudentIds(fresh, target.programId);
         else ids = alive(fresh.students).filter((s) => s.status === "active").map((s) => s.id);
         await notifyStudents(store, ids, {
           type: "announcement",
@@ -577,23 +598,32 @@ function attachLearnerAdmin(router, store) {
     const snap = await store.dump(true);
     const row = (snap.announcements || []).find((a) => a.id === req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
-    if (!Security.instructorCanAccessTarget(req.lmsScope, snap, { programId: row.program_id, sessionId: row.session_id, studentId: row.student_id })) return res.status(403).json({ error: "Forbidden" });
-    if (req.lmsScope?.type === "instructor" && (req.body.targetType || row.target_type) === "all") return res.status(403).json({ error: "Forbidden" });
-    if (!Security.instructorCanAccessTarget(req.lmsScope, snap, {
-      programId: req.body.programId ?? row.program_id,
-      sessionId: req.body.sessionId ?? row.session_id,
-      studentId: req.body.studentId ?? row.student_id,
-    })) return res.status(403).json({ error: "Forbidden" });
+    const current = {
+      targetType: row.target_type,
+      programId: row.program_id,
+      sessionId: row.session_id,
+      studentId: row.student_id,
+    };
+    const next = {
+      targetType: req.body.targetType || row.target_type,
+      programId: Security.coalesceTargetId(req.body.programId, row.program_id),
+      sessionId: Security.coalesceTargetId(req.body.sessionId, row.session_id),
+      studentId: Security.coalesceTargetId(req.body.studentId, row.student_id),
+    };
+    const currentCheck = Security.evaluateAnnouncementTarget(req.lmsScope, snap, current);
+    if (!currentCheck.ok) return res.status(currentCheck.status).json({ error: currentCheck.error });
+    const nextCheck = Security.evaluateAnnouncementTarget(req.lmsScope, snap, next);
+    if (!nextCheck.ok) return res.status(nextCheck.status).json({ error: nextCheck.error });
     await store.upsert("announcements", {
       ...row,
       title_vi: req.body.titleVi ?? row.title_vi,
       title_en: req.body.titleEn ?? row.title_en,
       content_vi: req.body.contentVi ?? row.content_vi,
       content_en: req.body.contentEn ?? row.content_en,
-      target_type: req.body.targetType || row.target_type,
-      program_id: req.body.programId ?? row.program_id,
-      session_id: req.body.sessionId ?? row.session_id,
-      student_id: req.body.studentId ?? row.student_id,
+      target_type: nextCheck.type,
+      program_id: next.programId,
+      session_id: next.sessionId,
+      student_id: next.studentId,
       priority: req.body.priority || row.priority,
       published_at: req.body.publishedAt ?? row.published_at,
       expires_at: req.body.expiresAt ?? row.expires_at,
