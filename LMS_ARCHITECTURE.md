@@ -53,7 +53,7 @@ LMS entities:
 | `certificates` | Issued/revoked/reissued records with **snapshots** of names |
 | `certificate_templates` | Wording, signers, language, version |
 | `password_resets` | Hashed, expiring reset tokens |
-| `mail_outbox` | Activation / reset messages until SMTP is connected |
+| `mail_outbox` | Activation / reset messages; sent via SMTP when `SMTP_USER` / `SMTP_PASS` are set |
 | `audit_logs` | Certificate issue / revoke / reissue |
 
 Student status: `invited` · `active` · `inactive` · `suspended`  
@@ -161,13 +161,13 @@ npm start
 Environment (see also README):
 
 - `SESSION_SECRET` — production session signing
-- `PUBLIC_SITE_URL` — certificate QR origin
+- `PUBLIC_SITE_URL` — required `https://vscacademy.edu.vn` origin for activation / password-reset email links; also used for certificate QR
 - `CONVEX_URL` / `CONVEX_SELF_HOSTED_URL` — Convex backend
 - `HOST` / `PORT` — web bind
 
 Schema change is a Convex table whitelist in `convex/store.ts` (document store). No separate SQL migrate is applied in production. After deploy of Convex functions, new tables are created on first upsert.
 
-Set `SESSION_SECRET` and optionally `PUBLIC_SITE_URL` in production (used for certificate QR links).
+Set `SESSION_SECRET` and `PUBLIC_SITE_URL=https://vscacademy.edu.vn` in production. Security emails fail closed without SMTP and that origin; `mail_outbox` is an audit log, not a delivery queue.
 
 ## Future-ready (not in MVP)
 

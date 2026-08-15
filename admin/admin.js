@@ -65,7 +65,7 @@
   const ACCESS_LABEL = { public: "Công khai", registration: "Cần đăng ký", private: "Nội bộ" };
   const ROLE_LABEL = { OWNER: "Chủ sở hữu", ADMIN: "Quản trị", EDITOR: "Biên tập", INSTRUCTOR: "Giảng viên" };
   const YES_NO = [["1", "Có"], ["0", "Không"]];
-  const INSTRUCTOR_SEGS = new Set(["", "login", "change-password", "sessions", "students", "materials", "announcements"]);
+  const INSTRUCTOR_SEGS = new Set(["", "login", "change-password", "dat-lai-mat-khau", "sessions", "students", "materials", "announcements"]);
 
   const state = { user: null, cache: {} };
   const $ = (s, el = document) => el.querySelector(s);
@@ -183,13 +183,13 @@
     const first = parts[0] || "";
     const rest = parts.length ? `/${parts.join("/")}` : "";
     const qs = raw.includes("?") ? raw.slice(raw.indexOf("?")) : "";
-    if (!first || first === "login" || first === "change-password") return "";
+    if (!first || first === "login" || first === "change-password" || first === "dat-lai-mat-khau") return "";
     if (user.role === "INSTRUCTOR" && !INSTRUCTOR_SEGS.has(first)) return "";
     return homeFor(user) + rest + qs;
   }
   function captureNext() {
     const first = segs()[0] || "";
-    if (!first || first === "login" || first === "change-password") return;
+    if (!first || first === "login" || first === "change-password" || first === "dat-lai-mat-khau") return;
     try {
       sessionStorage.setItem("vsc_staff_next", path() + location.search);
     } catch {
@@ -1126,7 +1126,7 @@
           method: "PUT",
           body: { status: val(e.target, "status"), sessionId: val(e.target, "sessionId"), note: val(e.target, "note") },
         });
-        toast(data.activation?.activationPath ? `Đã xác nhận. Link kích hoạt: ${data.activation.activationPath}` : "Đã cập nhật đăng ký");
+        toast(data.emailed ? `Đã xác nhận và gửi email kích hoạt tới ${data.to}` : "Đã cập nhật đăng ký");
         render();
       } catch (err) {
         toast(err.message, true);
@@ -1134,12 +1134,13 @@
     };
   }
 
-  function simpleCrudPage({ title, endpoint, fields, nameKey }) {
+  function simpleCrudPage({ title, endpoint, fields, nameKey, extraToolbar }) {
     return async () => {
       $("#page-title").textContent = title;
       const data = await api(endpoint);
       const editing = new URLSearchParams(location.search).get("id");
       const current = data.items.find((x) => x.id === editing) || {};
+      const visible = fields.filter((f) => !f.when || f.when());
       app.innerHTML = `
         <div class="grid-2">
           ${table(
@@ -1148,22 +1149,24 @@
           )}
           <form class="card" style="padding:18px" id="crud-form">
             <div class="form-grid">
-              ${fields
-                .map(
-                  (f) =>
-                    `<div class="field ${f.full ? "full" : ""}"><label>${f.label}</label>${
-                      f.area
-                        ? `<textarea name="${f.key}">${esc(current[f.col] || "")}</textarea>`
-                        : f.type === "select"
-                          ? `<select name="${f.key}">${f.options.map((o) => `<option value="${o[0]}" ${String(current[f.col]) === String(o[0]) ? "selected" : ""}>${o[1]}</option>`).join("")}</select>`
-                          : `<input name="${f.key}" value="${esc(current[f.col] || "")}" />`
-                    }</div>`,
-                )
+              ${visible
+                .map((f) => {
+                  if (f.createOnly && editing) return "";
+                  const value = f.type === "password" ? "" : esc(current[f.col] || "");
+                  const input =
+                    f.area
+                      ? `<textarea name="${f.key}">${value}</textarea>`
+                      : f.type === "select"
+                        ? `<select name="${f.key}">${f.options.map((o) => `<option value="${o[0]}" ${String(current[f.col]) === String(o[0]) ? "selected" : ""}>${o[1]}</option>`).join("")}</select>`
+                        : `<input name="${f.key}" type="${f.type || "text"}" value="${value}" ${f.required && !editing ? "required" : ""} autocomplete="${f.type === "password" ? "new-password" : "off"}" />`;
+                  return `<div class="field ${f.full ? "full" : ""}"><label>${f.label}</label>${input}</div>`;
+                })
                 .join("")}
             </div>
             <div class="toolbar" style="margin-top:12px">
               <button class="btn btn-primary" type="submit">Lưu</button>
               ${editing ? `<button type="button" class="btn-danger" id="crud-del">Xóa</button>` : ""}
+              ${editing && extraToolbar ? extraToolbar(current) : ""}
               <a class="btn-ghost" href="${path()}">Tạo mới</a>
             </div>
           </form>
@@ -1171,7 +1174,12 @@
       $("#crud-form").onsubmit = async (e) => {
         e.preventDefault();
         const body = {};
-        fields.forEach((f) => (body[f.key] = val(e.target, f.key)));
+        visible.forEach((f) => {
+          if (f.createOnly && editing) return;
+          const value = val(e.target, f.key);
+          if (f.type === "password" && !value) return;
+          body[f.key] = value;
+        });
         try {
           if (editing) await api(`${endpoint}/${editing}`, { method: "PUT", body });
           else await api(endpoint, { method: "POST", body });
@@ -1187,6 +1195,15 @@
           await api(`${endpoint}/${editing}`, { method: "DELETE" });
           toast("Đã xóa");
           go(path());
+        } catch (err) {
+          toast(err.message, true);
+        }
+      });
+      extraToolbar && $("#instructor-reset-password")?.addEventListener("click", async () => {
+        try {
+          const r = await api(`${endpoint}/${editing}/reset-password`, { method: "POST", body: {} });
+          if (!r.emailed) throw new Error(r.error || "Chưa gửi được email đặt lại mật khẩu");
+          toast(`Đã gửi link đặt lại mật khẩu tới ${r.to}`);
         } catch (err) {
           toast(err.message, true);
         }
@@ -1212,8 +1229,21 @@
     title: "Giảng viên",
     endpoint: "/instructors",
     nameKey: "name",
+    extraToolbar: () =>
+      canManageStaff()
+        ? `<button type="button" class="btn" id="instructor-reset-password">Reset mật khẩu</button>`
+        : "",
     fields: [
-      { key: "name", col: "name", label: "Tên" },
+      { key: "name", col: "name", label: "Tên", required: true },
+      { key: "email", col: "email", label: "Email đăng nhập", type: "email", required: true },
+      {
+        key: "temporaryPassword",
+        col: "",
+        label: "Mật khẩu tạm",
+        type: "password",
+        required: true,
+        when: () => canManageStaff(),
+      },
       { key: "academicTitle", col: "academic_title", label: "Học hàm" },
       { key: "role", col: "role", label: "Vai trò" },
       { key: "companyRole", col: "company_role", label: "Vai trò công ty" },
@@ -1415,7 +1445,9 @@
       $("#page-title").textContent = "Học viên mới";
       app.innerHTML = `<form id="stu-new" class="card" style="padding:18px;max-width:520px">
         <div class="field"><label>Họ tên</label><input name="fullName" required /></div>
-        <div class="field"><label>Email</label><input name="email" type="email" required /></div>
+        <div class="field"><label>Email đăng nhập</label><input name="email" type="email" required /></div>
+        <div class="field"><label>Mật khẩu tạm</label><input name="temporaryPassword" type="password" minlength="8" required autocomplete="new-password" /></div>
+        <p class="muted">Học viên đăng nhập bằng email và mật khẩu tạm, rồi bắt buộc đổi mật khẩu.</p>
         <div class="field"><label>Điện thoại</label><input name="phone" /></div>
         <button class="btn btn-primary">Tạo</button>
       </form>`;
@@ -1450,7 +1482,7 @@
             </div>
           </div>
           <div class="toolbar">${canManageStaff() ? `<button class="btn btn-primary">Lưu</button>
-            <button type="button" class="btn" id="reset-access">Cấp lại quyền truy cập</button>` : ""}</div>
+            <button type="button" class="btn" id="student-reset-password">Reset mật khẩu</button>` : ""}</div>
         </form>
       </section>
       <section data-pane="enroll" class="hidden">
@@ -1544,11 +1576,16 @@
       await api(`/students/${id}`, { method: "PUT", body: Object.fromEntries(new FormData(e.target).entries()) });
       toast("Đã lưu");
     };
-    const resetBtn = $("#reset-access");
+    const resetBtn = $("#student-reset-password");
     if (resetBtn) {
       resetBtn.onclick = async () => {
-        const r = await api(`/students/${id}/reset-access`, { method: "POST", body: {} });
-        toast(`Link kích hoạt: ${r.activationPath}`);
+        try {
+          const r = await api(`/students/${id}/reset-password`, { method: "POST", body: {} });
+          if (!r.emailed) throw new Error(r.error || "Chưa gửi được email đặt lại mật khẩu");
+          toast(`Đã gửi link đặt lại mật khẩu tới ${r.to}`);
+        } catch (err) {
+          toast(err.message, true);
+        }
       };
     }
     const enrollForm = $("#enroll-form");
@@ -1890,13 +1927,17 @@
     const p = path();
     const route = segs();
     if (!state.user) {
-      $("#login-view").classList.remove("hidden");
+      const resetting = route[0] === "dat-lai-mat-khau";
+      $("#login-view").classList.toggle("hidden", resetting);
       $("#password-view").classList.add("hidden");
+      $("#reset-view").classList.toggle("hidden", !resetting);
       $("#shell").classList.add("hidden");
+      if (resetting) return;
       captureNext();
       if (route[0] !== "login") history.replaceState({}, "", href("/login"));
       return;
     }
+    $("#reset-view")?.classList.add("hidden");
     const dest = destForUser(state.user);
     if (dest !== p + location.search && dest !== p) {
       history.replaceState({}, "", dest);
@@ -1976,6 +2017,26 @@
       render();
     } catch (err) {
       $("#password-error").textContent = err.message;
+    }
+  });
+  $("#reset-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("#reset-error").textContent = "";
+    try {
+      const token = new URLSearchParams(location.search).get("token") || "";
+      await api("/reset-password", {
+        method: "POST",
+        body: {
+          token,
+          newPassword: $("#reset-new-password").value,
+          confirmPassword: $("#reset-confirm").value,
+        },
+      });
+      toast("Đã đặt mật khẩu mới. Đăng nhập lại.");
+      history.replaceState({}, "", href("/login"));
+      render();
+    } catch (err) {
+      $("#reset-error").textContent = err.message;
     }
   });
   $("#logout").addEventListener("click", async () => {

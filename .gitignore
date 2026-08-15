@@ -3,8 +3,9 @@ cms/node_modules/
 cms/data/*.sqlite
 cms/data/*.sqlite-*
 cms/data/.secret
-cms/.env
-.env.local
+.env*
+!.env.example
+cms/.env*
 uploads/cms/
 uploads/learner/
 uploads/certificates/

@@ -3,6 +3,7 @@ const { hashPassword, randomId } = require("./auth");
 const C = require("./lms-core");
 const Cert = require("./certificate");
 const { queueMail } = require("./notify");
+const PasswordReset = require("./password-reset");
 
 function publicStudent(row) {
   if (!row) return null;
@@ -16,6 +17,8 @@ function publicStudent(row) {
     languagePreference: row.language_preference,
     lastLoginAt: row.last_login_at,
     createdAt: row.created_at,
+    mustChangePassword: Number(row.must_change_password) === 1,
+    sessionVersion: Number(row.session_version || 0),
   };
 }
 
@@ -251,87 +254,119 @@ function resolveJoinUrl(snap, meeting) {
   return { ...window, url, session, program, minutes };
 }
 
+async function sendActivationEmail(store, student, token) {
+  const origin = PasswordReset.requireSecurityMail();
+  const activationUrl = `${origin}/hoc-vien/kich-hoat?token=${token}`;
+  const mailed = await queueMail(
+    store,
+    student.email,
+    "Kích hoạt tài khoản VSC Academy Learner Portal",
+    `Chào ${student.full_name},\n\nTài khoản học viên của bạn đã được tạo. Đặt mật khẩu tại:\n${activationUrl}\n\nLink hết hạn sau 7 ngày.\n\nVSC Academy`,
+    "activation",
+    {
+      studentId: student.id,
+      html: `<p>Chào ${student.full_name},</p><p>Đặt mật khẩu tại:</p><p><a href="${activationUrl}">${activationUrl}</a></p><p>Link hết hạn sau 7 ngày.</p><p>VSC Academy</p>`,
+    },
+  );
+  if (!mailed.sent) {
+    throw Object.assign(new Error("Không gửi được email kích hoạt"), {
+      status: 503,
+      code: mailed.reason || "SMTP_SEND_FAILED",
+    });
+  }
+  return { emailed: true, to: student.email };
+}
+
 async function ensureStudentAndEnrollment(store, snap, registration) {
   const email = String(registration.email || "").trim().toLowerCase();
   if (!email || !registration.session_id || !registration.program_id) {
     return { created: false };
   }
+  const existing = alive(snap.students).find((row) => row.email === email);
+  if (!existing) PasswordReset.requireSecurityMail();
+
   const ts = now();
-  let student = alive(snap.students).find((row) => row.email === email);
-  let activationToken = null;
-  if (!student) {
-    activationToken = C.newSecretToken();
-    const id = randomId("stu");
-    student = {
-      id,
-      full_name: registration.full_name,
-      email,
-      phone: registration.phone || "",
-      avatar: "",
-      password_hash: null,
-      activation_token: activationToken,
-      activation_expires_at: new Date(Date.now() + C.ACTIVATION_TTL_MS).toISOString(),
-      status: "invited",
-      language_preference: registration.locale || "vi",
-      last_login_at: null,
-      notes: "",
-      created_at: ts,
-      updated_at: ts,
-    };
-    await store.upsert("students", student);
-    await queueMail(
-      store,
-      email,
-      "Kích hoạt tài khoản VSC Academy Learner Portal",
-      `Chào ${student.full_name},\n\nTài khoản học viên của bạn đã được tạo. Đặt mật khẩu tại:\n/hoc-vien/kich-hoat?token=${activationToken}\n\nLink hết hạn sau 7 ngày.\n\nVSC Academy`,
-      "activation",
-      { studentId: id, path: `/hoc-vien/kich-hoat?token=${activationToken}` },
-    );
-  }
-  await store.upsert("registrations", { ...registration, student_id: student.id, updated_at: ts });
-  let enrollment = (snap.enrollments || []).find(
-    (row) => row.student_id === student.id && row.session_id === registration.session_id,
-  );
-  if (!enrollment) {
-    const enrollmentId = randomId("enr");
-    const payment =
-      registration.status === "paid" || registration.status === "confirmed" ? "paid" : "pending";
-    enrollment = {
-      id: enrollmentId,
-      student_id: student.id,
-      program_id: registration.program_id,
-      session_id: registration.session_id,
-      registration_id: registration.id,
-      status: "active",
-      payment_status: payment,
-      progress: 0,
-      completion_status: "in_progress",
-      certificate_status: "none",
-      joined_at: ts,
-      completed_at: null,
-      notes: "",
-      created_at: ts,
-      updated_at: ts,
-    };
-    await store.upsert("enrollments", enrollment);
-  }
-  return {
-    created: true,
-    student: publicStudent(student),
-    enrollment,
-    activationToken,
-    activationPath: activationToken ? `/hoc-vien/kich-hoat?token=${activationToken}` : null,
+  const activationToken = existing ? null : C.newSecretToken();
+  const studentDraft = existing || {
+    id: randomId("stu"),
+    full_name: registration.full_name,
+    email,
+    phone: registration.phone || "",
+    avatar: "",
+    password_hash: null,
+    activation_token: activationToken,
+    activation_expires_at: new Date(Date.now() + C.ACTIVATION_TTL_MS).toISOString(),
+    status: "invited",
+    language_preference: registration.locale || "vi",
+    last_login_at: null,
+    notes: "",
+    session_version: 0,
+    created_at: ts,
+    updated_at: ts,
   };
+  const payment =
+    registration.status === "paid" || registration.status === "confirmed" ? "paid" : "pending";
+  const enrollmentDraft = {
+    id: randomId("enr"),
+    student_id: studentDraft.id,
+    program_id: registration.program_id,
+    session_id: registration.session_id,
+    registration_id: registration.id,
+    status: "active",
+    payment_status: payment,
+    progress: 0,
+    completion_status: "in_progress",
+    certificate_status: "none",
+    joined_at: ts,
+    completed_at: null,
+    notes: "",
+    created_at: ts,
+    updated_at: ts,
+  };
+  const operationId = randomId("provision");
+  const provisioned = await store.provisionLearnerAccount({
+    operationId,
+    registration: { ...registration, email },
+    student: studentDraft,
+    enrollment: enrollmentDraft,
+    now: ts,
+  });
+  if (!provisioned?.ok) {
+    throw Object.assign(new Error(provisioned?.error || "Không tạo được tài khoản học viên"), { status: 400 });
+  }
+  try {
+    let emailed = false;
+    if (provisioned.activationToken) {
+      await sendActivationEmail(store, provisioned.student, provisioned.activationToken);
+      emailed = true;
+    }
+    await store.finalizeLearnerProvision({ operationId, ownership: provisioned.ownership });
+    return {
+      created: true,
+      student: publicStudent(provisioned.student),
+      enrollment: provisioned.enrollment,
+      emailed,
+      to: emailed ? provisioned.student.email : undefined,
+    };
+  } catch (err) {
+    await store.abortLearnerProvision({
+      operationId,
+      ownership: provisioned.ownership,
+      previousStudent: provisioned.previousStudent,
+      previousEnrollment: provisioned.previousEnrollment,
+      previousRegistration: provisioned.previousRegistration,
+    });
+    throw err;
+  }
 }
 
 async function setStudentPassword(store, student, password) {
-  await store.upsert("students", {
-    ...student,
-    password_hash: hashPassword(password),
-    activation_token: null,
-    activation_expires_at: null,
-    updated_at: now(),
-  });
+  const ts = now();
+  const passwordHash = hashPassword(password);
+  if (typeof store.applyPasswordChange === "function") {
+    return store.applyPasswordChange({ table: "students", id: student.id, passwordHash, now: ts });
+  }
+  throw new Error("Atomic student password mutation is unavailable");
 }
 
 function instructorScope(snap, user) {
@@ -366,6 +401,7 @@ module.exports = {
   hydrateEnrollment,
   serializeMeeting,
   ensureStudentAndEnrollment,
+  sendActivationEmail,
   setStudentPassword,
   studentSessionIds,
   studentProgramIds,

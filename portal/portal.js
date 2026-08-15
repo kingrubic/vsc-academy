@@ -20,6 +20,11 @@
         forgotLead: "Enter your email. If an account exists, we will send a reset link.",
         sendReset: "SEND RESET LINK",
         resetTitle: "Set a new password",
+        currentPassword: "CURRENT PASSWORD",
+        changePassword: "Change password",
+        changePasswordFirst: "Choose a new password",
+        changePasswordLead: "This is your first sign-in. The temporary password will stop working after you save a new one.",
+        savePassword: "SAVE NEW PASSWORD",
         hello: "HELLO",
         continue: "Continue your learning journey at VSC Academy.",
         next: "NEXT CLASS",
@@ -123,6 +128,11 @@
         forgotLead: "Nhập email. Nếu tài khoản tồn tại, chúng tôi sẽ gửi hướng dẫn đặt lại mật khẩu.",
         sendReset: "GỬI LINK ĐẶT LẠI",
         resetTitle: "Đặt mật khẩu mới",
+        currentPassword: "MẬT KHẨU HIỆN TẠI",
+        changePassword: "Đổi mật khẩu",
+        changePasswordFirst: "Đặt mật khẩu mới",
+        changePasswordLead: "Lần đăng nhập đầu tiên cần đổi mật khẩu tạm. Sau khi lưu, mật khẩu tạm sẽ không dùng được nữa.",
+        savePassword: "LƯU MẬT KHẨU MỚI",
         hello: "XIN CHÀO",
         continue: "Tiếp tục hành trình học tập của bạn tại VSC Academy.",
         next: "BUỔI HỌC TIẾP THEO",
@@ -458,6 +468,18 @@
         <p class="auth-error" id="auth-error"></p>
         <button type="submit">${t.save}</button>
       </form>`;
+    } else if (mode === "change") {
+      card = `<form class="auth-card" id="first-password-form">
+        <img class="auth-logo" src="/assets/logo-vsc-academy-white.webp" alt="" width="640" height="463" />
+        <h1>${t.changePasswordFirst}</h1>
+        <p>${t.changePasswordLead}</p>
+        <label>${t.currentPassword}</label>
+        <input name="currentPassword" type="password" required autocomplete="current-password" />
+        <label>${t.newPassword}</label>
+        <input name="password" type="password" minlength="8" required autocomplete="new-password" />
+        <p class="auth-error" id="auth-error"></p>
+        <button type="submit">${t.savePassword}</button>
+      </form>`;
     } else {
       card = `<form class="auth-card" id="login-form">
         <img class="auth-logo" src="/assets/logo-vsc-academy-white.webp" alt="" width="640" height="463" />
@@ -529,6 +551,21 @@
         const fd = new FormData(e.target);
         const data = await api("/reset-password", { method: "POST", body: { token, password: fd.get("password") } });
         state.student = data.student;
+        history.replaceState({}, "", BASE + "/");
+        render();
+      } catch (err) {
+        $("#auth-error").textContent = err.message;
+      }
+    });
+    $("#first-password-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try {
+        const fd = new FormData(e.target);
+        const data = await api("/me/password", {
+          method: "POST",
+          body: { currentPassword: fd.get("currentPassword"), newPassword: fd.get("password") },
+        });
+        state.student = data.student || { ...state.student, mustChangePassword: false };
         history.replaceState({}, "", BASE + "/");
         render();
       } catch (err) {
@@ -984,6 +1021,7 @@
               : "login";
       return showAuth(mode);
     }
+    if (state.student.mustChangePassword) return showAuth("change");
     $("#auth").classList.add("hidden");
     $("#shell").classList.remove("hidden");
     layout();

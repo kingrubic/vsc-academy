@@ -10,6 +10,7 @@ const { createAdminRouter } = require("./routes/admin");
 const { createLearnerRouter } = require("./routes/learner");
 const Security = require("./lib/lms-security");
 const StaffPortal = require("./lib/staff-portal");
+require("./lib/env");
 
 const SITE_ROOT = path.join(__dirname, "..");
 const ADMIN_DIR = path.join(SITE_ROOT, "admin");

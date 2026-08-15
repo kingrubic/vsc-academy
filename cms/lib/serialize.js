@@ -220,7 +220,12 @@ function getUpcomingSessions(snap) {
 function getInstructors(snap) {
   return alive(snap.instructors)
     .filter((row) => Number(row.active) === 1)
-    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.name).localeCompare(String(b.name)));
+    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.name).localeCompare(String(b.name)))
+    .map((row) => {
+      const copy = { ...row };
+      delete copy.email;
+      return copy;
+    });
 }
 
 function facultyMap(snap) {

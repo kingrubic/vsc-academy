@@ -13,12 +13,15 @@ const {
   editorLocked,
   randomId,
   refreshStaffSessionUser,
+  staffUserFromRow,
 } = require("../lib/auth");
+const C = require("../lib/lms-core");
 const V = require("../lib/validate");
 const { remainingSeats, parsePrice, pickCopy } = require("../lib/serialize");
 const L = require("../lib/learner");
 const Security = require("../lib/lms-security");
 const StaffPortal = require("../lib/staff-portal");
+const PasswordReset = require("../lib/password-reset");
 const { attachLearnerAdmin } = require("./admin-learner");
 
 const UPLOAD_DIR = path.join(__dirname, "..", "..", "uploads", "cms");
@@ -66,19 +69,34 @@ function createAdminRouter(store) {
     const ok = user && verifyPassword(password, user.password_hash);
     recordLogin(ip, ok);
     if (!ok) return res.status(401).json({ error: "Email hoặc mật khẩu không đúng" });
-    const mustChangePassword = Number(user.must_change_password) === 1;
-    req.session.user = {
-      id: String(user.id),
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      mustChangePassword,
-    };
+    req.session.user = staffUserFromRow(user);
     res.json({ user: req.session.user });
   });
 
   router.post("/logout", (req, res) => {
     req.session.destroy(() => res.json({ ok: true }));
+  });
+
+  router.post("/reset-password", async (req, res) => {
+    try {
+      const token = String(req.body?.token || "");
+      const next = String(req.body?.newPassword || req.body?.password || "");
+      const confirm = String(req.body?.confirmPassword || next);
+      if (next.length < 12) throw V.fail("Mật khẩu mới tối thiểu 12 ký tự");
+      if (next !== confirm) throw V.fail("Xác nhận mật khẩu không khớp");
+      const claimed = await store.consumePasswordReset({
+        tokenHash: C.hashToken(token),
+        passwordHash: hashPassword(next),
+        now: now(),
+        expectedKind: "users",
+      });
+      if (!claimed?.claimed) {
+        throw V.fail("Link đặt lại mật khẩu không còn hiệu lực");
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      sendErr(res, err);
+    }
   });
 
   router.use(requireAuth);
@@ -115,13 +133,17 @@ function createAdminRouter(store) {
         throw V.fail("Mật khẩu mới phải khác mật khẩu tạm");
       }
 
-      await store.upsert("users", {
-        ...user,
-        password_hash: hashPassword(next),
-        must_change_password: 0,
-        updated_at: now(),
+      const changed = await store.applyPasswordChange({
+        table: "users",
+        id: user.id,
+        passwordHash: hashPassword(next),
+        now: now(),
       });
-      req.session.user = { ...req.session.user, mustChangePassword: false };
+      req.session.user = staffUserFromRow({
+        ...user,
+        must_change_password: 0,
+        session_version: changed.sessionVersion,
+      });
       res.json({ user: req.session.user });
     } catch (err) {
       sendErr(res, err);
@@ -571,15 +593,38 @@ function createAdminRouter(store) {
     try {
       const isNew = req.method === "POST";
       const id = isNew ? req.body.id || randomId("ins") : req.params.id;
-      if (isNew) V.required(req.body, ["name"]);
+      if (isNew) V.required(req.body, ["name", "email"]);
+      else V.required(req.body, ["name"]);
       const snap = await store.dump(true);
       const existing = isNew ? null : aliveById(snap.instructors, id);
       if (!isNew && !existing) return res.status(404).json({ error: "Not found" });
+      const canManageAccounts = ["OWNER", "ADMIN"].includes(req.session.user.role);
+      const linkedUser = (snap.users || []).find(
+        (row) => String(row.instructor_id || "") === String(id) && Number(row.active) !== 0,
+      );
+      const requestedEmail = String(req.body.email ?? "").trim().toLowerCase();
+      const loginEmail = canManageAccounts
+        ? String(requestedEmail || linkedUser?.email || existing?.email || "").trim().toLowerCase()
+        : String(linkedUser?.email || existing?.email || "").trim().toLowerCase();
+      const profileEmail = canManageAccounts
+        ? loginEmail
+        : String(existing?.email || (isNew ? requestedEmail : "") || "").trim().toLowerCase();
+      if (loginEmail) V.email(loginEmail);
+      if (profileEmail) V.email(profileEmail);
+      if (isNew && canManageAccounts && !loginEmail) throw V.fail("Email đăng nhập là bắt buộc");
+      const temporaryPassword = String(req.body.temporaryPassword || "");
+      if (temporaryPassword && !canManageAccounts) {
+        throw V.fail("Không có quyền đặt mật khẩu giảng viên");
+      }
+      if (isNew && canManageAccounts && temporaryPassword.length < 12) {
+        throw V.fail("Mật khẩu tạm tối thiểu 12 ký tự");
+      }
       const ts = now();
-      await store.upsert("instructors", {
+      const instructor = {
         ...(existing || {}),
         id,
         name: req.body.name || existing?.name,
+        email: profileEmail,
         academic_title: req.body.academicTitle ?? existing?.academic_title ?? "",
         role: req.body.role ?? existing?.role ?? "",
         company_role: req.body.companyRole ?? existing?.company_role ?? "",
@@ -597,7 +642,47 @@ function createAdminRouter(store) {
         updated_by: userId(req),
         created_at: existing?.created_at || ts,
         created_by: existing?.created_by || userId(req),
-      });
+      };
+      let user = null;
+      if (canManageAccounts && loginEmail && (isNew || temporaryPassword || linkedUser)) {
+        const emailOwner = (snap.users || []).find((row) => String(row.email || "").toLowerCase() === loginEmail);
+        if (emailOwner && String(emailOwner.instructor_id || "") && String(emailOwner.instructor_id) !== String(id)) {
+          throw V.fail("Email đã được dùng cho tài khoản khác");
+        }
+        const userRow =
+          linkedUser ||
+          (emailOwner?.role === "INSTRUCTOR" &&
+          (!emailOwner.instructor_id || String(emailOwner.instructor_id) === String(id))
+            ? emailOwner
+            : null);
+        if (emailOwner && String(emailOwner.id) !== String(userRow?.id || "")) {
+          throw V.fail("Email đã được dùng cho tài khoản khác");
+        }
+        if (isNew && !userRow && !temporaryPassword) {
+          throw V.fail("Mật khẩu tạm tối thiểu 12 ký tự");
+        }
+        if (userRow || temporaryPassword) {
+          if (!userRow && temporaryPassword.length < 12) throw V.fail("Mật khẩu tạm tối thiểu 12 ký tự");
+          user = {
+            ...(userRow || {}),
+            id: userRow?.id || randomId("usr"),
+            email: loginEmail,
+            name: req.body.name || existing?.name || userRow?.name,
+            password_hash: temporaryPassword ? hashPassword(temporaryPassword) : userRow.password_hash,
+            role: "INSTRUCTOR",
+            active: req.body.active === false ? 0 : 1,
+            must_change_password: temporaryPassword ? 1 : userRow?.must_change_password || 0,
+            instructor_id: id,
+            session_version: temporaryPassword
+              ? Number(userRow?.session_version || 0) + 1
+              : Number(userRow?.session_version || 0),
+            updated_at: ts,
+            created_at: userRow?.created_at || ts,
+          };
+        }
+      }
+      const result = await store.upsertInstructorAccount({ instructor, user });
+      if (!result?.ok) throw V.fail(result?.error || "Không lưu được giảng viên");
       res.json({ ok: true, id });
     } catch (err) {
       sendErr(res, err);
@@ -608,8 +693,37 @@ function createAdminRouter(store) {
   router.delete("/instructors/:id", requireRole("OWNER", "ADMIN"), async (req, res) => {
     const snap = await store.dump(true);
     const row = aliveById(snap.instructors, req.params.id);
-    if (row) await store.upsert("instructors", { ...row, deleted_at: now(), updated_at: now() });
+    const ts = now();
+    if (row) await store.upsert("instructors", { ...row, deleted_at: ts, updated_at: ts });
+    const user = (snap.users || []).find((item) => String(item.instructor_id || "") === String(req.params.id));
+    if (user) await store.upsert("users", { ...user, active: 0, updated_at: ts });
     res.json({ ok: true });
+  });
+
+  router.post("/instructors/:id/reset-password", requireRole("OWNER", "ADMIN"), async (req, res) => {
+    try {
+      const snap = await store.dump(true);
+      const instructor = aliveById(snap.instructors, req.params.id);
+      if (!instructor) return res.status(404).json({ error: "Not found" });
+      const user = (snap.users || []).find(
+        (item) => String(item.instructor_id || "") === String(instructor.id) && Number(item.active) === 1,
+      );
+      const email = String(user?.email || "").trim().toLowerCase();
+      if (!user || !email) {
+        return res.status(409).json({ error: "Giảng viên chưa có tài khoản đăng nhập. Lưu email và mật khẩu tạm trước." });
+      }
+      const result = await PasswordReset.issuePasswordReset(store, req, {
+        userId: user.id,
+        email,
+        name: instructor.name || user.name,
+        path: PasswordReset.resetPathForUser(user),
+        kind: "password_reset",
+        subject: "Đặt lại mật khẩu cổng giảng viên VSC Academy",
+      });
+      res.json({ ok: true, emailed: result.emailed, to: result.to });
+    } catch (err) {
+      sendErr(res, err);
+    }
   });
 
   router.get("/registrations", async (req, res) => {
@@ -711,13 +825,17 @@ function createAdminRouter(store) {
       updated_at: now(),
       updated_by: userId(req),
     };
-    await store.upsert("registrations", updated);
     let activation = null;
-    if (updated.status === "confirmed") {
-      const fresh = await store.dump(true);
-      activation = await L.ensureStudentAndEnrollment(store, fresh, updated);
+    try {
+      if (updated.status === "confirmed") {
+        activation = await L.ensureStudentAndEnrollment(store, snap, updated);
+      } else {
+        await store.upsert("registrations", updated);
+      }
+    } catch (err) {
+      return sendErr(res, err);
     }
-    res.json({ ok: true, activation });
+    res.json({ ok: true, emailed: !!activation?.emailed, to: activation?.to });
   });
 
   router.get("/insights", async (req, res) => {

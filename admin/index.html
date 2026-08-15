@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>VSC Academy | Quản trị</title>
-    <link rel="stylesheet" href="/admin/admin.css?v=20260815-1" />
+    <link rel="stylesheet" href="/admin/admin.css?v=20260815-2" />
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" href="/assets/favicon-32.png" sizes="32x32">
     <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
@@ -21,6 +21,19 @@
         <input id="password" name="password" type="password" autocomplete="current-password" required />
         <p class="login-error" id="login-error"></p>
         <button type="submit">ĐĂNG NHẬP</button>
+      </form>
+    </div>
+    <div id="reset-view" class="login-page hidden">
+      <form class="login-card" id="reset-form">
+        <img src="/assets/logo-vsc-academy-white.webp" alt="VSC Academy" width="166" height="62" />
+        <h1>Đặt lại mật khẩu</h1>
+        <p>Nhập mật khẩu mới. Link trong email hết hạn sau 1 giờ.</p>
+        <label for="reset-new-password">MẬT KHẨU MỚI</label>
+        <input id="reset-new-password" name="newPassword" type="password" minlength="12" autocomplete="new-password" required />
+        <label for="reset-confirm">XÁC NHẬN MẬT KHẨU MỚI</label>
+        <input id="reset-confirm" name="confirmPassword" type="password" minlength="12" autocomplete="new-password" required />
+        <p class="login-error" id="reset-error"></p>
+        <button type="submit">LƯU MẬT KHẨU MỚI</button>
       </form>
     </div>
     <div id="password-view" class="login-page hidden">
@@ -58,6 +71,6 @@
       </div>
     </div>
     <div class="toast" id="toast"></div>
-    <script src="/admin/admin.js?v=20260815-1"></script>
+    <script src="/admin/admin.js?v=20260815-4"></script>
   </body>
 </html>

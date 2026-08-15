@@ -2,6 +2,7 @@ const INSTRUCTOR_PORTAL_SEGS = new Set([
   "",
   "login",
   "change-password",
+  "dat-lai-mat-khau",
   "sessions",
   "students",
   "materials",
@@ -62,6 +63,8 @@ const ADMIN_MUTATION_SAMPLES = [
   ["POST", "/students"],
   ["PUT", "/students/st1"],
   ["POST", "/students/st1/reset-access"],
+  ["POST", "/students/st1/reset-password"],
+  ["POST", "/instructors/i1/reset-password"],
   ["POST", "/students/st1/enroll"],
   ["PUT", "/enrollments/e1"],
   ["DELETE", "/enrollments/e1"],
@@ -111,7 +114,10 @@ function mapStaffPortalLocation(pathname, search, user) {
   const qs = splitSearch(search);
   const currentHome = portal === "giang-vien" ? "/giang-vien" : "/admin";
   if (!user) {
-    const keep = restPath && restPath !== "/login" && restPath !== "/change-password";
+    if (first === "dat-lai-mat-khau") {
+      return { path: `${currentHome}/dat-lai-mat-khau`, search: qs, next: "" };
+    }
+    const keep = restPath && restPath !== "/login" && restPath !== "/change-password" && restPath !== "/dat-lai-mat-khau";
     return {
       path: `${currentHome}/login`,
       search: "",

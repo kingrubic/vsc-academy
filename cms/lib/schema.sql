@@ -6,9 +6,10 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('OWNER', 'ADMIN', 'EDITOR')),
+  role TEXT NOT NULL CHECK (role IN ('OWNER', 'ADMIN', 'EDITOR', 'INSTRUCTOR')),
   active INTEGER NOT NULL DEFAULT 1,
   must_change_password INTEGER NOT NULL DEFAULT 0,
+  instructor_id TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -32,6 +33,7 @@ CREATE TABLE IF NOT EXISTS venues (
 CREATE TABLE IF NOT EXISTS instructors (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  email TEXT NOT NULL DEFAULT '',
   academic_title TEXT NOT NULL DEFAULT '',
   role TEXT NOT NULL DEFAULT '',
   company_role TEXT NOT NULL DEFAULT '',

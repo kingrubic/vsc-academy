@@ -6,9 +6,8 @@
   <string>ai.vsc.academy.web</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/npm</string>
-    <string>run</string>
-    <string>start</string>
+    <string>/usr/bin/python3</string>
+    <string>/Users/vsc_agent/projects/VSC-ACADEMY/ops/production/start-web-with-keychain.py</string>
   </array>
   <key>WorkingDirectory</key>
   <string>/Users/vsc_agent/projects/VSC-ACADEMY</string>

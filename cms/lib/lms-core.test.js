@@ -89,3 +89,29 @@ test("reset tokens are hashed and not reversible from hash", () => {
   assert.notEqual(hash, token);
   assert.equal(C.hashToken(token), hash);
 });
+
+test("publicEmailOrigin requires the canonical production https origin", () => {
+  const prevUrl = process.env.PUBLIC_SITE_URL;
+  try {
+    delete process.env.PUBLIC_SITE_URL;
+    assert.throws(() => C.publicEmailOrigin(), /PUBLIC_SITE_URL/);
+    process.env.PUBLIC_SITE_URL = "http://vscacademy.edu.vn";
+    assert.throws(() => C.publicEmailOrigin(), /https/);
+    for (const origin of [
+      "https://evil.example",
+      "https://vscacademy.vn",
+      "https://www.vscacademy.edu.vn",
+      "https://vscacademy.edu.vn:8443",
+    ]) {
+      process.env.PUBLIC_SITE_URL = origin;
+      assert.throws(() => C.publicEmailOrigin(), /canonical production origin/);
+    }
+    process.env.PUBLIC_SITE_URL = "https://vscacademy.edu.vn/path";
+    assert.throws(() => C.publicEmailOrigin(), /origin only/);
+    process.env.PUBLIC_SITE_URL = "https://vscacademy.edu.vn";
+    assert.equal(C.publicEmailOrigin(), "https://vscacademy.edu.vn");
+  } finally {
+    if (prevUrl == null) delete process.env.PUBLIC_SITE_URL;
+    else process.env.PUBLIC_SITE_URL = prevUrl;
+  }
+});

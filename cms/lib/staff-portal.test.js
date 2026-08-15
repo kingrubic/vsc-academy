@@ -12,6 +12,9 @@ test("unauthenticated deep link stays on the same portal login and keeps next", 
   const admin = P.mapStaffPortalLocation("/admin/programs", "", null);
   assert.equal(admin.path, "/admin/login");
   assert.equal(admin.next, "/admin/programs");
+  const reset = P.mapStaffPortalLocation("/admin/dat-lai-mat-khau", "?token=x", null);
+  assert.equal(reset.path, "/admin/dat-lai-mat-khau");
+  assert.equal(reset.search, "?token=x");
 });
 
 test("INSTRUCTOR on /admin deep links moves to /giang-vien and drops forbidden sections", () => {

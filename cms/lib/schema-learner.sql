@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS students (
   avatar TEXT NOT NULL DEFAULT '',
   password_hash TEXT,
   activation_token TEXT,
+  must_change_password INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'invited',
   language_preference TEXT NOT NULL DEFAULT 'vi',
   last_login_at TEXT,
@@ -184,7 +185,8 @@ CREATE TABLE IF NOT EXISTS certificate_templates (
 CREATE TABLE IF NOT EXISTS password_resets (
   id TEXT PRIMARY KEY,
   token_hash TEXT NOT NULL,
-  student_id TEXT NOT NULL,
+  student_id TEXT,
+  user_id TEXT,
   expires_at TEXT NOT NULL,
   used_at TEXT,
   created_at TEXT NOT NULL
