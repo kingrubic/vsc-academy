@@ -109,9 +109,11 @@ function harnessFor(user, options = {}) {
   });
   app.use("/api/admin", createAdminRouter(store));
   if (options.shell) {
+    const adminDir = path.join(__dirname, "..", "..", "admin");
+    app.use("/admin", express.static(adminDir, { index: false, extensions: ["html"], redirect: false }));
     const sendStaffShell = StaffPortal.createStaffShellHandler(
       store,
-      path.join(__dirname, "..", "..", "admin"),
+      adminDir,
     );
     app.get(/^\/admin(?:\/.*)?$/, sendStaffShell);
     app.get(/^\/giang-vien(?:\/.*)?$/, sendStaffShell);
@@ -307,4 +309,16 @@ test("disabled staff session is rejected on /me and does not keep a portal redir
   const shell = await request(app, { path: "/admin" });
   assert.equal(shell.status, 200);
   assert.equal(shell.location, "");
+});
+
+test("authenticated staff portal roots do not enter a slash redirect loop", async () => {
+  const { app } = harnessFor(
+    { role: "OWNER", instructor_id: "" },
+    { sessionUser: { role: "OWNER", instructorId: "" }, shell: true },
+  );
+  for (const root of ["/admin", "/admin/"]) {
+    const response = await request(app, { path: root });
+    assert.equal(response.status, 200, `${root} should render directly`);
+    assert.equal(response.location, "", `${root} should not redirect`);
+  }
 });

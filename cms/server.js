@@ -112,7 +112,7 @@ async function main() {
     });
   });
 
-  app.use("/admin", express.static(ADMIN_DIR, { index: false, extensions: ["html"] }));
+  app.use("/admin", express.static(ADMIN_DIR, { index: false, extensions: ["html"], redirect: false }));
   const sendStaffShell = StaffPortal.createStaffShellHandler(store, ADMIN_DIR);
   app.get(/^\/admin(?:\/.*)?$/, sendStaffShell);
   app.get(/^\/giang-vien(?:\/.*)?$/, sendStaffShell);

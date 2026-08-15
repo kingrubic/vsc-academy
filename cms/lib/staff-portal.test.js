@@ -33,6 +33,11 @@ test("OWNER/ADMIN on /giang-vien moves to the matching /admin path", () => {
   assert.equal(P.staffShellRedirect("/admin/students", "", owner), null);
 });
 
+test("staff portal roots with trailing slash do not redirect to themselves", () => {
+  assert.equal(P.staffShellRedirect("/admin/", "", owner), null);
+  assert.equal(P.staffShellRedirect("/giang-vien/", "", instructor), null);
+});
+
 test("first-password stays on the correct portal and next is applied after the flag clears", () => {
   const pending = { role: "INSTRUCTOR", mustChangePassword: true };
   assert.equal(P.resolveStaffDestination("/giang-vien/sessions/s1", "?tab=meetings", pending), "/giang-vien/change-password");

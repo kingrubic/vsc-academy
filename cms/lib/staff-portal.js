@@ -156,7 +156,8 @@ function staffShellRedirect(pathname, search, user) {
   if (!user) return null;
   const dest = resolveStaffDestination(pathname, search, user);
   const current = `${pathname}${splitSearch(search)}`;
-  if (dest && dest !== current && dest !== pathname) return dest;
+  const canonicalCurrent = `${String(pathname || "/").replace(/\/+$/, "") || "/"}${splitSearch(search)}`;
+  if (dest && dest !== current && dest !== canonicalCurrent) return dest;
   return null;
 }
 
