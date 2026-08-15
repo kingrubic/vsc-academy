@@ -1,5 +1,5 @@
 ---
-description: Mỗi lần có thay đổi trong repo này thì commit và push ngay, không để lệch GitHub
+description: Commit/push trên feature branch + PR; không ghi trực tiếp vào main
 alwaysApply: true
 ---
 
@@ -7,10 +7,12 @@ alwaysApply: true
 
 Sau mọi thay đổi xong việc (code, copy, ảnh, config, rule):
 
-1. `git add` các file liên quan (không add secret: `.env`, `cms/data/.secret`, credentials).
-2. `git commit` với message ngắn, tập trung vào *why*.
-3. `git push` lên `origin` branch hiện tại (`main` trừ khi đang ở feature branch).
+1. Làm việc trên **nhánh riêng** (feature branch). Không commit, không push, không merge trực tiếp vào `main` / `master`.
+2. `git add` các file liên quan (không add secret: `.env`, `cms/data/.secret`, credentials).
+3. `git commit` với message ngắn, tập trung vào *why*.
+4. `git push` lên `origin` **nhánh hiện tại** (feature branch).
+5. Tạo hoặc cập nhật **Pull Request vào `main`**. Reviewer sẽ merge nếu ổn; nếu chưa ổn, reviewer comment — sửa trên cùng nhánh đó, không đụng `main`.
 
-Không để working tree lệch remote. Không hỏi lại có commit/push không — VSC đã yêu cầu luôn đồng bộ.
+Không để working tree lệch remote của nhánh đang làm. Không hỏi lại có commit/push không — VSC đã yêu cầu luôn đồng bộ **nhánh feature**.
 
-Ngoại lệ: không force-push `main`/`master`; không commit file secret.
+Ngoại lệ: không force-push `main`/`master`; không commit file secret; không tự merge PR trừ khi được yêu cầu.
