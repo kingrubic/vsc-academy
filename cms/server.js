@@ -112,7 +112,18 @@ async function main() {
   });
 
   app.use("/admin", express.static(ADMIN_DIR, { index: false, extensions: ["html"] }));
-  app.get(/^\/admin(?:\/.*)?$/, (_req, res) => {
+  app.get(/^\/admin(?:\/.*)?$/, (req, res) => {
+    if (req.session?.user?.role === "INSTRUCTOR") {
+      const dest = String(req.originalUrl || "/admin").replace(/^\/admin/, "/giang-vien") || "/giang-vien";
+      return res.redirect(302, dest);
+    }
+    res.sendFile(path.join(ADMIN_DIR, "index.html"));
+  });
+  app.get(/^\/giang-vien(?:\/.*)?$/, (req, res) => {
+    if (req.session?.user && req.session.user.role !== "INSTRUCTOR") {
+      const dest = String(req.originalUrl || "/giang-vien").replace(/^\/giang-vien/, "/admin") || "/admin";
+      return res.redirect(302, dest);
+    }
     res.sendFile(path.join(ADMIN_DIR, "index.html"));
   });
 
@@ -162,6 +173,7 @@ async function main() {
   app.listen(PORT, HOST, () => {
     console.log(`VSC Academy running at http://${HOST}:${PORT}`);
     console.log(`Admin CMS            http://${HOST}:${PORT}/admin`);
+    console.log(`Instructor portal    http://${HOST}:${PORT}/giang-vien`);
     console.log(`Learner portal       http://${HOST}:${PORT}/hoc-vien`);
     console.log(`Verify certificates  http://${HOST}:${PORT}/verify`);
     console.log(`Convex backend       ${store.url}`);

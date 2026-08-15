@@ -2,6 +2,7 @@
 
 Cổng học viên: `http://localhost:4173/hoc-vien` (EN: `/en/student`)  
 Admin: `http://localhost:4173/admin`  
+Giảng viên: `http://localhost:4173/giang-vien`  
 Xác minh công khai: `http://localhost:4173/verify`
 
 Học viên demo: `hoc-vien@vsc.academy` / `VscLearner!2026`
@@ -12,23 +13,23 @@ Tài khoản admin dùng mật khẩu tạm từ biến môi trường (xem `CMS
 
 Học viên **không** tự có tài khoản khi nộp form `/dang-ky`.
 
-1. Mở **Registrations**.
-2. Đổi trạng thái **Confirmed**.
-3. CMS tạo Student (nếu email chưa có) + Enrollment.
-4. Link kích hoạt nằm ở chi tiết đăng ký / **Students → Reset access**, đồng thời ghi vào **mail outbox** (`/api/admin/mail-outbox`).
+1. Mở **Đăng ký**.
+2. Đổi trạng thái **Đã xác nhận**.
+3. CMS tạo học viên (nếu email chưa có) + ghi danh.
+4. Link kích hoạt nằm ở chi tiết đăng ký / **Học viên → Cấp lại quyền truy cập**, đồng thời ghi vào **mail outbox** (`/api/admin/mail-outbox`).
 5. Học viên mở `/hoc-vien/kich-hoat?token=...`, đặt mật khẩu (≥ 8 ký tự), vào portal.
 
-Tạo tay: **Students → + Học viên** → Enroll vào lớp.
+Tạo tay: **Học viên → + Học viên** → ghi danh vào lớp.
 
-Trạng thái học viên: Active / Inactive / Suspended / Invited.
+Trạng thái học viên: Đã mời / Đang học / Ngưng / Tạm khóa.
 
-## 2. Enroll học viên
+## 2. Ghi danh học viên
 
-- Từ **Students → chi tiết → ENROLLMENTS**: chọn session → Enroll.
-- Hoặc xác nhận Registration (tự enroll).
+- Từ **Học viên → chi tiết → Ghi danh**: chọn lớp → Ghi danh.
+- Hoặc xác nhận đăng ký (tự ghi danh).
 - Một học viên có thể học nhiều khóa / nhiều lớp.
-- Chuyển lớp: đổi session trên enrollment (Move Session).
-- **Enrollments** (`/admin/enrollments`) xem toàn bộ: học viên, khóa, lớp, thanh toán, tiến độ, chứng nhận.
+- Chuyển lớp: đổi lớp trên bản ghi danh.
+- **Ghi danh** (`/admin/enrollments`) xem toàn bộ: học viên, khóa, lớp, thanh toán, tiến độ, chứng nhận.
 
 ## 3. Tạo buổi học
 
@@ -124,10 +125,13 @@ Không tồn tại / đã thu hồi: thông báo tương ứng, không lộ dữ
 
 Đặt `PUBLIC_SITE_URL` khi deploy để QR trỏ đúng domain.
 
-## Instructor
+## Giảng viên
 
-Role `INSTRUCTOR` vào CMS giới hạn: Sessions (lớp phụ trách), Students, Materials, Announcements, Attendance.  
-Không xóa program, không đổi giá, không issue/revoke certificate.
+Role `INSTRUCTOR` đăng nhập tại `/giang-vien` (không dùng chung `/admin`).
+
+Menu: Tổng quan, Lớp học (lớp phụ trách), Học viên, Tài liệu, Thông báo. Điểm danh và đề xuất hoàn thành nằm trong chi tiết lớp.
+
+Không xóa khóa, không đổi giá, không cấp/thu hồi chứng nhận. Tài khoản quản trị vào nhầm `/giang-vien` sẽ được chuyển về `/admin`.
 
 ## Quên mật khẩu
 

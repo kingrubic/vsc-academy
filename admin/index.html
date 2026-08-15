@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>VSC Academy Admin</title>
+    <title>VSC Academy | Quản trị</title>
     <link rel="stylesheet" href="/admin/admin.css" />
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" href="/assets/favicon-32.png" sizes="32x32">
@@ -12,10 +12,10 @@
   <body>
     <div id="login-view" class="login-page hidden">
       <form class="login-card" id="login-form">
-        <img src="/assets/logo-vsc-academy-white.webp" alt="VSC Academy" />
-        <h1>Admin</h1>
-        <p>Đăng nhập để quản trị khóa học, lịch khai giảng và đăng ký.</p>
-        <label for="email">EMAIL</label>
+        <img src="/assets/logo-vsc-academy-white.webp" alt="VSC Academy" width="166" height="62" />
+        <h1 id="login-title">Quản trị</h1>
+        <p id="login-lead">Đăng nhập để quản trị khóa học, lịch khai giảng và đăng ký.</p>
+        <label for="email">ĐỊA CHỈ EMAIL</label>
         <input id="email" name="email" type="email" autocomplete="username" required />
         <label for="password">MẬT KHẨU</label>
         <input id="password" name="password" type="password" autocomplete="current-password" required />
@@ -25,7 +25,7 @@
     </div>
     <div id="password-view" class="login-page hidden">
       <form class="login-card" id="password-form">
-        <img src="/assets/logo-vsc-academy-white.webp" alt="VSC Academy" />
+        <img src="/assets/logo-vsc-academy-white.webp" alt="VSC Academy" width="166" height="62" />
         <h1>Đổi mật khẩu</h1>
         <p>Lần đăng nhập đầu tiên cần đặt mật khẩu mới. Mật khẩu tạm sẽ không dùng được nữa.</p>
         <label for="current-password">MẬT KHẨU TẠM</label>
@@ -41,14 +41,14 @@
     <div id="shell" class="shell hidden">
       <aside class="sidebar">
         <a class="brand" href="/admin">
-          <img src="/assets/logo-vsc-academy-white.webp" alt="VSC Academy" />
-          <small>ADMIN CMS</small>
+          <img src="/assets/logo-vsc-academy-white.webp" alt="VSC Academy" width="166" height="62" />
+          <small>QUẢN TRỊ CMS</small>
         </a>
         <nav class="nav" id="nav"></nav>
       </aside>
       <div class="main">
         <header class="topbar">
-          <h1 id="page-title">Dashboard</h1>
+          <h1 id="page-title">Tổng quan</h1>
           <div>
             <span class="who" id="who"></span>
             <button class="btn-ghost" id="logout" type="button">Đăng xuất</button>

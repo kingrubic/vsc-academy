@@ -23,7 +23,7 @@ One CMS. One Convex document store. One student account. One source of truth.
 | Layer | Choice |
 |---|---|
 | Public site | Static HTML/CSS/JS |
-| Admin + Learner UI | Static SPA shells (`/admin`, `/hoc-vien`, `/en/student`) |
+| Admin + Learner UI | Static SPA shells (`/admin`, `/giang-vien`, `/hoc-vien`, `/en/student`) |
 | API | Express (`cms/server.js`) |
 | Database | Convex self-hosted local (`documents` table keyed by `table` + `id`) |
 | Auth | `express-session` cookie (`vsc_admin`) — admin user XOR student |
@@ -85,7 +85,7 @@ Server-side checks are mandatory. Hiding UI is not enough.
 | Actor | Access |
 |---|---|
 | STUDENT | Own enrollments, meetings, materials, attendance, certificates. Join URL only via `/api/learner/meetings/:id/join` after enrollment + time window |
-| INSTRUCTOR | Assigned programs/sessions: view roster, upload materials, announce, attendance, recommend completion. Cannot change pricing, delete programs, issue/revoke certificates |
+| INSTRUCTOR | Dedicated portal `/giang-vien`. Assigned programs/sessions: view roster, upload materials, announce, attendance, recommend completion. Cannot use `/admin`, change pricing, delete programs, issue/revoke certificates |
 | ADMIN | Students, enrollments, meetings, materials, announcements, attendance, completion, certificates |
 | OWNER | Everything, including settings |
 
@@ -156,7 +156,7 @@ npm run seed
 npm start
 ```
 
-`http://127.0.0.1:4173/hoc-vien` · `/admin` · `/verify`
+`http://127.0.0.1:4173/hoc-vien` · `/admin` · `/giang-vien` · `/verify`
 
 Environment (see also README):
 

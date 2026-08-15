@@ -1,54 +1,71 @@
 (() => {
-  const NAV = [
-    ["Dashboard", "/admin"],
-    ["Programs", "/admin/programs"],
-    ["Sessions", "/admin/sessions"],
-    ["Registrations", "/admin/registrations"],
-    ["Students", "/admin/students"],
-    ["Enrollments", "/admin/enrollments"],
-    ["Materials", "/admin/materials"],
-    ["Announcements", "/admin/announcements"],
-    ["Certificates", "/admin/certificates"],
-    ["Cert. templates", "/admin/certificate-templates"],
-    ["Instructors", "/admin/instructors"],
-    ["Insights", "/admin/insights"],
-    ["Resources", "/admin/resources"],
-    ["Media", "/admin/media"],
-    ["Venues", "/admin/venues"],
-    ["Settings", "/admin/settings"],
-  ];
-  const INSTRUCTOR_NAV = [
-    ["Sessions", "/admin/sessions"],
-    ["Students", "/admin/students"],
-    ["Materials", "/admin/materials"],
-    ["Announcements", "/admin/announcements"],
-  ];
   const SESSION_LABEL = {
-    draft: "Draft",
-    open: "Registration Open",
-    upcoming: "Opening Soon",
-    limited: "Limited Seats",
-    full: "Full",
-    completed: "Completed",
-    cancelled: "Cancelled",
+    draft: "Nháp",
+    open: "Đang mở đăng ký",
+    upcoming: "Sắp mở",
+    limited: "Sắp hết chỗ",
+    full: "Đã đầy",
+    completed: "Đã hoàn thành",
+    cancelled: "Đã hủy",
   };
   const REG_LABEL = {
-    new: "New",
-    contacted: "Contacted",
-    pending_payment: "Pending Payment",
-    paid: "Paid",
-    confirmed: "Confirmed",
-    waitlist: "Waitlist",
-    cancelled: "Cancelled",
-    completed: "Completed",
+    new: "Mới",
+    contacted: "Đã liên hệ",
+    pending_payment: "Chờ thanh toán",
+    paid: "Đã thanh toán",
+    confirmed: "Đã xác nhận",
+    waitlist: "Danh sách chờ",
+    cancelled: "Đã hủy",
+    completed: "Đã hoàn thành",
   };
   const LANG_LABEL = {
-    not_created: "Not created",
-    ai_draft: "AI Draft",
-    review: "Ready for review",
-    published: "Published",
-    draft: "Draft",
+    not_created: "Chưa tạo",
+    ai_draft: "Nháp AI",
+    review: "Chờ duyệt",
+    published: "Đã xuất bản",
+    draft: "Nháp",
+    hidden: "Đã ẩn",
   };
+  const LEVEL_LABEL = {
+    beginner: "Bắt đầu",
+    foundation: "Nền tảng",
+    advanced: "Nâng cao",
+    workshop: "Hội thảo",
+  };
+  const FORMAT_LABEL = { online: "Trực tuyến", offline: "Trực tiếp", hybrid: "Kết hợp" };
+  const TYPE_LABEL = { course: "Khóa học", workshop: "Hội thảo" };
+  const FACULTY_ROLE = { lead: "Phụ trách", instructor: "Giảng viên", guest: "Khách mời" };
+  const STUDENT_LABEL = { invited: "Đã mời", active: "Đang học", inactive: "Ngưng", suspended: "Tạm khóa" };
+  const ENROLL_LABEL = { active: "Đang học", completed: "Đã hoàn thành", paused: "Tạm dừng", cancelled: "Đã hủy" };
+  const PAY_LABEL = { unpaid: "Chưa thanh toán", pending: "Chờ thanh toán", paid: "Đã thanh toán", refunded: "Đã hoàn tiền" };
+  const ATT_LABEL = { not_recorded: "Chưa ghi", present: "Có mặt", absent: "Vắng", excused: "Có phép" };
+  const CERT_LABEL = {
+    none: "Chưa có",
+    eligible: "Đủ điều kiện",
+    issued: "Đã cấp",
+    revoked: "Đã thu hồi",
+    reissued: "Đã cấp lại",
+    pending: "Chờ duyệt",
+  };
+  const PRIORITY_LABEL = { normal: "Thường", important: "Quan trọng", urgent: "Khẩn" };
+  const TARGET_LABEL = { all: "Tất cả", program: "Khóa học", session: "Lớp học", student: "Học viên", meeting: "Buổi học" };
+  const MATERIAL_TYPE = {
+    slide: "Bài trình chiếu",
+    pdf: "PDF",
+    template: "Mẫu",
+    prompt: "Prompt",
+    worksheet: "Bài tập",
+    video: "Video",
+    recording: "Bản ghi",
+    link: "Liên kết",
+    other: "Khác",
+  };
+  const VISIBILITY_LABEL = { program: "Theo khóa", session: "Theo lớp", meeting: "Theo buổi", students: "Học viên cụ thể" };
+  const PHASE_LABEL = { before: "Trước buổi", during: "Trong khóa", after: "Sau buổi" };
+  const ACCESS_LABEL = { public: "Công khai", registration: "Cần đăng ký", private: "Nội bộ" };
+  const ROLE_LABEL = { OWNER: "Chủ sở hữu", ADMIN: "Quản trị", EDITOR: "Biên tập", INSTRUCTOR: "Giảng viên" };
+  const YES_NO = [["1", "Có"], ["0", "Không"]];
+  const INSTRUCTOR_SEGS = new Set(["", "login", "change-password", "sessions", "students", "materials", "announcements"]);
 
   const state = { user: null, cache: {} };
   const $ = (s, el = document) => el.querySelector(s);
@@ -71,9 +88,9 @@
     });
     if (res.status === 401 && path !== "/login") {
       state.user = null;
-      history.replaceState({}, "", "/admin/login");
+      history.replaceState({}, "", href("/login"));
       render();
-      throw new Error("Unauthorized");
+      throw new Error("Phiên đăng nhập đã hết hạn");
     }
     const text = await res.text();
     const data = text ? JSON.parse(text) : {};
@@ -86,11 +103,67 @@
     return data;
   }
 
+  function isInstructorPortal() {
+    return location.pathname.startsWith("/giang-vien");
+  }
+  function portalBase() {
+    return isInstructorPortal() ? "/giang-vien" : "/admin";
+  }
+  function href(p = "/") {
+    const rest = !p || p === "/" ? "" : p.startsWith("/") ? p : `/${p}`;
+    return portalBase() + rest;
+  }
   function path() {
-    return location.pathname.replace(/\/$/, "") || "/admin";
+    return location.pathname.replace(/\/$/, "") || portalBase();
   }
   function parts() {
     return path().split("/").filter(Boolean);
+  }
+  function segs() {
+    const p = parts();
+    if (p[0] === "admin" || p[0] === "giang-vien") return p.slice(1);
+    return p;
+  }
+  function isInstructor() {
+    return state.user?.role === "INSTRUCTOR";
+  }
+  function canManageStaff() {
+    return ["OWNER", "ADMIN"].includes(state.user?.role);
+  }
+  function homeFor(user) {
+    return user?.role === "INSTRUCTOR" ? "/giang-vien" : "/admin";
+  }
+  function applyChrome() {
+    const instructor = isInstructorPortal() || isInstructor();
+    document.title = instructor ? "VSC Academy | Giảng viên" : "VSC Academy | Quản trị";
+    const brand = document.querySelector(".brand");
+    if (brand) brand.setAttribute("href", href("/"));
+    const sub = document.querySelector(".brand small");
+    if (sub) sub.textContent = instructor ? "CỔNG GIẢNG VIÊN" : "QUẢN TRỊ CMS";
+    const loginTitle = $("#login-title");
+    const loginLead = $("#login-lead");
+    if (loginTitle) loginTitle.textContent = instructor ? "Giảng viên" : "Quản trị";
+    if (loginLead) {
+      loginLead.textContent = instructor
+        ? "Đăng nhập để xem lớp, điểm danh, tài liệu và thông báo học viên."
+        : "Đăng nhập để quản trị khóa học, lịch khai giảng và đăng ký.";
+    }
+  }
+  function destForUser(user) {
+    const want = homeFor(user);
+    const restSegs = segs();
+    const first = restSegs[0] || "";
+    if (user.mustChangePassword) return `${want}/change-password`;
+    if (user.role === "INSTRUCTOR" && !INSTRUCTOR_SEGS.has(first)) return want;
+    if (["OWNER", "ADMIN", "EDITOR"].includes(user.role) && isInstructorPortal()) {
+      const rest = path().replace(/^\/giang-vien/, "") || "";
+      if (rest === "/login") return want;
+      return want + rest + location.search;
+    }
+    const rest = path().replace(/^\/(admin|giang-vien)/, "") || "";
+    if (rest === "/login") return want;
+    if (portalBase() === want) return path() + location.search;
+    return want + rest + location.search;
   }
   function fmtPrice(n) {
     return `${String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}đ`;
@@ -99,11 +172,48 @@
     if (!d) return "—";
     return String(d).slice(0, 10).split("-").reverse().join("/");
   }
+  function labelOf(...maps) {
+    return (key) => {
+      for (const map of maps) {
+        if (key != null && map[key] != null) return map[key];
+      }
+      return key || "—";
+    };
+  }
+  const statusText = labelOf(
+    SESSION_LABEL,
+    REG_LABEL,
+    LANG_LABEL,
+    STUDENT_LABEL,
+    ENROLL_LABEL,
+    PAY_LABEL,
+    ATT_LABEL,
+    CERT_LABEL,
+    PRIORITY_LABEL,
+    TARGET_LABEL,
+    MATERIAL_TYPE,
+    VISIBILITY_LABEL,
+    PHASE_LABEL,
+    ACCESS_LABEL,
+    FORMAT_LABEL,
+    TYPE_LABEL,
+    LEVEL_LABEL,
+  );
   function badge(status) {
-    return `<span class="badge ${status || ""}">${SESSION_LABEL[status] || LANG_LABEL[status] || REG_LABEL[status] || status || "—"}</span>`;
+    return `<span class="badge ${status || ""}">${esc(statusText(status))}</span>`;
   }
   function langDot(status) {
-    return `<span class="dot ${status === "published" ? "on" : "off"}"></span>${LANG_LABEL[status] || status}`;
+    return `<span class="dot ${status === "published" ? "on" : "off"}"></span>${LANG_LABEL[status] || statusText(status)}`;
+  }
+  function opts(map, selected) {
+    return Object.entries(map)
+      .map(([k, l]) => `<option value="${esc(k)}" ${String(selected) === String(k) ? "selected" : ""}>${esc(l)}</option>`)
+      .join("");
+  }
+  function optList(pairs, selected) {
+    return pairs
+      .map(([k, l]) => `<option value="${esc(k)}" ${String(selected) === String(k) ? "selected" : ""}>${esc(l)}</option>`)
+      .join("");
   }
   function confirmAction(message) {
     return window.confirm(message);
@@ -125,20 +235,53 @@
     render();
   }
   document.body.addEventListener("click", (e) => {
-    const a = e.target.closest("a[href^='/admin']");
+    const a = e.target.closest("a[href^='/admin'], a[href^='/giang-vien']");
     if (!a || e.metaKey || e.ctrlKey) return;
+    if (a.getAttribute("target") === "_blank") return;
     e.preventDefault();
     go(a.getAttribute("href"));
   });
   window.addEventListener("popstate", render);
 
+  function navItems() {
+    if (isInstructor()) {
+      return [
+        ["Tổng quan", href("/")],
+        ["Lớp học", href("/sessions")],
+        ["Học viên", href("/students")],
+        ["Tài liệu", href("/materials")],
+        ["Thông báo", href("/announcements")],
+      ];
+    }
+    return [
+      ["Tổng quan", href("/")],
+      ["Khóa học", href("/programs")],
+      ["Lớp học", href("/sessions")],
+      ["Đăng ký", href("/registrations")],
+      ["Học viên", href("/students")],
+      ["Ghi danh", href("/enrollments")],
+      ["Tài liệu", href("/materials")],
+      ["Thông báo", href("/announcements")],
+      ["Chứng nhận", href("/certificates")],
+      ["Mẫu chứng nhận", href("/certificate-templates")],
+      ["Giảng viên", href("/instructors")],
+      ["Góc chia sẻ", href("/insights")],
+      ["Tài liệu chuyên môn", href("/resources")],
+      ["Thư viện ảnh", href("/media")],
+      ["Địa điểm", href("/venues")],
+      ["Cài đặt", href("/settings")],
+    ];
+  }
   function layout() {
-    const items = state.user.role === "INSTRUCTOR" ? INSTRUCTOR_NAV : NAV;
-    $("#nav").innerHTML = items.map(([label, href]) => {
-      const active = href === "/admin" ? path() === "/admin" : path().startsWith(href);
-      return `<a href="${href}" class="${active ? "active" : ""}">${label}</a>`;
-    }).join("");
-    $("#who").textContent = `${state.user.name} · ${state.user.role}`;
+    const items = navItems();
+    $("#nav").innerHTML = items
+      .map(([label, itemHref]) => {
+        const active = itemHref === href("/") ? path() === portalBase() : path().startsWith(itemHref);
+        return `<a href="${itemHref}" class="${active ? "active" : ""}">${label}</a>`;
+      })
+      .join("");
+    $("#who").textContent = `${state.user.name} · ${ROLE_LABEL[state.user.role] || state.user.role}`;
+    applyChrome();
   }
 
   function table(headers, rows, empty = "Không có dữ liệu") {
@@ -150,17 +293,25 @@
     $("#page-title").textContent = "Tổng quan";
     const d = await api("/dashboard");
     const s = d.stats;
-    app.innerHTML = `
-      <div class="stats">
+    const instructor = isInstructor();
+    const stats = instructor
+      ? `<div class="stats">
+        <div class="stat"><b>${s.upcoming}</b><span>Lớp sắp khai giảng</span></div>
+        <div class="stat"><b>${s.openReg}</b><span>Lớp đang mở</span></div>
+        <div class="stat"><b>${s.learners}</b><span>Học viên</span></div>
+      </div>`
+      : `<div class="stats">
         <div class="stat"><b>${s.programs}</b><span>Chương trình</span></div>
         <div class="stat"><b>${s.upcoming}</b><span>Lớp sắp khai giảng</span></div>
         <div class="stat"><b>${s.openReg}</b><span>Lớp đang mở đăng ký</span></div>
         <div class="stat"><b>${s.registrations}</b><span>Tổng đăng ký</span></div>
         <div class="stat"><b>${s.newRegs}</b><span>Đăng ký mới</span></div>
         <div class="stat"><b>${s.learners}</b><span>Học viên</span></div>
-        <div class="stat"><b>${s.drafts}</b><span>Bài viết draft</span></div>
-        <div class="stat"><b>${s.enIncomplete}</b><span>English chưa hoàn thiện</span></div>
-      </div>
+        <div class="stat"><b>${s.drafts}</b><span>Bài viết nháp</span></div>
+        <div class="stat"><b>${s.enIncomplete}</b><span>Bản Anh chưa xong</span></div>
+      </div>`;
+    app.innerHTML = `
+      ${stats}
       <div class="grid-2">
         <div class="card">
           <h2>Lớp sắp khai giảng</h2>
@@ -168,49 +319,53 @@
             ["Lớp", "Ngày", "Chỗ", "Đăng ký", "Trạng thái"],
             d.upcoming.map(
               (x) =>
-                `<tr><td><a href="/admin/sessions/${x.id}">${esc(x.programName)}</a></td><td>${fmtDate(x.start_date)}</td><td>${x.capacity ?? "—"}</td><td>${x.registered_count}</td><td>${badge(x.status)}</td></tr>`,
+                `<tr><td><a href="${href(`/sessions/${x.id}`)}">${esc(x.programName)}</a></td><td>${fmtDate(x.start_date)}</td><td>${x.capacity ?? "—"}</td><td>${x.registered_count}</td><td>${badge(x.status)}</td></tr>`,
             ),
           )}
         </div>
-        <div class="card">
+        ${
+          instructor
+            ? `<div class="card"><h2>Việc cần làm</h2><p>Vào từng lớp để điểm danh, đăng tài liệu và gửi thông báo cho học viên.</p></div>`
+            : `<div class="card">
           <h2>Đăng ký mới nhất</h2>
           ${table(
             ["Tên", "Khóa", "Lớp", "Ngày", "Trạng thái"],
             d.latestRegs.map(
               (x) =>
-                `<tr><td><a href="/admin/registrations/${x.id}">${esc(x.full_name)}</a></td><td>${esc(x.programName || "")}</td><td>${esc(x.session_name || "")}</td><td>${fmtDate(x.created_at)}</td><td>${badge(x.status)}</td></tr>`,
+                `<tr><td><a href="${href(`/registrations/${x.id}`)}">${esc(x.full_name)}</a></td><td>${esc(x.programName || "")}</td><td>${esc(x.session_name || "")}</td><td>${fmtDate(x.created_at)}</td><td>${badge(x.status)}</td></tr>`,
             ),
           )}
-        </div>
+        </div>`
+        }
       </div>`;
   }
 
   async function viewPrograms() {
-    $("#page-title").textContent = "Programs";
+    $("#page-title").textContent = "Khóa học";
     const q = new URLSearchParams(location.search).get("q") || "";
     const data = await api(`/programs?q=${encodeURIComponent(q)}`);
     app.innerHTML = `
       <div class="toolbar">
         <input id="search" placeholder="Tìm khóa học" value="${esc(q)}" />
-        <a class="btn btn-primary" href="/admin/programs/new">+ Khóa mới</a>
+        <a class="btn btn-primary" href="${href("/programs/new")}">+ Khóa mới</a>
       </div>
       ${table(
-        ["Tên khóa", "Level", "Hình thức", "Giá", "Trạng thái", "VI", "EN", ""],
+        ["Tên khóa", "Cấp độ", "Hình thức", "Giá", "Trạng thái", "Tiếng Việt", "Tiếng Anh", ""],
         data.items.map(
           (p) => `<tr>
-            <td><a href="/admin/programs/${p.id}">${esc(p.name)}</a></td>
+            <td><a href="${href(`/programs/${p.id}`)}">${esc(p.name)}</a></td>
             <td>${esc(p.level || "")}</td>
-            <td>${esc(p.format)}</td>
+            <td>${esc(FORMAT_LABEL[p.format] || p.format)}</td>
             <td>${fmtPrice(p.price)}</td>
             <td>${badge(p.status)}</td>
             <td>${langDot(p.statusVi)}</td>
             <td>${langDot(p.statusEn)}</td>
-            <td><a href="/admin/programs/${p.id}">Sửa</a></td>
+            <td><a href="${href(`/programs/${p.id}`)}">Sửa</a></td>
           </tr>`,
         ),
       )}`;
     $("#search").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") go(`/admin/programs?q=${encodeURIComponent(e.target.value)}`);
+      if (e.key === "Enter") go(`${href("/programs")}?q=${encodeURIComponent(e.target.value)}`);
     });
   }
 
@@ -309,11 +464,11 @@
     const tab = new URLSearchParams(location.search).get("tab") || "overview";
     const tabs = [
       ["overview", "Tổng quan"],
-      ["vi", "Nội dung VI"],
-      ["en", "Content EN"],
+      ["vi", "Nội dung tiếng Việt"],
+      ["en", "Nội dung tiếng Anh"],
       ["curriculum", "Chương trình"],
       ["outcomes", "Kết quả"],
-      ["faq", "FAQ"],
+      ["faq", "Câu hỏi thường gặp"],
       ["faculty", "Giảng viên"],
       ["sessions", "Lịch học"],
       ["seo", "SEO"],
@@ -330,90 +485,88 @@
       <form id="program-form">
         <section data-pane="overview" class="${tab === "overview" ? "" : "hidden"}">
           <div class="form-grid">
-            <div class="field"><label>Program ID</label><input name="id" value="${esc(p.id || "")}" ${isNew ? "" : "readonly"} required /></div>
-            <div class="field"><label>Slug VI</label><input name="slugVi" value="${esc(p.slug_vi || "")}" required /></div>
-            <div class="field"><label>Slug EN</label><input name="slugEn" value="${esc(p.slug_en || "")}" /></div>
-            <div class="field"><label>Level</label>
-              <select name="levelKey">
-                ${["beginner", "foundation", "advanced", "workshop"].map((x) => `<option ${p.level_key === x ? "selected" : ""}>${x}</option>`).join("")}
-              </select>
+            <div class="field"><label>Mã khóa</label><input name="id" value="${esc(p.id || "")}" ${isNew ? "" : "readonly"} required /></div>
+            <div class="field"><label>Đường dẫn tiếng Việt</label><input name="slugVi" value="${esc(p.slug_vi || "")}" required /></div>
+            <div class="field"><label>Đường dẫn tiếng Anh</label><input name="slugEn" value="${esc(p.slug_en || "")}" /></div>
+            <div class="field"><label>Cấp độ</label>
+              <select name="levelKey">${opts(LEVEL_LABEL, p.level_key)}</select>
             </div>
             <div class="field"><label>Giá (VND)</label><input name="priceAmount" type="number" value="${p.price_amount || 0}" /></div>
             <div class="field"><label>Hình thức</label>
-              <select name="format">${["online", "offline", "hybrid"].map((x) => `<option ${p.format === x ? "selected" : ""}>${x}</option>`).join("")}</select>
+              <select name="format">${opts(FORMAT_LABEL, p.format)}</select>
             </div>
-            <div class="field"><label>Thời lượng VI</label><input name="durationLabelVi" value="${esc(p.duration_label_vi || "")}" /></div>
-            <div class="field"><label>Thời lượng EN</label><input name="durationLabelEn" value="${esc(p.duration_label_en || "")}" /></div>
-            <div class="field"><label>Tổng thời lượng VI</label><input name="totalDurationVi" value="${esc(p.total_duration_vi || "")}" /></div>
-            <div class="field"><label>Tổng thời lượng EN</label><input name="totalDurationEn" value="${esc(p.total_duration_en || "")}" /></div>
+            <div class="field"><label>Thời lượng tiếng Việt</label><input name="durationLabelVi" value="${esc(p.duration_label_vi || "")}" /></div>
+            <div class="field"><label>Thời lượng tiếng Anh</label><input name="durationLabelEn" value="${esc(p.duration_label_en || "")}" /></div>
+            <div class="field"><label>Tổng thời lượng tiếng Việt</label><input name="totalDurationVi" value="${esc(p.total_duration_vi || "")}" /></div>
+            <div class="field"><label>Tổng thời lượng tiếng Anh</label><input name="totalDurationEn" value="${esc(p.total_duration_en || "")}" /></div>
             <div class="field"><label>Sĩ số min</label><input name="capacityMin" type="number" value="${p.capacity_min ?? ""}" /></div>
             <div class="field"><label>Sĩ số max</label><input name="capacityMax" type="number" value="${p.capacity_max ?? ""}" /></div>
-            <div class="field"><label>Nhãn sĩ số VI</label><input name="classSizeLabelVi" value="${esc(p.class_size_label_vi || "")}" /></div>
-            <div class="field"><label>Nhãn sĩ số EN</label><input name="classSizeLabelEn" value="${esc(p.class_size_label_en || "")}" /></div>
+            <div class="field"><label>Nhãn sĩ số tiếng Việt</label><input name="classSizeLabelVi" value="${esc(p.class_size_label_vi || "")}" /></div>
+            <div class="field"><label>Nhãn sĩ số tiếng Anh</label><input name="classSizeLabelEn" value="${esc(p.class_size_label_en || "")}" /></div>
             <div class="field"><label>Trạng thái khóa</label>
-              <select name="status">${["draft", "published", "hidden"].map((x) => `<option ${p.status === x ? "selected" : ""}>${x}</option>`).join("")}</select>
+              <select name="status">${opts({ draft: "Nháp", published: "Đã xuất bản", hidden: "Đã ẩn" }, p.status)}</select>
             </div>
-            <div class="field"><label>Status VI</label>
-              <select name="statusVi">${["draft", "review", "published"].map((x) => `<option ${p.status_vi === x ? "selected" : ""}>${x}</option>`).join("")}</select>
+            <div class="field"><label>Trạng thái tiếng Việt</label>
+              <select name="statusVi">${opts(LANG_LABEL, p.status_vi)}</select>
             </div>
-            <div class="field"><label>Status EN</label>
-              <select name="statusEn">${["not_created", "ai_draft", "review", "published"].map((x) => `<option ${p.status_en === x ? "selected" : ""}>${x}</option>`).join("")}</select>
+            <div class="field"><label>Trạng thái tiếng Anh</label>
+              <select name="statusEn">${opts(LANG_LABEL, p.status_en)}</select>
             </div>
             <div class="field"><label>Nền tảng</label><input name="primaryPlatform" value="${esc(p.primary_platform || "")}" /></div>
-            <div class="field"><label>Online location</label><input name="locationOnline" value="${esc(p.location_online || "")}" /></div>
-            <div class="field"><label>Venue mặc định</label>
+            <div class="field"><label>Địa điểm trực tuyến</label><input name="locationOnline" value="${esc(p.location_online || "")}" /></div>
+            <div class="field"><label>Địa điểm mặc định</label>
               <select name="venueDefaultId"><option value="">—</option>${venues.items.map((v) => `<option value="${v.id}" ${p.venue_default_id === v.id ? "selected" : ""}>${esc(v.name)}</option>`).join("")}</select>
             </div>
-            <div class="field"><label>Featured</label><select name="featured"><option value="0">No</option><option value="1" ${p.featured ? "selected" : ""}>Yes</option></select></div>
-            <div class="field"><label>Certificate enabled</label><select name="certificateEnabled"><option value="1" ${p.certificate_enabled !== 0 ? "selected" : ""}>Yes</option><option value="0" ${p.certificate_enabled === 0 ? "selected" : ""}>No</option></select></div>
-            <div class="field"><label>Certificate code</label><input name="certificateCode" value="${esc(p.certificate_code || "")}" placeholder="AIS / AIA / AIW" /></div>
-            <div class="field"><label>Min attendance %</label><input name="minimumAttendancePercent" type="number" value="${p.minimum_attendance_percent ?? 75}" /></div>
-            <div class="field"><label>Require completion</label><select name="requireCompletion"><option value="1" ${p.require_completion !== 0 ? "selected" : ""}>Yes</option><option value="0" ${p.require_completion === 0 ? "selected" : ""}>No</option></select></div>
-            <div class="field"><label>Require payment</label><select name="requirePayment"><option value="1" ${p.require_payment !== 0 ? "selected" : ""}>Yes</option><option value="0" ${p.require_payment === 0 ? "selected" : ""}>No</option></select></div>
-            <div class="field"><label>Admin approve certificate</label><select name="requireAdminApproval"><option value="1" ${p.require_admin_approval !== 0 ? "selected" : ""}>Yes</option><option value="0" ${p.require_admin_approval === 0 ? "selected" : ""}>No</option></select></div>
-            <div class="field"><label>Join link opens (minutes before)</label><input name="joinLinkOpenMinutesBefore" type="number" value="${p.join_link_open_minutes_before ?? 30}" /></div>
-            <div class="field"><label>Certificate template ID</label><input name="certificateTemplateId" value="${esc(p.certificate_template_id || "tpl-vsc-default")}" /></div>
+            <div class="field"><label>Nổi bật</label><select name="featured">${optList(YES_NO, p.featured ? "1" : "0")}</select></div>
+            <div class="field"><label>Bật chứng nhận</label><select name="certificateEnabled">${optList(YES_NO, p.certificate_enabled !== 0 ? "1" : "0")}</select></div>
+            <div class="field"><label>Mã chứng nhận</label><input name="certificateCode" value="${esc(p.certificate_code || "")}" placeholder="AIS / AIA / AIW" /></div>
+            <div class="field"><label>Điểm danh tối thiểu (%)</label><input name="minimumAttendancePercent" type="number" value="${p.minimum_attendance_percent ?? 75}" /></div>
+            <div class="field"><label>Yêu cầu hoàn thành khóa</label><select name="requireCompletion">${optList(YES_NO, p.require_completion !== 0 ? "1" : "0")}</select></div>
+            <div class="field"><label>Yêu cầu thanh toán</label><select name="requirePayment">${optList(YES_NO, p.require_payment !== 0 ? "1" : "0")}</select></div>
+            <div class="field"><label>Quản trị duyệt chứng nhận</label><select name="requireAdminApproval">${optList(YES_NO, p.require_admin_approval !== 0 ? "1" : "0")}</select></div>
+            <div class="field"><label>Mở link vào lớp (phút trước giờ học)</label><input name="joinLinkOpenMinutesBefore" type="number" value="${p.join_link_open_minutes_before ?? 30}" /></div>
+            <div class="field"><label>Mã mẫu chứng nhận</label><input name="certificateTemplateId" value="${esc(p.certificate_template_id || "tpl-vsc-default")}" /></div>
           </div>
         </section>
         <section data-pane="vi" class="${tab === "vi" ? "" : "hidden"}">
           <div class="form-grid">
             <div class="field"><label>Tên khóa</label><input name="vi-name" value="${esc(vi.name || "")}" /></div>
             <div class="field"><label>Tên ngắn</label><input name="vi-shortName" value="${esc(vi.shortName || "")}" /></div>
-            <div class="field"><label>Level label</label><input name="vi-level" value="${esc(vi.level || "")}" /></div>
-            <div class="field"><label>Eyebrow / subtitle</label><input name="vi-subtitle" value="${esc(vi.subtitle || "")}" /></div>
-            <div class="field full"><label>Headline</label><textarea name="vi-heroHeadline">${esc(vi.heroHeadline || "")}</textarea></div>
-            <div class="field full"><label>Subheadline / tagline</label><input name="vi-tagline" value="${esc(vi.tagline || "")}" /></div>
+            <div class="field"><label>Nhãn cấp độ</label><input name="vi-level" value="${esc(vi.level || "")}" /></div>
+            <div class="field"><label>Dòng phụ</label><input name="vi-subtitle" value="${esc(vi.subtitle || "")}" /></div>
+            <div class="field full"><label>Tiêu đề lớn</label><textarea name="vi-heroHeadline">${esc(vi.heroHeadline || "")}</textarea></div>
+            <div class="field full"><label>Dòng mô tả ngắn</label><input name="vi-tagline" value="${esc(vi.tagline || "")}" /></div>
             <div class="field full"><label>Mô tả</label><textarea name="vi-description">${esc(vi.description || "")}</textarea></div>
-            <div class="field full"><label>Who is this for (JSON hoặc để tab Kết quả)</label><textarea name="vi-heroNote">${esc(vi.heroNote || "")}</textarea></div>
-            <div class="field"><label>CTA</label><input name="vi-ctaLabel" value="${esc(vi.ctaLabel || "")}" /></div>
+            <div class="field full"><label>Đối tượng (JSON hoặc dùng tab Kết quả)</label><textarea name="vi-heroNote">${esc(vi.heroNote || "")}</textarea></div>
+            <div class="field"><label>Nhãn nút</label><input name="vi-ctaLabel" value="${esc(vi.ctaLabel || "")}" /></div>
           </div>
         </section>
         <section data-pane="en" class="${tab === "en" ? "" : "hidden"}">
           <div class="toolbar">
-            <button type="button" class="btn" id="en-draft">Tạo English Draft</button>
-            <button type="button" class="btn" id="en-review">Mark as Reviewed</button>
-            <button type="button" class="btn btn-primary" id="en-publish">Publish EN</button>
+            <button type="button" class="btn" id="en-draft">Tạo bản nháp tiếng Anh</button>
+            <button type="button" class="btn" id="en-review">Đánh dấu đã duyệt</button>
+            <button type="button" class="btn btn-primary" id="en-publish">Xuất bản bản Anh</button>
           </div>
           <div class="form-grid">
-            <div class="field"><label>Course name</label><input name="en-name" value="${esc(en.name || "")}" /></div>
-            <div class="field"><label>Short name</label><input name="en-shortName" value="${esc(en.shortName || "")}" /></div>
+            <div class="field"><label>Tên khóa</label><input name="en-name" value="${esc(en.name || "")}" /></div>
+            <div class="field"><label>Tên ngắn</label><input name="en-shortName" value="${esc(en.shortName || "")}" /></div>
             <div class="field"><label>Level label</label><input name="en-level" value="${esc(en.level || "")}" /></div>
             <div class="field"><label>Eyebrow / subtitle</label><input name="en-subtitle" value="${esc(en.subtitle || "")}" /></div>
             <div class="field full"><label>Headline</label><textarea name="en-heroHeadline">${esc(en.heroHeadline || "")}</textarea></div>
-            <div class="field full"><label>Tagline</label><input name="en-tagline" value="${esc(en.tagline || "")}" /></div>
-            <div class="field full"><label>Description</label><textarea name="en-description">${esc(en.description || "")}</textarea></div>
-            <div class="field"><label>CTA</label><input name="en-ctaLabel" value="${esc(en.ctaLabel || "")}" /></div>
+            <div class="field full"><label>Dòng mô tả ngắn</label><input name="en-tagline" value="${esc(en.tagline || "")}" /></div>
+            <div class="field full"><label>Mô tả</label><textarea name="en-description">${esc(en.description || "")}</textarea></div>
+            <div class="field"><label>Nhãn nút</label><input name="en-ctaLabel" value="${esc(en.ctaLabel || "")}" /></div>
           </div>
         </section>
         <section data-pane="curriculum" class="${tab === "curriculum" ? "" : "hidden"}">
-          <h3>Curriculum VI</h3>
+          <h3>Chương trình tiếng Việt</h3>
           ${repeater("curVi", curVi, [
-            { key: "title", label: "Title" },
-            { key: "goal", label: "Goal" },
-            { key: "content", label: "Description", area: true, full: true },
-            { key: "output", label: "Output", full: true },
+            { key: "title", label: "Tiêu đề" },
+            { key: "goal", label: "Mục tiêu" },
+            { key: "content", label: "Mô tả", area: true, full: true },
+            { key: "output", label: "Kết quả đầu ra", full: true },
           ])}
-          <h3>Curriculum EN</h3>
+          <h3>Chương trình tiếng Anh</h3>
           ${repeater("curEn", curEn, [
             { key: "title", label: "Title" },
             { key: "goal", label: "Goal" },
@@ -422,16 +575,16 @@
           ])}
         </section>
         <section data-pane="outcomes" class="${tab === "outcomes" ? "" : "hidden"}">
-          <h3>Outcomes VI</h3>
-          ${repeater("outVi", outVi, [{ key: "title", label: "Title" }, { key: "description", label: "Description", area: true, full: true }])}
-          <h3>Outcomes EN</h3>
+          <h3>Kết quả tiếng Việt</h3>
+          ${repeater("outVi", outVi, [{ key: "title", label: "Title" }, { key: "description", label: "Mô tả", area: true, full: true }])}
+          <h3>Kết quả tiếng Anh</h3>
           ${repeater("outEn", outEn, [{ key: "title", label: "Title" }, { key: "description", label: "Description", area: true, full: true }])}
         </section>
         <section data-pane="faq" class="${tab === "faq" ? "" : "hidden"}">
-          <h3>FAQ VI</h3>
+          <h3>Câu hỏi thường gặp tiếng Việt</h3>
           ${repeater("faqVi", faqVi, [{ key: "q", label: "Câu hỏi", full: true }, { key: "a", label: "Trả lời", area: true, full: true }])}
-          <h3>FAQ EN</h3>
-          ${repeater("faqEn", faqEn, [{ key: "q", label: "Question", full: true }, { key: "a", label: "Answer", area: true, full: true }])}
+          <h3>Câu hỏi thường gặp tiếng Anh</h3>
+          ${repeater("faqEn", faqEn, [{ key: "q", label: "Câu hỏi", full: true }, { key: "a", label: "Trả lời", area: true, full: true }])}
         </section>
         <section data-pane="faculty" class="${tab === "faculty" ? "" : "hidden"}">
           ${(instructors.items || []).map((ins) => {
@@ -440,7 +593,7 @@
               <input type="checkbox" name="ins-${ins.id}" ${linked ? "checked" : ""} />
               <span>${esc(ins.name)}</span>
               <select name="insrole-${ins.id}">
-                ${["lead", "instructor", "guest"].map((r) => `<option ${linked?.role === r ? "selected" : ""}>${r}</option>`).join("")}
+                ${opts(FACULTY_ROLE, linked?.role || "instructor")}
               </select>
             </label>`;
           }).join("")}
@@ -449,18 +602,18 @@
           ${table(
             ["Lớp", "Ngày", "Trạng thái", ""],
             (p.sessions || []).map(
-              (s) => `<tr><td>${esc(s.session_name)}</td><td>${fmtDate(s.start_date)}</td><td>${badge(s.status)}</td><td><a href="/admin/sessions/${s.id}">Mở</a></td></tr>`,
+              (s) => `<tr><td>${esc(s.session_name)}</td><td>${fmtDate(s.start_date)}</td><td>${badge(s.status)}</td><td><a href="${href(`/sessions/${s.id}`)}">Mở</a></td></tr>`,
             ),
             "Chưa có lớp",
           )}
-          <p><a class="btn" href="/admin/sessions/new?programId=${esc(p.id || "")}">+ Tạo lớp</a></p>
+          <p><a class="btn" href="${href("/sessions/new")}?programId=${esc(p.id || "")}">+ Tạo lớp</a></p>
         </section>
         <section data-pane="seo" class="${tab === "seo" ? "" : "hidden"}">
           <div class="form-grid">
-            <div class="field full"><label>SEO title VI</label><input name="seoViTitle" value="${esc(seoVi.title || "")}" /></div>
-            <div class="field full"><label>SEO description VI</label><textarea name="seoViDesc">${esc(seoVi.description || "")}</textarea></div>
-            <div class="field full"><label>SEO title EN</label><input name="seoEnTitle" value="${esc(seoEn.title || "")}" /></div>
-            <div class="field full"><label>SEO description EN</label><textarea name="seoEnDesc">${esc(seoEn.description || "")}</textarea></div>
+            <div class="field full"><label>Tiêu đề SEO tiếng Việt</label><input name="seoViTitle" value="${esc(seoVi.title || "")}" /></div>
+            <div class="field full"><label>Mô tả SEO tiếng Việt</label><textarea name="seoViDesc">${esc(seoVi.description || "")}</textarea></div>
+            <div class="field full"><label>Tiêu đề SEO tiếng Anh</label><input name="seoEnTitle" value="${esc(seoEn.title || "")}" /></div>
+            <div class="field full"><label>Mô tả SEO tiếng Anh</label><textarea name="seoEnDesc">${esc(seoEn.description || "")}</textarea></div>
           </div>
         </section>
         <div class="toolbar" style="margin-top:20px">
@@ -541,7 +694,7 @@
         if (isNew) await api("/programs", { method: "POST", body: payload });
         else await api(`/programs/${id}`, { method: "PUT", body: payload });
         toast("Đã lưu khóa học");
-        go(`/admin/programs/${payload.id}`);
+        go(href(`/programs/${payload.id}`));
       } catch (err) {
         toast(err.message, true);
       }
@@ -550,7 +703,7 @@
     $("#en-draft")?.addEventListener("click", async () => {
       try {
         await api(`/programs/${id}/en-draft`, { method: "POST", body: {} });
-        toast("Đã tạo English draft — chưa publish");
+        toast("Đã tạo bản nháp tiếng Anh — chưa xuất bản");
         render();
       } catch (err) {
         toast(err.message, true);
@@ -558,18 +711,18 @@
     });
     $("#en-review")?.addEventListener("click", () => {
       app.querySelector('[name="statusEn"]').value = "review";
-      toast("Đánh dấu Ready for review — nhớ Lưu");
+      toast("Đã đánh dấu chờ duyệt — nhớ bấm Lưu");
     });
     $("#en-publish")?.addEventListener("click", () => {
       app.querySelector('[name="statusEn"]').value = "published";
-      toast("Sẽ publish EN khi bạn bấm Lưu");
+      toast("Sẽ xuất bản bản Anh khi bạn bấm Lưu");
     });
     $("#delete-program")?.addEventListener("click", async () => {
       if (!confirmAction("Xóa khóa học này? Không xóa được nếu còn lớp liên kết.")) return;
       try {
         await api(`/programs/${id}`, { method: "DELETE" });
         toast("Đã xóa");
-        go("/admin/programs");
+        go(href("/programs"));
       } catch (err) {
         toast(err.message, true);
       }
@@ -577,7 +730,7 @@
   }
 
   async function viewSessions() {
-    $("#page-title").textContent = "Sessions";
+    $("#page-title").textContent = "Lớp học";
     const [data, programs] = await Promise.all([api("/sessions"), api("/programs")]);
     const programId = new URLSearchParams(location.search).get("programId") || "";
     const status = new URLSearchParams(location.search).get("status") || "";
@@ -588,30 +741,34 @@
       <div class="toolbar">
         <select id="f-program"><option value="">Tất cả khóa</option>${programs.items.map((p) => `<option value="${p.id}" ${p.id === programId ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
         <select id="f-status"><option value="">Tất cả trạng thái</option>${Object.keys(SESSION_LABEL).map((k) => `<option value="${k}" ${k === status ? "selected" : ""}>${SESSION_LABEL[k]}</option>`).join("")}</select>
-        <a class="btn btn-primary" href="/admin/sessions/new">+ Lớp mới</a>
+        ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/sessions/new")}">+ Lớp mới</a>` : ""}
       </div>
       ${table(
         ["Lớp", "Khóa", "Ngày", "Giờ", "Chỗ", "Đăng ký", "Trạng thái", ""],
         filtered.map(
           (s) => `<tr>
-            <td><a href="/admin/sessions/${s.id}">${esc(s.session_name || s.slug)}</a></td>
+            <td><a href="${href(`/sessions/${s.id}`)}">${esc(s.session_name || s.slug)}</a></td>
             <td>${esc(s.programName || "")}</td>
             <td>${fmtDate(s.start_date)}</td>
             <td>${esc(s.start_time)}–${esc(s.end_time)}</td>
             <td>${s.capacity ?? "—"}</td>
             <td>${s.registered_count}</td>
             <td>${badge(s.status)}</td>
-            <td><a href="/admin/sessions/${s.id}">Sửa</a></td>
+            <td><a href="${href(`/sessions/${s.id}`)}">Sửa</a></td>
           </tr>`,
         ),
       )}`;
-    const apply = () => go(`/admin/sessions?programId=${$("#f-program").value}&status=${$("#f-status").value}`);
+    const apply = () => go(`${href("/sessions")}?programId=${$("#f-program").value}&status=${$("#f-status").value}`);
     $("#f-program").onchange = apply;
     $("#f-status").onchange = apply;
   }
 
   async function viewSession(id) {
     const isNew = id === "new";
+    if (isNew && !canManageStaff()) {
+      go(href("/sessions"));
+      return;
+    }
     $("#page-title").textContent = isNew ? "Tạo lớp" : "Chi tiết lớp";
     const [s, programs, venues] = await Promise.all([
       isNew ? { program_id: new URLSearchParams(location.search).get("programId") || "" } : api(`/sessions/${id}`),
@@ -624,38 +781,43 @@
           <div class="field"><label>Khóa học</label>
             <select name="programId" required>${programs.items.map((p) => `<option value="${p.id}" ${s.program_id === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
           </div>
-          <div class="field"><label>Slug</label><input name="slug" value="${esc(s.slug || "")}" required /></div>
+          <div class="field"><label>Mã lớp (đường dẫn)</label><input name="slug" value="${esc(s.slug || "")}" required /></div>
           <div class="field"><label>Tên lớp</label><input name="sessionName" value="${esc(s.session_name || "")}" /></div>
-          <div class="field"><label>Loại</label><select name="type"><option ${s.type === "course" ? "selected" : ""}>course</option><option ${s.type === "workshop" ? "selected" : ""}>workshop</option></select></div>
+          <div class="field"><label>Loại</label><select name="type">${opts(TYPE_LABEL, s.type || "course")}</select></div>
           <div class="field"><label>Ngày bắt đầu</label><input type="date" name="startDate" value="${esc((s.start_date || "").slice(0, 10))}" required /></div>
           <div class="field"><label>Ngày kết thúc</label><input type="date" name="endDate" value="${esc((s.end_date || "").slice(0, 10))}" /></div>
           <div class="field"><label>Giờ bắt đầu</label><input type="time" name="startTime" value="${esc(s.start_time || "")}" required /></div>
           <div class="field"><label>Giờ kết thúc</label><input type="time" name="endTime" value="${esc(s.end_time || "")}" required /></div>
-          <div class="field"><label>Thứ trong tuần</label><input name="daysOfWeek" value="${esc(s.days_of_week || "")}" placeholder="Tue, Thu" /></div>
-          <div class="field"><label>Hình thức</label><select name="format"><option value="">Theo khóa</option>${["online", "offline", "hybrid"].map((x) => `<option ${s.format === x ? "selected" : ""}>${x}</option>`).join("")}</select></div>
-          <div class="field"><label>Venue</label>
+          <div class="field"><label>Thứ trong tuần</label><input name="daysOfWeek" value="${esc(s.days_of_week || "")}" placeholder="T3, T5" /></div>
+          <div class="field"><label>Hình thức</label><select name="format"><option value="">Theo khóa</option>${opts(FORMAT_LABEL, s.format)}</select></div>
+          <div class="field"><label>Địa điểm</label>
             <select name="venueId"><option value="">—</option>${venues.items.map((v) => `<option value="${v.id}" ${s.venue_id === v.id ? "selected" : ""}>${esc(v.name)}</option>`).join("")}</select>
           </div>
-          <div class="field"><label>Nền tảng online</label><input name="onlinePlatform" value="${esc(s.online_platform || "")}" /></div>
-          <div class="field"><label>Meeting URL</label><input name="meetingUrl" value="${esc(s.meeting_url || "")}" /></div>
-          <div class="field"><label>Join link opens (minutes before)</label><input type="number" name="joinLinkOpenMinutesBefore" value="${s.join_link_open_minutes_before ?? ""}" placeholder="Theo khóa" /></div>
-          <div class="field"><label>Giá override (VND)</label><input type="number" name="priceOverride" value="${s.price_override ?? ""}" /></div>
+          <div class="field"><label>Nền tảng trực tuyến</label><input name="onlinePlatform" value="${esc(s.online_platform || "")}" /></div>
+          <div class="field"><label>Link họp trực tuyến</label><input name="meetingUrl" value="${esc(s.meeting_url || "")}" /></div>
+          <div class="field"><label>Mở link vào lớp (phút trước giờ học)</label><input type="number" name="joinLinkOpenMinutesBefore" value="${s.join_link_open_minutes_before ?? ""}" placeholder="Theo khóa" /></div>
+          <div class="field"><label>Giá riêng (VND)</label><input type="number" name="priceOverride" value="${s.price_override ?? ""}" /></div>
           <div class="field"><label>Sĩ số</label><input type="number" name="capacity" value="${s.capacity ?? ""}" /></div>
           <div class="field"><label>Đã đăng ký</label><input value="${s.registered_count || 0}" disabled /></div>
           <div class="field"><label>Trạng thái</label>
             <select name="status">${Object.keys(SESSION_LABEL).map((k) => `<option value="${k}" ${s.status === k ? "selected" : ""}>${SESSION_LABEL[k]}</option>`).join("")}</select>
           </div>
-          <div class="field"><label>Mở ĐK</label><input type="date" name="registrationOpenDate" value="${esc((s.registration_open_date || "").slice(0, 10))}" /></div>
-          <div class="field"><label>Đóng ĐK</label><input type="date" name="registrationCloseDate" value="${esc((s.registration_close_date || "").slice(0, 10))}" /></div>
-          <div class="field full"><label>Mô tả VI</label><textarea name="descriptionVi">${esc(s.description_vi || "")}</textarea></div>
-          <div class="field full"><label>Mô tả EN</label><textarea name="descriptionEn">${esc(s.description_en || "")}</textarea></div>
+          <div class="field"><label>Mở đăng ký</label><input type="date" name="registrationOpenDate" value="${esc((s.registration_open_date || "").slice(0, 10))}" /></div>
+          <div class="field"><label>Đóng đăng ký</label><input type="date" name="registrationCloseDate" value="${esc((s.registration_close_date || "").slice(0, 10))}" /></div>
+          <div class="field full"><label>Mô tả tiếng Việt</label><textarea name="descriptionVi">${esc(s.description_vi || "")}</textarea></div>
+          <div class="field full"><label>Mô tả tiếng Anh</label><textarea name="descriptionEn">${esc(s.description_en || "")}</textarea></div>
           <div class="field full"><label>Ghi chú nội bộ</label><textarea name="notes">${esc(s.notes || "")}</textarea></div>
         </div>
         <div class="toolbar" style="margin-top:16px">
-          <button class="btn btn-primary" type="submit">Lưu lớp</button>
-          ${isNew ? "" : `<button type="button" class="btn-danger" id="delete-session">Xóa</button>`}
+          ${canManageStaff() ? `<button class="btn btn-primary" type="submit">Lưu lớp</button>
+          ${isNew ? "" : `<button type="button" class="btn-danger" id="delete-session">Xóa</button>`}` : ""}
         </div>
       </form>`;
+    if (isInstructor()) {
+      $("#session-form")?.querySelectorAll("input, select, textarea, button").forEach((el) => {
+        el.disabled = true;
+      });
+    }
     $("#session-form").onsubmit = async (e) => {
       e.preventDefault();
       const form = e.target;
@@ -688,7 +850,7 @@
           ? await api("/sessions", { method: "POST", body: payload })
           : await api(`/sessions/${id}`, { method: "PUT", body: payload });
         toast("Đã lưu lớp — website sẽ cập nhật lịch / khóa / form đăng ký");
-        go(`/admin/sessions/${result.id}`);
+        go(href(`/sessions/${result.id}`));
       } catch (err) {
         toast(err.message, true);
       }
@@ -698,7 +860,7 @@
       try {
         await api(`/sessions/${id}`, { method: "DELETE" });
         toast("Đã xóa lớp");
-        go("/admin/sessions");
+        go(href("/sessions"));
       } catch (err) {
         toast(err.message, true);
       }
@@ -716,13 +878,13 @@
       if (!lms) return;
       const tab = new URLSearchParams(location.search).get("tab") || "meetings";
       const tabs = [
-        ["overview", "OVERVIEW"],
-        ["students", "STUDENTS"],
-        ["meetings", "MEETINGS"],
-        ["attendance", "ATTENDANCE"],
-        ["materials", "MATERIALS"],
-        ["announcements", "ANNOUNCEMENTS"],
-        ["certificates", "CERTIFICATES"],
+        ["overview", "Tổng quan"],
+        ["students", "Học viên"],
+        ["meetings", "Buổi học"],
+        ["attendance", "Điểm danh"],
+        ["materials", "Tài liệu"],
+        ["announcements", "Thông báo"],
+        ["certificates", "Chứng nhận"],
       ];
       app.insertAdjacentHTML(
         "beforeend",
@@ -735,12 +897,12 @@
       const show = (k) => {
         app.querySelectorAll("[data-stab]").forEach((b) => b.classList.toggle("active", b.dataset.stab === k));
         if (k === "overview") {
-          pane.innerHTML = `<p>${lms.summary.total} học viên · ${lms.summary.eligible} eligible · ${lms.summary.missingAttendance} thiếu điểm danh · ${lms.summary.incomplete} incomplete</p>`;
+          pane.innerHTML = `<p>${lms.summary.total} học viên · ${lms.summary.eligible} đủ điều kiện · ${lms.summary.missingAttendance} thiếu điểm danh · ${lms.summary.incomplete} chưa hoàn thành</p>`;
         } else if (k === "students") {
           pane.innerHTML = table(
-            ["Học viên", "Status", "Payment", "Progress", "Cert", ""],
+            ["Học viên", "Trạng thái", "Thanh toán", "Tiến độ", "Chứng nhận", ""],
             lms.enrollments.map(
-              (e) => `<tr><td><a href="/admin/students/${e.student_id}">${esc(e.student_name)}</a></td><td>${badge(e.status)}</td><td>${badge(e.payment_status)}</td><td>${e.progress.percent}%</td><td>${badge(e.certificate.status)}</td><td><button class="btn" data-recommend="${e.id}">Recommend completion</button></td></tr>`,
+              (e) => `<tr><td><a href="${href(`/students/${e.student_id}`)}">${esc(e.student_name)}</a></td><td>${badge(e.status)}</td><td>${badge(e.payment_status)}</td><td>${e.progress.percent}%</td><td>${badge(e.certificate.status)}</td><td><button class="btn" data-recommend="${e.id}">Đề xuất hoàn thành</button></td></tr>`,
             ),
           );
           pane.querySelectorAll("[data-recommend]").forEach((b) =>
@@ -751,21 +913,21 @@
           );
         } else if (k === "meetings") {
           pane.innerHTML = `${table(
-            ["Buổi", "Ngày", "Giờ", "Status", ""],
+            ["Buổi", "Ngày", "Giờ", "Trạng thái", ""],
             lms.meetings.map(
               (m) => `<tr><td>${esc(m.title_vi)}</td><td>${fmtDate(m.date)}</td><td>${esc(m.start_time)}–${esc(m.end_time)}</td><td>${badge(m.status)}</td><td></td></tr>`,
             ),
             "Chưa có buổi",
           )}
           <form id="mtg-form" class="form-grid" style="margin-top:12px">
-            <div class="field"><label>Title VI</label><input name="titleVi" required /></div>
-            <div class="field"><label>Title EN</label><input name="titleEn" /></div>
+            <div class="field"><label>Tiêu đề tiếng Việt</label><input name="titleVi" required /></div>
+            <div class="field"><label>Tiêu đề tiếng Anh</label><input name="titleEn" /></div>
             <div class="field"><label>Ngày</label><input type="date" name="date" required /></div>
             <div class="field"><label>Bắt đầu</label><input type="time" name="startTime" required /></div>
             <div class="field"><label>Kết thúc</label><input type="time" name="endTime" required /></div>
-            <div class="field"><label>Format</label><select name="format"><option value="online">online</option><option value="offline">offline</option></select></div>
-            <div class="field"><label>Meet URL</label><input name="meetingUrl" /></div>
-            <div class="field"><label>Recording</label><input name="recordingUrl" /></div>
+            <div class="field"><label>Hình thức</label><select name="format">${optList([["online","Trực tuyến"],["offline","Trực tiếp"]], "online")}</select></div>
+            <div class="field"><label>Link họp</label><input name="meetingUrl" /></div>
+            <div class="field"><label>Bản ghi</label><input name="recordingUrl" /></div>
             <button class="btn btn-primary">Thêm buổi</button>
           </form>`;
           $("#mtg-form").onsubmit = async (e) => {
@@ -789,13 +951,13 @@
                 <td>${esc(m.title_vi)}</td>
                 <td>
                   <select data-att="${enr.id}" data-meeting="${m.id}">
-                    ${["not_recorded","present","absent","excused"].map((st) => `<option>${st}</option>`).join("")}
+                    ${opts(ATT_LABEL, "not_recorded")}
                   </select>
                 </td>
               </tr>`);
             });
           });
-          pane.innerHTML = table(["Học viên", "Buổi", "Status"], rows, "Chưa có dữ liệu");
+          pane.innerHTML = table(["Học viên", "Buổi", "Trạng thái"], rows, "Chưa có dữ liệu");
           pane.querySelectorAll("[data-att]").forEach((sel) =>
             sel.addEventListener("change", async () => {
               await api("/attendance", { method: "PUT", body: { enrollmentId: sel.dataset.att, meetingId: sel.dataset.meeting, status: sel.value } });
@@ -803,15 +965,31 @@
             }),
           );
         } else if (k === "materials") {
-          pane.innerHTML = `${table(["Title", "Type"], lms.materials.map((x) => `<tr><td><a href="/admin/materials/${x.id}">${esc(x.title_vi)}</a></td><td>${esc(x.type)}</td></tr>`))}
-            <p><a class="btn" href="/admin/materials/new">+ Tài liệu</a></p>`;
+          pane.innerHTML = `${table(["Tiêu đề", "Loại"], lms.materials.map((x) => `<tr><td><a href="${href(`/materials/${x.id}`)}">${esc(x.title_vi)}</a></td><td>${esc(MATERIAL_TYPE[x.type] || x.type)}</td></tr>`))}
+            <p><a class="btn" href="${href("/materials/new")}">+ Tài liệu</a></p>`;
         } else if (k === "announcements") {
-          pane.innerHTML = `${table(["Title", "Priority"], lms.announcements.map((x) => `<tr><td><a href="/admin/announcements/${x.id}">${esc(x.title_vi)}</a></td><td>${esc(x.priority)}</td></tr>`))}
-            <p><a class="btn" href="/admin/announcements/new">+ Thông báo</a></p>`;
+          pane.innerHTML = `${table(["Tiêu đề", "Mức ưu tiên"], lms.announcements.map((x) => `<tr><td><a href="${href(`/announcements/${x.id}`)}">${esc(x.title_vi)}</a></td><td>${esc(PRIORITY_LABEL[x.priority] || x.priority)}</td></tr>`))}
+            <p><a class="btn" href="${href("/announcements/new")}">+ Thông báo</a></p>`;
         } else {
-          pane.innerHTML = `<p>${lms.summary.eligible} Eligible · ${lms.summary.missingAttendance} Missing attendance · ${lms.summary.incomplete} Incomplete</p>
+          if (!canManageStaff()) {
+            pane.innerHTML = `<p>${lms.summary.eligible} đủ điều kiện · ${lms.summary.missingAttendance} thiếu điểm danh · ${lms.summary.incomplete} chưa hoàn thành</p>
             ${table(
-              ["Học viên", "Attendance", "Completion", "Payment", "Cert", ""],
+              ["Học viên", "Điểm danh", "Hoàn thành", "Thanh toán", "Chứng nhận"],
+              lms.enrollments.map(
+                (e) => `<tr>
+                  <td>${esc(e.student_name)}</td>
+                  <td>${e.attendance.percent}%</td>
+                  <td>${esc(statusText(e.completion_status || e.status))}</td>
+                  <td>${badge(e.payment_status)}</td>
+                  <td>${badge(e.certificate.status)}</td>
+                </tr>`,
+              ),
+            )}`;
+            return;
+          }
+          pane.innerHTML = `<p>${lms.summary.eligible} đủ điều kiện · ${lms.summary.missingAttendance} thiếu điểm danh · ${lms.summary.incomplete} chưa hoàn thành</p>
+            ${table(
+              ["Học viên", "Điểm danh", "Hoàn thành", "Thanh toán", "Chứng nhận", ""],
               lms.enrollments.map(
                 (e) => `<tr>
                   <td>${esc(e.student_name)}</td>
@@ -819,11 +997,11 @@
                   <td>${esc(e.completion_status || e.status)}</td>
                   <td>${esc(e.payment_status)}</td>
                   <td>${badge(e.certificate.status)}</td>
-                  <td><label><input type="checkbox" data-bulk="${e.id}" ${e.eligibility.eligible && e.certificate.status !== "issued" ? "" : "disabled"} /> Issue</label></td>
+                  <td><label><input type="checkbox" data-bulk="${e.id}" ${e.eligibility.eligible && e.certificate.status !== "issued" ? "" : "disabled"} /> Cấp</label></td>
                 </tr>`,
               ),
             )}
-            <button class="btn btn-primary" id="issue-selected">ISSUE SELECTED</button>`;
+            <button class="btn btn-primary" id="issue-selected">Cấp chứng nhận đã chọn</button>`;
           $("#issue-selected").onclick = async () => {
             const ids = [...pane.querySelectorAll("[data-bulk]:checked")].map((x) => x.dataset.bulk);
             if (!ids.length) return toast("Chưa chọn học viên", true);
@@ -839,7 +1017,7 @@
   }
 
   async function viewRegistrations() {
-    $("#page-title").textContent = "Registrations";
+    $("#page-title").textContent = "Đăng ký";
     const qs = new URLSearchParams(location.search);
     const [data, programs, sessions] = await Promise.all([
       api(`/registrations?${qs.toString()}`),
@@ -852,13 +1030,13 @@
         <select id="programId"><option value="">Khóa</option>${programs.items.map((p) => `<option value="${p.id}" ${qs.get("programId") === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
         <select id="sessionId"><option value="">Lớp</option>${sessions.items.map((s) => `<option value="${s.id}" ${qs.get("sessionId") === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}</select>
         <select id="status"><option value="">Trạng thái</option>${Object.keys(REG_LABEL).map((k) => `<option value="${k}" ${qs.get("status") === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select>
-        <a class="btn" href="/api/admin/registrations/export.csv">Export CSV</a>
+        <a class="btn" href="/api/admin/registrations/export.csv">Tải CSV</a>
       </div>
       ${table(
         ["ID", "Họ tên", "Khóa", "Lớp", "Số tiền", "Ngày", "Trạng thái"],
         data.items.map(
           (r) => `<tr>
-            <td><a href="/admin/registrations/${r.id}">${esc(r.id)}</a></td>
+            <td><a href="${href(`/registrations/${r.id}`)}">${esc(r.id)}</a></td>
             <td>${esc(r.full_name)}<br><small>${esc(r.email)}</small></td>
             <td>${esc(r.programName || "")}</td>
             <td>${esc(r.session_name || "")}</td>
@@ -874,7 +1052,7 @@
         const v = document.getElementById(k).value;
         if (v) next.set(k, v);
       });
-      go(`/admin/registrations?${next}`);
+      go(`${href("/registrations")}?${next}`);
     };
     $("#q").addEventListener("keydown", (e) => e.key === "Enter" && apply());
     $("#programId").onchange = apply;
@@ -893,7 +1071,7 @@
           <p>${esc(r.job_role)} ${r.organization ? "· " + esc(r.organization) : ""}</p>
           <p>Nhu cầu: ${esc(r.goal || "—")}</p>
           <p>Nguồn: ${esc(r.source || "—")}</p>
-          <p>Consent: privacy ${r.consent_privacy ? "yes" : "no"} · marketing ${r.consent_marketing ? "yes" : "no"}</p>
+          <p>Đồng ý: bảo mật ${r.consent_privacy ? "có" : "không"} · marketing ${r.consent_marketing ? "có" : "không"}</p>
         </div>
         <form class="card" style="padding:18px" id="reg-form">
           <div class="field"><label>Trạng thái</label>
@@ -907,7 +1085,7 @@
         </form>
       </div>
       <div class="card" style="margin-top:16px;padding:18px">
-        <h2>History</h2>
+        <h2>Lịch sử</h2>
         ${(r.notes || []).map((n) => `<p><small>${esc(n.at)} · ${esc(n.by)}</small><br>${esc(n.text)}</p>`).join("") || "<p class='empty'>Chưa có ghi chú</p>"}
       </div>`;
     $("#reg-form").onsubmit = async (e) => {
@@ -986,7 +1164,7 @@
   }
 
   const viewVenues = simpleCrudPage({
-    title: "Venues",
+    title: "Địa điểm",
     endpoint: "/venues",
     nameKey: "name",
     fields: [
@@ -994,13 +1172,13 @@
       { key: "city", col: "city", label: "Thành phố" },
       { key: "addressVi", col: "address_vi", label: "Địa chỉ VI", full: true },
       { key: "addressEn", col: "address_en", label: "Địa chỉ EN", full: true },
-      { key: "mapUrl", col: "map_url", label: "Map URL", full: true },
+      { key: "mapUrl", col: "map_url", label: "Link bản đồ", full: true },
       { key: "notes", col: "notes", label: "Ghi chú", area: true, full: true },
     ],
   });
 
   const viewInstructors = simpleCrudPage({
-    title: "Instructors",
+    title: "Giảng viên",
     endpoint: "/instructors",
     nameKey: "name",
     fields: [
@@ -1009,8 +1187,8 @@
       { key: "role", col: "role", label: "Vai trò" },
       { key: "companyRole", col: "company_role", label: "Vai trò công ty" },
       { key: "photo", col: "photo", label: "Ảnh", full: true },
-      { key: "bioVi", col: "bio_vi", label: "Bio VI", area: true, full: true },
-      { key: "bioEn", col: "bio_en", label: "Bio EN", area: true, full: true },
+      { key: "bioVi", col: "bio_vi", label: "Tiểu sử tiếng Việt", area: true, full: true },
+      { key: "bioEn", col: "bio_en", label: "Tiểu sử tiếng Anh", area: true, full: true },
       { key: "expertiseVi", col: "expertise_vi", label: "Chuyên môn VI", full: true },
       { key: "expertiseEn", col: "expertise_en", label: "Chuyên môn EN", full: true },
       { key: "website", col: "website", label: "Website" },
@@ -1018,15 +1196,15 @@
   });
 
   async function viewInsights() {
-    $("#page-title").textContent = "Insights";
+    $("#page-title").textContent = "Góc chia sẻ";
     const editing = parts()[2];
     const data = await api("/insights");
     if (!editing) {
-      app.innerHTML = `<div class="toolbar"><a class="btn btn-primary" href="/admin/insights/new">+ Bài viết</a></div>
+      app.innerHTML = `<div class="toolbar"><a class="btn btn-primary" href="${href("/insights/new")}">+ Bài viết</a></div>
         ${table(
-          ["Tiêu đề", "Category", "VI", "EN", ""],
+          ["Tiêu đề", "Chuyên mục", "Tiếng Việt", "Tiếng Anh", ""],
           data.items.map(
-            (x) => `<tr><td><a href="/admin/insights/${x.id}">${esc(x.title_vi)}</a></td><td>${esc(x.category)}</td><td>${langDot(x.status_vi)}</td><td>${langDot(x.status_en)}</td><td><a href="/admin/insights/${x.id}">Sửa</a></td></tr>`,
+            (x) => `<tr><td><a href="${href(`/insights/${x.id}`)}">${esc(x.title_vi)}</a></td><td>${esc(x.category)}</td><td>${langDot(x.status_vi)}</td><td>${langDot(x.status_en)}</td><td><a href="${href(`/insights/${x.id}`)}">Sửa</a></td></tr>`,
           ),
         )}`;
       return;
@@ -1034,22 +1212,22 @@
     const item = editing === "new" ? {} : data.items.find((x) => x.id === editing) || (await api(`/insights`).then((d) => d.items.find((x) => x.id === editing)));
     app.innerHTML = `<form id="ins-form" class="card" style="padding:18px">
       <div class="form-grid">
-        <div class="field full"><label>Title VI</label><input name="titleVi" value="${esc(item?.title_vi || "")}" required /></div>
-        <div class="field full"><label>Title EN</label><input name="titleEn" value="${esc(item?.title_en || "")}" /></div>
-        <div class="field"><label>Slug VI</label><input name="slugVi" value="${esc(item?.slug_vi || "")}" required /></div>
-        <div class="field"><label>Slug EN</label><input name="slugEn" value="${esc(item?.slug_en || "")}" /></div>
-        <div class="field"><label>Category</label><input name="category" value="${esc(item?.category || "")}" /></div>
-        <div class="field"><label>Author</label><input name="authorId" value="${esc(item?.author_id || "tran-anh-vu")}" /></div>
-        <div class="field"><label>Status VI</label><select name="statusVi">${["draft", "review", "published"].map((x) => `<option ${item?.status_vi === x ? "selected" : ""}>${x}</option>`).join("")}</select></div>
-        <div class="field"><label>Status EN</label><select name="statusEn">${["not_created", "ai_draft", "review", "published"].map((x) => `<option ${item?.status_en === x ? "selected" : ""}>${x}</option>`).join("")}</select></div>
-        <div class="field full"><label>Excerpt VI</label><textarea name="excerptVi">${esc(item?.excerpt_vi || "")}</textarea></div>
-        <div class="field full"><label>Excerpt EN</label><textarea name="excerptEn">${esc(item?.excerpt_en || "")}</textarea></div>
-        <div class="field full"><label>Content VI</label><textarea name="contentVi" style="min-height:180px">${esc(item?.content_vi || "")}</textarea></div>
-        <div class="field full"><label>Content EN</label><textarea name="contentEn" style="min-height:180px">${esc(item?.content_en || "")}</textarea></div>
+        <div class="field full"><label>Tiêu đề tiếng Việt</label><input name="titleVi" value="${esc(item?.title_vi || "")}" required /></div>
+        <div class="field full"><label>Tiêu đề tiếng Anh</label><input name="titleEn" value="${esc(item?.title_en || "")}" /></div>
+        <div class="field"><label>Đường dẫn tiếng Việt</label><input name="slugVi" value="${esc(item?.slug_vi || "")}" required /></div>
+        <div class="field"><label>Đường dẫn tiếng Anh</label><input name="slugEn" value="${esc(item?.slug_en || "")}" /></div>
+        <div class="field"><label>Chuyên mục</label><input name="category" value="${esc(item?.category || "")}" /></div>
+        <div class="field"><label>Tác giả</label><input name="authorId" value="${esc(item?.author_id || "tran-anh-vu")}" /></div>
+        <div class="field"><label>Trạng thái tiếng Việt</label><select name="statusVi">${opts(LANG_LABEL, item?.status_vi)}</select></div>
+        <div class="field"><label>Trạng thái tiếng Anh</label><select name="statusEn">${opts(LANG_LABEL, item?.status_en)}</select></div>
+        <div class="field full"><label>Tóm tắt tiếng Việt</label><textarea name="excerptVi">${esc(item?.excerpt_vi || "")}</textarea></div>
+        <div class="field full"><label>Tóm tắt tiếng Anh</label><textarea name="excerptEn">${esc(item?.excerpt_en || "")}</textarea></div>
+        <div class="field full"><label>Nội dung tiếng Việt</label><textarea name="contentVi" style="min-height:180px">${esc(item?.content_vi || "")}</textarea></div>
+        <div class="field full"><label>Nội dung tiếng Anh</label><textarea name="contentEn" style="min-height:180px">${esc(item?.content_en || "")}</textarea></div>
       </div>
       <div class="toolbar" style="margin-top:12px">
         <button class="btn btn-primary" type="submit">Lưu</button>
-        ${editing !== "new" ? `<button type="button" class="btn" id="ins-en">Tạo English Draft</button><button type="button" class="btn-danger" id="ins-del">Xóa</button>` : ""}
+        ${editing !== "new" ? `<button type="button" class="btn" id="ins-en">Tạo bản nháp tiếng Anh</button><button type="button" class="btn-danger" id="ins-del">Xóa</button>` : ""}
       </div>
     </form>`;
     $("#ins-form").onsubmit = async (e) => {
@@ -1059,7 +1237,7 @@
         if (editing === "new") {
           const r = await api("/insights", { method: "POST", body });
           toast("Đã tạo bài viết");
-          go(`/admin/insights/${r.id}`);
+          go(href(`/insights/${r.id}`));
         } else {
           await api(`/insights/${editing}`, { method: "PUT", body });
           toast("Đã lưu bài viết");
@@ -1070,38 +1248,38 @@
     };
     $("#ins-en")?.addEventListener("click", async () => {
       await api(`/insights/${editing}/en-draft`, { method: "POST", body: {} });
-      toast("Đã tạo English draft");
+      toast("Đã tạo bản nháp tiếng Anh");
       render();
     });
     $("#ins-del")?.addEventListener("click", async () => {
       if (!confirmAction("Xóa bài viết?")) return;
       await api(`/insights/${editing}`, { method: "DELETE" });
-      go("/admin/insights");
+      go(href("/insights"));
     });
   }
 
   async function viewResources() {
-    $("#page-title").textContent = "Resources";
+    $("#page-title").textContent = "Tài liệu chuyên môn";
     const editing = parts()[2];
     const data = await api("/resources");
     if (!editing) {
-      app.innerHTML = `<div class="toolbar"><a class="btn btn-primary" href="/admin/resources/new">+ Tài liệu</a></div>
-        ${table(["Tiêu đề", "Category", "Access", "Status"], data.items.map((x) => `<tr><td><a href="/admin/resources/${x.id}">${esc(x.title_vi)}</a></td><td>${esc(x.category)}</td><td>${esc(x.access_type)}</td><td>${badge(x.status)}</td></tr>`))}`;
+      app.innerHTML = `<div class="toolbar"><a class="btn btn-primary" href="${href("/resources/new")}">+ Tài liệu</a></div>
+        ${table(["Tiêu đề", "Chuyên mục", "Quyền xem", "Trạng thái"], data.items.map((x) => `<tr><td><a href="${href(`/resources/${x.id}`)}">${esc(x.title_vi)}</a></td><td>${esc(x.category)}</td><td>${esc(ACCESS_LABEL[x.access_type] || x.access_type)}</td><td>${badge(x.status)}</td></tr>`))}`;
       return;
     }
     const item = editing === "new" ? {} : data.items.find((x) => x.id === editing) || {};
     app.innerHTML = `<form id="res-form" class="card" style="padding:18px">
       <div class="form-grid">
-        <div class="field full"><label>Title VI</label><input name="titleVi" value="${esc(item.title_vi || "")}" required /></div>
-        <div class="field full"><label>Title EN</label><input name="titleEn" value="${esc(item.title_en || "")}" /></div>
-        <div class="field"><label>Slug</label><input name="slug" value="${esc(item.slug || "")}" required /></div>
-        <div class="field"><label>Category</label><input name="category" value="${esc(item.category || "")}" /></div>
-        <div class="field"><label>Access</label><select name="accessType">${[["public","Public"],["registration","Registration Required"],["private","Private"]].map(([v,l]) => `<option value="${v}" ${item.access_type === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-        <div class="field"><label>Status</label><select name="status">${["draft","published","hidden"].map((x) => `<option ${item.status === x ? "selected" : ""}>${x}</option>`).join("")}</select></div>
-        <div class="field full"><label>Description VI</label><textarea name="descriptionVi">${esc(item.description_vi || "")}</textarea></div>
-        <div class="field full"><label>Description EN</label><textarea name="descriptionEn">${esc(item.description_en || "")}</textarea></div>
-        <div class="field"><label>File URL</label><input name="fileUrl" value="${esc(item.file_url || "")}" /></div>
-        <div class="field"><label>External URL</label><input name="externalUrl" value="${esc(item.external_url || "")}" /></div>
+        <div class="field full"><label>Tiêu đề tiếng Việt</label><input name="titleVi" value="${esc(item.title_vi || "")}" required /></div>
+        <div class="field full"><label>Tiêu đề tiếng Anh</label><input name="titleEn" value="${esc(item.title_en || "")}" /></div>
+        <div class="field"><label>Đường dẫn</label><input name="slug" value="${esc(item.slug || "")}" required /></div>
+        <div class="field"><label>Chuyên mục</label><input name="category" value="${esc(item.category || "")}" /></div>
+        <div class="field"><label>Quyền xem</label><select name="accessType">${opts(ACCESS_LABEL, item.access_type)}</select></div>
+        <div class="field"><label>Trạng thái</label><select name="status">${opts({ draft: "Nháp", published: "Đã xuất bản", hidden: "Đã ẩn" }, item.status)}</select></div>
+        <div class="field full"><label>Mô tả tiếng Việt</label><textarea name="descriptionVi">${esc(item.description_vi || "")}</textarea></div>
+        <div class="field full"><label>Mô tả tiếng Anh</label><textarea name="descriptionEn">${esc(item.description_en || "")}</textarea></div>
+        <div class="field"><label>Đường dẫn file</label><input name="fileUrl" value="${esc(item.file_url || "")}" /></div>
+        <div class="field"><label>Link ngoài</label><input name="externalUrl" value="${esc(item.external_url || "")}" /></div>
       </div>
       <div class="toolbar" style="margin-top:12px"><button class="btn btn-primary">Lưu</button>
       ${editing !== "new" ? `<button type="button" class="btn-danger" id="res-del">Xóa</button>` : ""}</div>
@@ -1112,7 +1290,7 @@
       try {
         if (editing === "new") {
           const r = await api("/resources", { method: "POST", body });
-          go(`/admin/resources/${r.id}`);
+          go(href(`/resources/${r.id}`));
         } else {
           await api(`/resources/${editing}`, { method: "PUT", body });
           toast("Đã lưu tài liệu");
@@ -1124,25 +1302,25 @@
     $("#res-del")?.addEventListener("click", async () => {
       if (!confirmAction("Xóa tài liệu?")) return;
       await api(`/resources/${editing}`, { method: "DELETE" });
-      go("/admin/resources");
+      go(href("/resources"));
     });
   }
 
   async function viewMedia() {
-    $("#page-title").textContent = "Media";
+    $("#page-title").textContent = "Thư viện ảnh";
     const data = await api("/media");
     app.innerHTML = `
       <form class="toolbar" id="up">
         <input type="file" name="file" required />
-        <input name="altVi" placeholder="Alt VI" />
-        <input name="altEn" placeholder="Alt EN" />
-        <button class="btn btn-primary">Upload</button>
+        <input name="altVi" placeholder="Mô tả ảnh tiếng Việt" />
+        <input name="altEn" placeholder="Mô tả ảnh tiếng Anh" />
+        <button class="btn btn-primary">Tải lên</button>
       </form>
       <div class="media-grid">${data.items.map((m) => `
         <article class="media-card">
           ${m.mime.startsWith("image/") ? `<img src="${esc(m.url)}" alt="${esc(m.alt_vi)}" />` : `<p>${esc(m.original_name)}</p>`}
           <small>${esc(m.original_name)}</small>
-          <button class="btn" data-copy="${esc(m.url)}">Copy URL</button>
+          <button class="btn" data-copy="${esc(m.url)}">Sao chép đường dẫn</button>
           <button class="btn-danger" data-del="${m.id}">Xóa</button>
         </article>`).join("") || `<p class="empty">Chưa có file</p>`}</div>`;
     $("#up").onsubmit = async (e) => {
@@ -1159,7 +1337,7 @@
     app.addEventListener("click", async (e) => {
       if (e.target.dataset.copy) {
         await navigator.clipboard.writeText(e.target.dataset.copy);
-        toast("Copied");
+        toast("Đã sao chép");
       }
       if (e.target.dataset.del) {
         if (!confirmAction("Xóa file?")) return;
@@ -1170,19 +1348,19 @@
   }
 
   async function viewStudents() {
-    $("#page-title").textContent = "Students";
+    $("#page-title").textContent = "Học viên";
     const q = new URLSearchParams(location.search).get("q") || "";
     const data = await api(`/students?q=${encodeURIComponent(q)}`);
     app.innerHTML = `
       <div class="toolbar">
         <input id="search" placeholder="Tên, email, SĐT" value="${esc(q)}" />
-        <a class="btn btn-primary" href="/admin/students/new">+ Học viên</a>
+        ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/students/new")}">+ Học viên</a>` : ""}
       </div>
       ${table(
         ["Tên", "Email", "SĐT", "Đang học", "Hoàn thành", "Trạng thái", "Ngày tạo"],
         data.items.map(
           (s) => `<tr>
-            <td><a href="/admin/students/${s.id}">${esc(s.full_name)}</a></td>
+            <td><a href="${href(`/students/${s.id}`)}">${esc(s.full_name)}</a></td>
             <td>${esc(s.email)}</td>
             <td>${esc(s.phone || "")}</td>
             <td>${s.active_courses}</td>
@@ -1193,12 +1371,16 @@
         ),
       )}`;
     $("#search").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") go(`/admin/students?q=${encodeURIComponent(e.target.value)}`);
+      if (e.key === "Enter") go(`${href("/students")}?q=${encodeURIComponent(e.target.value)}`);
     });
   }
 
   async function viewStudent(id) {
     if (id === "new") {
+      if (!canManageStaff()) {
+        go(href("/students"));
+        return;
+      }
       $("#page-title").textContent = "Học viên mới";
       app.innerHTML = `<form id="stu-new" class="card" style="padding:18px;max-width:520px">
         <div class="field"><label>Họ tên</label><input name="fullName" required /></div>
@@ -1210,7 +1392,7 @@
         e.preventDefault();
         const body = Object.fromEntries(new FormData(e.target).entries());
         const r = await api("/students", { method: "POST", body });
-        go(`/admin/students/${r.id}`);
+        go(href(`/students/${r.id}`));
       };
       return;
     }
@@ -1219,12 +1401,12 @@
     const s = d.student;
     app.innerHTML = `
       <div class="tabs">
-        <button data-tab="profile" class="active">PROFILE</button>
-        <button data-tab="enroll">ENROLLMENTS</button>
-        <button data-tab="att">ATTENDANCE</button>
-        <button data-tab="notes">NOTES</button>
-        <button data-tab="certs">CERTIFICATES</button>
-        <button data-tab="activity">ACTIVITY</button>
+        <button data-tab="profile" class="active">Hồ sơ</button>
+        <button data-tab="enroll">Ghi danh</button>
+        <button data-tab="att">Điểm danh</button>
+        <button data-tab="notes">Ghi chú</button>
+        <button data-tab="certs">Chứng nhận</button>
+        <button data-tab="activity">Hoạt động</button>
       </div>
       <section data-pane="profile">
         <form id="stu-form" class="card" style="padding:18px">
@@ -1232,29 +1414,29 @@
             <div class="field"><label>Họ tên</label><input name="fullName" value="${esc(s.fullName)}" /></div>
             <div class="field"><label>Email</label><input value="${esc(s.email)}" disabled /></div>
             <div class="field"><label>Điện thoại</label><input name="phone" value="${esc(s.phone || "")}" /></div>
-            <div class="field"><label>Status</label>
-              <select name="status">${["invited","active","inactive","suspended"].map((x) => `<option ${s.status === x ? "selected" : ""}>${x}</option>`).join("")}</select>
+            <div class="field"><label>Trạng thái</label>
+              <select name="status">${opts(STUDENT_LABEL, s.status)}</select>
             </div>
           </div>
-          <div class="toolbar"><button class="btn btn-primary">Lưu</button>
-            <button type="button" class="btn" id="reset-access">Reset access</button></div>
+          <div class="toolbar">${canManageStaff() ? `<button class="btn btn-primary">Lưu</button>
+            <button type="button" class="btn" id="reset-access">Cấp lại quyền truy cập</button>` : ""}</div>
         </form>
       </section>
       <section data-pane="enroll" class="hidden">
         ${table(
-          ["Khóa", "Lớp", "Status", "Payment", "Chuyển lớp"],
+          ["Khóa", "Lớp", "Trạng thái", "Thanh toán", "Chuyển lớp"],
           d.enrollments.map(
             (e) => `<tr>
               <td>${esc(e.program_name)}</td>
               <td>${esc(e.session_name)}</td>
               <td>
                 <select data-enr="${e.id}">
-                  ${["active","completed","paused","cancelled"].map((st) => `<option ${e.status === st ? "selected" : ""}>${st}</option>`).join("")}
+                  ${opts(ENROLL_LABEL, e.status)}
                 </select>
               </td>
               <td>
                 <select data-pay="${e.id}">
-                  ${["unpaid","pending","paid","refunded"].map((st) => `<option ${e.payment_status === st ? "selected" : ""}>${st}</option>`).join("")}
+                  ${opts(PAY_LABEL, e.payment_status)}
                 </select>
               </td>
               <td>
@@ -1265,21 +1447,21 @@
             </tr>`,
           ),
         )}
-        <form id="enroll-form" class="toolbar">
+        ${canManageStaff() ? `<form id="enroll-form" class="toolbar">
           <select name="sessionId">${sessions.items.map((x) => `<option value="${x.id}">${esc(x.session_name)}</option>`).join("")}</select>
-          <button class="btn btn-primary">Enroll</button>
-        </form>
+          <button class="btn btn-primary">Ghi danh</button>
+        </form>` : ""}
       </section>
       <section data-pane="att" class="hidden">
         ${table(
-          ["Buổi", "Ngày", "Status"],
+          ["Buổi", "Ngày", "Trạng thái"],
           (d.meetings || []).map(
             (a) => `<tr>
               <td>${esc(a.title_vi)}</td>
               <td>${fmtDate(a.date)}</td>
               <td>
                 <select data-att="${a.enrollment_id}" data-meeting="${a.id}">
-                  ${["not_recorded","present","absent","excused"].map((st) => `<option ${a.attendance === st ? "selected" : ""}>${st}</option>`).join("")}
+                  ${opts(ATT_LABEL, a.attendance)}
                 </select>
               </td>
             </tr>`,
@@ -1297,21 +1479,21 @@
         <div class="card" style="padding:18px">
           <p>Tạo tài khoản: ${fmtDate(s.createdAt)}</p>
           <p>Đăng nhập gần nhất: ${s.lastLoginAt ? fmtDate(s.lastLoginAt) : "Chưa đăng nhập"}</p>
-          <p>Enrollment: ${d.enrollments.length}</p>
+          <p>Ghi danh: ${d.enrollments.length}</p>
         </div>
       </section>
       <section data-pane="certs" class="hidden">
         ${table(
-          ["Code", "Status", "Issue", ""],
+          ["Mã", "Trạng thái", "Ngày cấp", ""],
           (d.certificates || []).map(
             (c) => `<tr>
               <td>${esc(c.certificate_code)}</td>
               <td>${badge(c.status)}</td>
               <td>${fmtDate(c.issue_date || c.issued_at)}</td>
               <td>
-                ${c.status === "issued" ? `<a class="btn" href="/api/admin/certificates/${c.id}/pdf">PDF</a>
-                <button class="btn" data-reissue="${c.id}">Reissue</button>
-                <button class="btn-danger" data-revoke="${c.id}">Revoke</button>` : ""}
+                ${c.status === "issued" && canManageStaff() ? `<a class="btn" href="/api/admin/certificates/${c.id}/pdf">PDF</a>
+                <button class="btn" data-reissue="${c.id}">Cấp lại</button>
+                <button class="btn-danger" data-revoke="${c.id}">Thu hồi</button>` : ""}
               </td>
             </tr>`,
           ),
@@ -1331,23 +1513,30 @@
     );
     $("#stu-form").onsubmit = async (e) => {
       e.preventDefault();
+      if (!canManageStaff()) return;
       await api(`/students/${id}`, { method: "PUT", body: Object.fromEntries(new FormData(e.target).entries()) });
       toast("Đã lưu");
     };
-    $("#reset-access").onclick = async () => {
-      const r = await api(`/students/${id}/reset-access`, { method: "POST", body: {} });
-      toast(`Link kích hoạt: ${r.activationPath}`);
-    };
-    $("#enroll-form").onsubmit = async (e) => {
-      e.preventDefault();
-      await api(`/students/${id}/enroll`, { method: "POST", body: { sessionId: e.target.sessionId.value } });
-      toast("Đã enroll");
-      render();
-    };
+    const resetBtn = $("#reset-access");
+    if (resetBtn) {
+      resetBtn.onclick = async () => {
+        const r = await api(`/students/${id}/reset-access`, { method: "POST", body: {} });
+        toast(`Link kích hoạt: ${r.activationPath}`);
+      };
+    }
+    const enrollForm = $("#enroll-form");
+    if (enrollForm) {
+      enrollForm.onsubmit = async (e) => {
+        e.preventDefault();
+        await api(`/students/${id}/enroll`, { method: "POST", body: { sessionId: e.target.sessionId.value } });
+        toast("Đã ghi danh");
+        render();
+      };
+    }
     app.querySelectorAll("[data-enr]").forEach((sel) =>
       sel.addEventListener("change", async () => {
         await api(`/enrollments/${sel.dataset.enr}`, { method: "PUT", body: { status: sel.value } });
-        toast("Đã cập nhật enrollment");
+        toast("Đã cập nhật ghi danh");
       }),
     );
     app.querySelectorAll("[data-pay]").forEach((sel) =>
@@ -1388,7 +1577,7 @@
     );
     app.querySelectorAll("[data-reissue]").forEach((b) =>
       b.addEventListener("click", async () => {
-        if (!confirmAction("Cấp lại chứng nhận? Bản cũ sẽ chuyển sang REISSUED.")) return;
+        if (!confirmAction("Cấp lại chứng nhận? Bản cũ sẽ chuyển sang trạng thái đã cấp lại.")) return;
         await api(`/certificates/${b.dataset.reissue}/reissue`, { method: "POST", body: {} });
         toast("Đã cấp lại");
         render();
@@ -1397,31 +1586,31 @@
   }
 
   async function viewLearnerMaterials() {
-    $("#page-title").textContent = "Learning materials";
+    $("#page-title").textContent = "Tài liệu học tập";
     const editing = parts()[2];
     const [data, programs, sessions] = await Promise.all([api("/materials"), api("/programs"), api("/sessions")]);
     if (!editing) {
-      app.innerHTML = `<div class="toolbar"><a class="btn btn-primary" href="/admin/materials/new">+ Tài liệu lớp</a></div>
+      app.innerHTML = `<div class="toolbar"><a class="btn btn-primary" href="${href("/materials/new")}">+ Tài liệu lớp</a></div>
         ${table(
-          ["Title", "Type", "Visibility", "Phase"],
-          data.items.map((x) => `<tr><td><a href="/admin/materials/${x.id}">${esc(x.title_vi)}</a></td><td>${esc(x.type)}</td><td>${esc(x.visibility)}</td><td>${esc(x.phase)}</td></tr>`),
+          ["Tiêu đề", "Loại", "Phạm vi", "Giai đoạn"],
+          data.items.map((x) => `<tr><td><a href="${href(`/materials/${x.id}`)}">${esc(x.title_vi)}</a></td><td>${esc(MATERIAL_TYPE[x.type] || x.type)}</td><td>${esc(VISIBILITY_LABEL[x.visibility] || x.visibility)}</td><td>${esc(PHASE_LABEL[x.phase] || x.phase)}</td></tr>`),
         )}`;
       return;
     }
     const item = editing === "new" ? {} : data.items.find((x) => x.id === editing) || {};
     app.innerHTML = `<form id="mat-form" class="card" style="padding:18px">
       <div class="form-grid">
-        <div class="field full"><label>Title VI</label><input name="titleVi" value="${esc(item.title_vi || "")}" required /></div>
-        <div class="field full"><label>Title EN</label><input name="titleEn" value="${esc(item.title_en || "")}" /></div>
-        <div class="field full"><label>Mô tả VI</label><textarea name="descriptionVi">${esc(item.description_vi || "")}</textarea></div>
-        <div class="field full"><label>Mô tả EN</label><textarea name="descriptionEn">${esc(item.description_en || "")}</textarea></div>
-        <div class="field"><label>Type</label><select name="type">${["slide","pdf","template","prompt","worksheet","video","recording","link","other"].map((x) => `<option ${item.type === x ? "selected" : ""}>${x}</option>`).join("")}</select></div>
-        <div class="field"><label>Phase</label><select name="phase">${[["before","Trước buổi"],["during","Trong khóa"],["after","Sau buổi"]].map(([v,l]) => `<option value="${v}" ${item.phase === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-        <div class="field"><label>Visibility</label><select name="visibility">${["program","session","meeting","students"].map((x) => `<option ${item.visibility === x ? "selected" : ""}>${x}</option>`).join("")}</select></div>
-        <div class="field"><label>Program</label><select name="programId"><option value="">—</option>${programs.items.map((p) => `<option value="${p.id}" ${item.program_id === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
-        <div class="field"><label>Session</label><select name="sessionId"><option value="">—</option>${sessions.items.map((s) => `<option value="${s.id}" ${item.session_id === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}</select></div>
-        <div class="field full"><label>External URL</label><input name="externalUrl" value="${esc(item.external_url || "")}" /></div>
-        <div class="field full"><label>Upload file</label><input type="file" name="file" /></div>
+        <div class="field full"><label>Tiêu đề tiếng Việt</label><input name="titleVi" value="${esc(item.title_vi || "")}" required /></div>
+        <div class="field full"><label>Tiêu đề tiếng Anh</label><input name="titleEn" value="${esc(item.title_en || "")}" /></div>
+        <div class="field full"><label>Mô tả tiếng Việt</label><textarea name="descriptionVi">${esc(item.description_vi || "")}</textarea></div>
+        <div class="field full"><label>Mô tả tiếng Anh</label><textarea name="descriptionEn">${esc(item.description_en || "")}</textarea></div>
+        <div class="field"><label>Loại</label><select name="type">${opts(MATERIAL_TYPE, item.type)}</select></div>
+        <div class="field"><label>Giai đoạn</label><select name="phase">${[["before","Trước buổi"],["during","Trong khóa"],["after","Sau buổi"]].map(([v,l]) => `<option value="${v}" ${item.phase === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+        <div class="field"><label>Phạm vi hiển thị</label><select name="visibility">${opts(VISIBILITY_LABEL, item.visibility)}</select></div>
+        <div class="field"><label>Khóa học</label><select name="programId"><option value="">—</option>${programs.items.map((p) => `<option value="${p.id}" ${item.program_id === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
+        <div class="field"><label>Lớp học</label><select name="sessionId"><option value="">—</option>${sessions.items.map((s) => `<option value="${s.id}" ${item.session_id === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}</select></div>
+        <div class="field full"><label>Link ngoài</label><input name="externalUrl" value="${esc(item.external_url || "")}" /></div>
+        <div class="field full"><label>Tải file lên</label><input type="file" name="file" /></div>
       </div>
       <div class="toolbar"><button class="btn btn-primary">Lưu</button>
       ${editing !== "new" ? `<button type="button" class="btn-danger" id="mat-del">Xóa</button>` : ""}</div>
@@ -1432,7 +1621,7 @@
       try {
         if (editing === "new") {
           const r = await api("/materials", { method: "POST", body: fd });
-          go(`/admin/materials/${r.id}`);
+          go(href(`/materials/${r.id}`));
         } else {
           const body = Object.fromEntries(fd.entries());
           delete body.file;
@@ -1446,36 +1635,36 @@
     $("#mat-del")?.addEventListener("click", async () => {
       if (!confirmAction("Xóa tài liệu?")) return;
       await api(`/materials/${editing}`, { method: "DELETE" });
-      go("/admin/materials");
+      go(href("/materials"));
     });
   }
 
   async function viewAdminAnnouncements() {
-    $("#page-title").textContent = "Announcements";
+    $("#page-title").textContent = "Thông báo";
     const editing = parts()[2];
     const [data, programs, sessions] = await Promise.all([api("/announcements"), api("/programs"), api("/sessions")]);
     if (!editing) {
-      app.innerHTML = `<div class="toolbar"><a class="btn btn-primary" href="/admin/announcements/new">+ Thông báo</a></div>
+      app.innerHTML = `<div class="toolbar"><a class="btn btn-primary" href="${href("/announcements/new")}">+ Thông báo</a></div>
         ${table(
-          ["Title", "Target", "Priority"],
-          data.items.map((x) => `<tr><td><a href="/admin/announcements/${x.id}">${esc(x.title_vi)}</a></td><td>${esc(x.target_type)}</td><td>${esc(x.priority)}</td></tr>`),
+          ["Tiêu đề", "Đối tượng", "Mức ưu tiên"],
+          data.items.map((x) => `<tr><td><a href="${href(`/announcements/${x.id}`)}">${esc(x.title_vi)}</a></td><td>${esc(TARGET_LABEL[x.target_type] || x.target_type)}</td><td>${esc(PRIORITY_LABEL[x.priority] || x.priority)}</td></tr>`),
         )}`;
       return;
     }
     const item = editing === "new" ? {} : data.items.find((x) => x.id === editing) || {};
     app.innerHTML = `<form id="ann-form" class="card" style="padding:18px">
       <div class="form-grid">
-        <div class="field full"><label>Title VI</label><input name="titleVi" value="${esc(item.title_vi || "")}" required /></div>
-        <div class="field full"><label>Title EN</label><input name="titleEn" value="${esc(item.title_en || "")}" /></div>
+        <div class="field full"><label>Tiêu đề tiếng Việt</label><input name="titleVi" value="${esc(item.title_vi || "")}" required /></div>
+        <div class="field full"><label>Tiêu đề tiếng Anh</label><input name="titleEn" value="${esc(item.title_en || "")}" /></div>
         <div class="field full"><label>Nội dung VI</label><textarea name="contentVi">${esc(item.content_vi || "")}</textarea></div>
         <div class="field full"><label>Nội dung EN</label><textarea name="contentEn">${esc(item.content_en || "")}</textarea></div>
-        <div class="field"><label>Target</label><select name="targetType">${["all","program","session","student"].map((x) => `<option ${item.target_type === x ? "selected" : ""}>${x}</option>`).join("")}</select></div>
-        <div class="field"><label>Priority</label><select name="priority">${["normal","important","urgent"].map((x) => `<option ${item.priority === x ? "selected" : ""}>${x}</option>`).join("")}</select></div>
-        <div class="field"><label>Program</label><select name="programId"><option value="">—</option>${programs.items.map((p) => `<option value="${p.id}" ${item.program_id === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
-        <div class="field"><label>Session</label><select name="sessionId"><option value="">—</option>${sessions.items.map((s) => `<option value="${s.id}" ${item.session_id === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}</select></div>
-        <div class="field"><label>Student ID (nếu target student)</label><input name="studentId" value="${esc(item.student_id || "")}" /></div>
+        <div class="field"><label>Đối tượng</label><select name="targetType">${opts(isInstructor() ? { program: "Khóa học", session: "Lớp học", student: "Học viên" } : TARGET_LABEL, item.target_type || "session")}</select></div>
+        <div class="field"><label>Mức ưu tiên</label><select name="priority">${opts(PRIORITY_LABEL, item.priority || "normal")}</select></div>
+        <div class="field"><label>Khóa học</label><select name="programId"><option value="">—</option>${programs.items.map((p) => `<option value="${p.id}" ${item.program_id === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
+        <div class="field"><label>Lớp học</label><select name="sessionId"><option value="">—</option>${sessions.items.map((s) => `<option value="${s.id}" ${item.session_id === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}</select></div>
+        <div class="field"><label>Mã học viên (nếu gửi cho một người)</label><input name="studentId" value="${esc(item.student_id || "")}" /></div>
       </div>
-      <div class="toolbar"><button class="btn btn-primary">Publish</button>
+      <div class="toolbar"><button class="btn btn-primary">Đăng</button>
       ${editing !== "new" ? `<button type="button" class="btn-danger" id="ann-del">Xóa</button>` : ""}</div>
     </form>`;
     $("#ann-form").onsubmit = async (e) => {
@@ -1484,7 +1673,7 @@
       try {
         if (editing === "new") {
           const r = await api("/announcements", { method: "POST", body });
-          go(`/admin/announcements/${r.id}`);
+          go(href(`/announcements/${r.id}`));
         } else {
           await api(`/announcements/${editing}`, { method: "PUT", body });
           toast("Đã lưu thông báo");
@@ -1496,21 +1685,21 @@
     $("#ann-del")?.addEventListener("click", async () => {
       if (!confirmAction("Xóa thông báo?")) return;
       await api(`/announcements/${editing}`, { method: "DELETE" });
-      go("/admin/announcements");
+      go(href("/announcements"));
     });
   }
 
   async function viewEnrollments() {
-    $("#page-title").textContent = "Enrollments";
+    $("#page-title").textContent = "Ghi danh";
     const q = new URLSearchParams(location.search).get("q") || "";
     const data = await api(`/enrollments?q=${encodeURIComponent(q)}`);
     app.innerHTML = `
       <div class="toolbar"><input id="search" placeholder="Học viên, email, khóa" value="${esc(q)}" /></div>
       ${table(
-        ["Học viên", "Khóa", "Lớp", "Status", "Payment", "Progress", "Cert"],
+        ["Học viên", "Khóa", "Lớp", "Trạng thái", "Thanh toán", "Tiến độ", "Chứng nhận"],
         data.items.map(
           (e) => `<tr>
-            <td><a href="/admin/students/${e.student_id}">${esc(e.student_name)}</a><br><small>${esc(e.student_email || "")}</small></td>
+            <td><a href="${href(`/students/${e.student_id}`)}">${esc(e.student_name)}</a><br><small>${esc(e.student_email || "")}</small></td>
             <td>${esc(e.program_name)}</td>
             <td>${esc(e.session_name)}</td>
             <td>${badge(e.status)}</td>
@@ -1521,27 +1710,27 @@
         ),
       )}`;
     $("#search").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") go(`/admin/enrollments?q=${encodeURIComponent(e.target.value)}`);
+      if (e.key === "Enter") go(`${href("/enrollments")}?q=${encodeURIComponent(e.target.value)}`);
     });
   }
 
   async function viewCertificates() {
-    $("#page-title").textContent = "Certificates";
+    $("#page-title").textContent = "Chứng nhận";
     const data = await api("/certificates");
     app.innerHTML = table(
-      ["Code", "Học viên", "Chương trình", "Status", "Ngày cấp", ""],
+      ["Mã", "Học viên", "Chương trình", "Trạng thái", "Ngày cấp", ""],
       data.items.map(
         (c) => `<tr>
           <td>${esc(c.certificate_code)}</td>
-          <td><a href="/admin/students/${c.student_id}">${esc(c.student_name_snapshot)}</a></td>
+          <td><a href="${href(`/students/${c.student_id}`)}">${esc(c.student_name_snapshot)}</a></td>
           <td>${esc(c.program_name_vi_snapshot)}</td>
           <td>${badge(c.status)}</td>
           <td>${fmtDate(c.issue_date)}</td>
           <td>
-            ${c.status === "issued" ? `<a class="btn" href="/verify/${esc(c.certificate_code)}" target="_blank">Verify</a>
+            ${c.status === "issued" ? `<a class="btn" href="/verify/${esc(c.certificate_code)}" target="_blank">Xác minh</a>
             <a class="btn" href="/api/admin/certificates/${c.id}/pdf">PDF</a>
-            <button class="btn" data-reissue="${c.id}">Reissue</button>
-            <button class="btn-danger" data-revoke="${c.id}">Revoke</button>` : ""}
+            <button class="btn" data-reissue="${c.id}">Cấp lại</button>
+            <button class="btn-danger" data-revoke="${c.id}">Thu hồi</button>` : ""}
           </td>
         </tr>`,
       ),
@@ -1564,53 +1753,53 @@
   }
 
   async function viewCertificateTemplates() {
-    $("#page-title").textContent = "Certificate templates";
+    $("#page-title").textContent = "Mẫu chứng nhận";
     const editing = parts()[2];
     const data = await api("/certificate-templates");
     if (!editing) {
-      app.innerHTML = `<div class="toolbar"><a class="btn btn-primary" href="/admin/certificate-templates/new">+ Template</a></div>
+      app.innerHTML = `<div class="toolbar"><a class="btn btn-primary" href="${href("/certificate-templates/new")}">+ Mẫu mới</a></div>
         ${table(
-          ["Name", "Language", "Status", "Version"],
-          data.items.map((x) => `<tr><td><a href="/admin/certificate-templates/${x.id}">${esc(x.name)}</a></td><td>${esc(x.language)}</td><td>${badge(x.status)}</td><td>${esc(x.version)}</td></tr>`),
+          ["Tên", "Ngôn ngữ", "Trạng thái", "Phiên bản"],
+          data.items.map((x) => `<tr><td><a href="${href(`/certificate-templates/${x.id}`)}">${esc(x.name)}</a></td><td>${esc(x.language)}</td><td>${badge(x.status)}</td><td>${esc(x.version)}</td></tr>`),
         )}`;
       return;
     }
     const item = editing === "new" ? {} : data.items.find((x) => x.id === editing) || data.items[0] || {};
     app.innerHTML = `<form id="tpl-form" class="card" style="padding:18px">
       <div class="form-grid">
-        <div class="field"><label>Template name</label><input name="name" value="${esc(item.name || "")}" required /></div>
-        <div class="field"><label>Language</label><select name="language"><option ${item.language === "vi" ? "selected" : ""}>vi</option><option ${item.language === "en" ? "selected" : ""}>en</option></select></div>
-        <div class="field full"><label>Title VI</label><input name="titleVi" value="${esc(item.title_vi || "")}" /></div>
-        <div class="field full"><label>Title EN</label><input name="titleEn" value="${esc(item.title_en || "")}" /></div>
-        <div class="field full"><label>Body VI</label><textarea name="bodyVi">${esc(item.body_vi || "")}</textarea></div>
-        <div class="field full"><label>Body EN</label><textarea name="bodyEn">${esc(item.body_en || "")}</textarea></div>
-        <div class="field"><label>Signer 1</label><input name="signer1Name" value="${esc(item.signer1_name || "")}" /></div>
-        <div class="field"><label>Signer 1 title</label><input name="signer1Title" value="${esc(item.signer1_title || "")}" /></div>
-        <div class="field"><label>Signer 2</label><input name="signer2Name" value="${esc(item.signer2_name || "")}" /></div>
-        <div class="field"><label>Signer 2 title</label><input name="signer2Title" value="${esc(item.signer2_title || "")}" /></div>
-        <div class="field full"><label>Footer VI</label><textarea name="footerVi">${esc(item.footer_vi || "")}</textarea></div>
-        <div class="field full"><label>Footer EN</label><textarea name="footerEn">${esc(item.footer_en || "")}</textarea></div>
-        <div class="field"><label>Status</label><select name="status"><option ${item.status === "published" ? "selected" : ""}>published</option><option ${item.status === "draft" ? "selected" : ""}>draft</option></select></div>
+        <div class="field"><label>Tên mẫu</label><input name="name" value="${esc(item.name || "")}" required /></div>
+        <div class="field"><label>Ngôn ngữ</label><select name="language">${optList([["vi","Tiếng Việt"],["en","Tiếng Anh"]], item.language || "vi")}</select></div>
+        <div class="field full"><label>Tiêu đề tiếng Việt</label><input name="titleVi" value="${esc(item.title_vi || "")}" /></div>
+        <div class="field full"><label>Tiêu đề tiếng Anh</label><input name="titleEn" value="${esc(item.title_en || "")}" /></div>
+        <div class="field full"><label>Nội dung tiếng Việt</label><textarea name="bodyVi">${esc(item.body_vi || "")}</textarea></div>
+        <div class="field full"><label>Nội dung tiếng Anh</label><textarea name="bodyEn">${esc(item.body_en || "")}</textarea></div>
+        <div class="field"><label>Người ký 1</label><input name="signer1Name" value="${esc(item.signer1_name || "")}" /></div>
+        <div class="field"><label>Chức danh người ký 1</label><input name="signer1Title" value="${esc(item.signer1_title || "")}" /></div>
+        <div class="field"><label>Người ký 2</label><input name="signer2Name" value="${esc(item.signer2_name || "")}" /></div>
+        <div class="field"><label>Chức danh người ký 2</label><input name="signer2Title" value="${esc(item.signer2_title || "")}" /></div>
+        <div class="field full"><label>Chân trang tiếng Việt</label><textarea name="footerVi">${esc(item.footer_vi || "")}</textarea></div>
+        <div class="field full"><label>Chân trang tiếng Anh</label><textarea name="footerEn">${esc(item.footer_en || "")}</textarea></div>
+        <div class="field"><label>Trạng thái</label><select name="status">${opts({ published: "Đã xuất bản", draft: "Nháp" }, item.status || "draft")}</select></div>
       </div>
-      <button class="btn btn-primary" style="margin-top:12px">Lưu template</button>
+      <button class="btn btn-primary" style="margin-top:12px">Lưu mẫu</button>
     </form>`;
     $("#tpl-form").onsubmit = async (e) => {
       e.preventDefault();
       const body = Object.fromEntries(new FormData(e.target).entries());
       if (editing === "new") {
         const r = await api("/certificate-templates", { method: "POST", body });
-        go(`/admin/certificate-templates/${r.id}`);
+        go(href(`/certificate-templates/${r.id}`));
       } else {
         await api(`/certificate-templates/${editing}`, { method: "PUT", body });
-        toast("Đã lưu template");
+        toast("Đã lưu mẫu");
       }
     };
   }
 
   async function viewSettings() {
-    $("#page-title").textContent = "Settings";
+    $("#page-title").textContent = "Cài đặt";
     if (state.user.role !== "OWNER") {
-      app.innerHTML = `<p class="empty">Chỉ OWNER mới sửa cấu hình hệ thống.</p>`;
+      app.innerHTML = `<p class="empty">Chỉ chủ sở hữu mới sửa cấu hình hệ thống.</p>`;
       return;
     }
     const s = await api("/settings");
@@ -1619,33 +1808,33 @@
     const reg = s.registration || {};
     const footer = s.footer || {};
     app.innerHTML = `<form id="set-form" class="card" style="padding:18px">
-      <h2>Contact</h2>
+      <h2>Liên hệ</h2>
       <div class="form-grid">
         <div class="field"><label>Email</label><input name="email" value="${esc(c.email || "")}" /></div>
-        <div class="field"><label>Phone</label><input name="phone" value="${esc(c.phone || "")}" /></div>
+        <div class="field"><label>Điện thoại</label><input name="phone" value="${esc(c.phone || "")}" /></div>
         <div class="field"><label>Zalo</label><input name="zalo" value="${esc(c.zalo || "")}" /></div>
         <div class="field"><label>Website</label><input name="website" value="${esc(c.website || "")}" /></div>
-        <div class="field full"><label>Address</label><input name="address" value="${esc(c.address || "")}" /></div>
+        <div class="field full"><label>Địa chỉ</label><input name="address" value="${esc(c.address || "")}" /></div>
       </div>
       <h2>SEO</h2>
       <div class="form-grid">
-        <div class="field full"><label>Site title VI</label><input name="titleVi" value="${esc(seo.titleVi || "")}" /></div>
-        <div class="field full"><label>Site title EN</label><input name="titleEn" value="${esc(seo.titleEn || "")}" /></div>
-        <div class="field full"><label>Description VI</label><textarea name="descriptionVi">${esc(seo.descriptionVi || "")}</textarea></div>
-        <div class="field full"><label>Description EN</label><textarea name="descriptionEn">${esc(seo.descriptionEn || "")}</textarea></div>
+        <div class="field full"><label>Tiêu đề trang tiếng Việt</label><input name="titleVi" value="${esc(seo.titleVi || "")}" /></div>
+        <div class="field full"><label>Tiêu đề trang tiếng Anh</label><input name="titleEn" value="${esc(seo.titleEn || "")}" /></div>
+        <div class="field full"><label>Mô tả tiếng Việt</label><textarea name="descriptionVi">${esc(seo.descriptionVi || "")}</textarea></div>
+        <div class="field full"><label>Mô tả tiếng Anh</label><textarea name="descriptionEn">${esc(seo.descriptionEn || "")}</textarea></div>
       </div>
-      <h2>Footer</h2>
+      <h2>Chân trang</h2>
       <div class="form-grid">
-        <div class="field"><label>Footer VI</label><input name="footerVi" value="${esc(footer.vi || "")}" /></div>
-        <div class="field"><label>Footer EN</label><input name="footerEn" value="${esc(footer.en || "")}" /></div>
+        <div class="field"><label>Chân trang tiếng Việt</label><input name="footerVi" value="${esc(footer.vi || "")}" /></div>
+        <div class="field"><label>Chân trang tiếng Anh</label><input name="footerEn" value="${esc(footer.en || "")}" /></div>
       </div>
-      <h2>Registration</h2>
+      <h2>Đăng ký</h2>
       <div class="form-grid">
-        <div class="field full"><label>Confirmation VI</label><textarea name="confirmationVi">${esc(reg.confirmationVi || "")}</textarea></div>
-        <div class="field full"><label>Confirmation EN</label><textarea name="confirmationEn">${esc(reg.confirmationEn || "")}</textarea></div>
-        <div class="field full"><label>Support contact</label><input name="supportContact" value="${esc(reg.supportContact || "")}" /></div>
+        <div class="field full"><label>Lời xác nhận tiếng Việt</label><textarea name="confirmationVi">${esc(reg.confirmationVi || "")}</textarea></div>
+        <div class="field full"><label>Lời xác nhận tiếng Anh</label><textarea name="confirmationEn">${esc(reg.confirmationEn || "")}</textarea></div>
+        <div class="field full"><label>Liên hệ hỗ trợ</label><input name="supportContact" value="${esc(reg.supportContact || "")}" /></div>
       </div>
-      <button class="btn btn-primary" style="margin-top:16px">Lưu settings</button>
+      <button class="btn btn-primary" style="margin-top:16px">Lưu cài đặt</button>
     </form>`;
     $("#set-form").onsubmit = async (e) => {
       e.preventDefault();
@@ -1660,7 +1849,7 @@
             registration: { ...reg, confirmationVi: val(f, "confirmationVi"), confirmationEn: val(f, "confirmationEn"), supportContact: val(f, "supportContact") },
           },
         });
-        toast("Đã lưu settings");
+        toast("Đã lưu cài đặt");
       } catch (err) {
         toast(err.message, true);
       }
@@ -1668,48 +1857,55 @@
   }
 
   async function render() {
+    applyChrome();
     const p = path();
+    const route = segs();
     if (!state.user) {
       $("#login-view").classList.remove("hidden");
       $("#password-view").classList.add("hidden");
       $("#shell").classList.add("hidden");
-      if (p !== "/admin/login") history.replaceState({}, "", "/admin/login");
+      if (route[0] !== "login") history.replaceState({}, "", href("/login"));
       return;
+    }
+    const dest = destForUser(state.user);
+    if (dest !== p + location.search && dest !== p) {
+      history.replaceState({}, "", dest);
     }
     if (state.user.mustChangePassword) {
       $("#login-view").classList.add("hidden");
       $("#password-view").classList.remove("hidden");
       $("#shell").classList.add("hidden");
-      if (p !== "/admin/change-password") history.replaceState({}, "", "/admin/change-password");
+      if (route[0] !== "change-password") history.replaceState({}, "", href("/change-password"));
       return;
     }
     $("#login-view").classList.add("hidden");
     $("#password-view").classList.add("hidden");
     $("#shell").classList.remove("hidden");
     layout();
-    const segs = parts();
+    const key = segs()[0] || "";
+    const id = segs()[1];
     app.innerHTML = `<p class="empty">Đang tải…</p>`;
     try {
-      if (p === "/admin" || p === "/admin/login") return viewDashboard();
-      if (p === "/admin/programs") return viewPrograms();
-      if (segs[0] === "admin" && segs[1] === "programs" && segs[2]) return viewProgram(segs[2]);
-      if (p === "/admin/sessions") return viewSessions();
-      if (segs[0] === "admin" && segs[1] === "sessions" && segs[2]) return viewSession(segs[2]);
-      if (p === "/admin/registrations") return viewRegistrations();
-      if (segs[0] === "admin" && segs[1] === "registrations" && segs[2]) return viewRegistration(segs[2]);
-      if (p === "/admin/students") return viewStudents();
-      if (segs[0] === "admin" && segs[1] === "students" && segs[2]) return viewStudent(segs[2]);
-      if (p === "/admin/enrollments") return viewEnrollments();
-      if (p.startsWith("/admin/materials")) return viewLearnerMaterials();
-      if (p.startsWith("/admin/announcements")) return viewAdminAnnouncements();
-      if (p === "/admin/certificates") return viewCertificates();
-      if (p.startsWith("/admin/certificate-templates")) return viewCertificateTemplates();
-      if (p === "/admin/instructors") return viewInstructors();
-      if (p === "/admin/venues") return viewVenues();
-      if (p.startsWith("/admin/insights")) return viewInsights();
-      if (p.startsWith("/admin/resources")) return viewResources();
-      if (p === "/admin/media") return viewMedia();
-      if (p === "/admin/settings") return viewSettings();
+      if (!key || key === "login") return viewDashboard();
+      if (key === "programs" && id) return viewProgram(id);
+      if (key === "programs") return viewPrograms();
+      if (key === "sessions" && id) return viewSession(id);
+      if (key === "sessions") return viewSessions();
+      if (key === "registrations" && id) return viewRegistration(id);
+      if (key === "registrations") return viewRegistrations();
+      if (key === "students" && id) return viewStudent(id);
+      if (key === "students") return viewStudents();
+      if (key === "enrollments") return viewEnrollments();
+      if (key === "materials") return viewLearnerMaterials();
+      if (key === "announcements") return viewAdminAnnouncements();
+      if (key === "certificates") return viewCertificates();
+      if (key === "certificate-templates") return viewCertificateTemplates();
+      if (key === "instructors") return viewInstructors();
+      if (key === "venues") return viewVenues();
+      if (key === "insights") return viewInsights();
+      if (key === "resources") return viewResources();
+      if (key === "media") return viewMedia();
+      if (key === "settings") return viewSettings();
       app.innerHTML = `<p class="empty">Không tìm thấy trang.</p>`;
     } catch (err) {
       app.innerHTML = `<p class="empty">${esc(err.message)}</p>`;
@@ -1725,7 +1921,9 @@
         body: { email: $("#email").value, password: $("#password").value },
       });
       state.user = data.user;
-      go(data.user.mustChangePassword ? "/admin/change-password" : "/admin");
+      const dest = destForUser(data.user);
+      history.replaceState({}, "", dest);
+      render();
     } catch (err) {
       $("#login-error").textContent = err.message;
     }
@@ -1744,7 +1942,7 @@
       });
       state.user = data.user;
       toast("Đã đổi mật khẩu");
-      go("/admin");
+      go(href("/"));
     } catch (err) {
       $("#password-error").textContent = err.message;
     }
@@ -1752,7 +1950,7 @@
   $("#logout").addEventListener("click", async () => {
     await api("/logout", { method: "POST", body: {} });
     state.user = null;
-    go("/admin/login");
+    go(href("/login"));
   });
 
   (async () => {

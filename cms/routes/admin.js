@@ -55,7 +55,7 @@ function createAdminRouter(store) {
   router.post("/login", async (req, res) => {
     const ip = req.ip || req.socket.remoteAddress || "unknown";
     if (tooManyLogins(ip)) {
-      return res.status(429).json({ error: "Too many login attempts. Try again later." });
+      return res.status(429).json({ error: "Đăng nhập quá nhiều lần. Thử lại sau." });
     }
     const email = String(req.body?.email || "").trim().toLowerCase();
     const password = String(req.body?.password || "");
