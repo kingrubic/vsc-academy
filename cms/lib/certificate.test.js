@@ -8,6 +8,7 @@ const {
   COMPLETION_TEMPLATE_VI,
   COMPLETION_TEMPLATE_EN,
   displayCertificateNo,
+  overlaySerialParts,
   pdfFilenameForLang,
   resolveIssueTemplates,
 } = require("./certificate");
@@ -40,6 +41,7 @@ test("overlay templates render Vietnamese and English PDFs", async () => {
 
 test("display number and pair resolution follow the completion templates", () => {
   assert.equal(displayCertificateNo(sample), "VSCA-TEST/2026");
+  assert.deepEqual(overlaySerialParts(sample), { serial: "TEST", year2: "26" });
   assert.equal(pdfFilenameForLang({ pdf_url: "a.pdf", pdf_url_vi: "a-vi.pdf", pdf_url_en: "a-en.pdf" }, "en"), "a-en.pdf");
   assert.equal(pdfFilenameForLang({ pdf_url: "a.pdf" }, "vi"), "a.pdf");
   const pair = resolveIssueTemplates({ certificate_templates: [] }, "vsc-completion");

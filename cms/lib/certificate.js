@@ -158,19 +158,76 @@ function displayCertificateNo(cert) {
   return `VSCA-${tail}/${year}`;
 }
 
+function overlaySerialParts(cert) {
+  const year = String(cert.issue_date || "").slice(0, 4) || String(new Date().getFullYear());
+  const no = displayCertificateNo(cert);
+  const serial = no.split("/")[0].replace(/^VSCA-/i, "");
+  return { serial, year2: year.slice(-2) };
+}
+
 function issueDateParts(iso) {
   const [year, month, day] = String(iso || "").slice(0, 10).split("-");
   return { year: year || "", month: month || "", day: day || "" };
 }
 
-function overlaySerialParts(cert) {
-  const no = displayCertificateNo(cert);
-  const match = String(no).match(/^VSCA-([A-Z0-9]{4})\/(\d{4})$/i);
-  const year = match?.[2] || String(cert.issue_date || "").slice(0, 4);
-  return {
-    serial: (match?.[1] || "0000").toUpperCase(),
-    year2: String(year || "").slice(-2),
-  };
+/** Pixel layout of assets/certificates/vsc-completion-{vi,en}.png (1491×1055). */
+const COMPLETION_ART = {
+  pngW: 1491,
+  pngH: 1055,
+  nameGoldGap: 8.9,
+  vi: {
+    nameGoldY: 522,
+    courseGoldY: 661.5,
+    numberBaselineY: 934,
+    dateBaselineY: 984,
+    serial: [386, 428],
+    year2: [446, 468],
+    day: [708, 761],
+    month: [805, 858],
+    dateYear2: [912, 940],
+  },
+  en: {
+    nameGoldY: 505,
+    courseGoldY: 637.5,
+    numberBaselineY: 931,
+    dateBaselineY: 972,
+    serial: [356, 402],
+    year2: [478, 500],
+    day: [710, 754],
+    month: [780, 830],
+    dateYear2: [912, 940],
+  },
+};
+
+function artX(W, pngX) {
+  return (pngX / COMPLETION_ART.pngW) * W;
+}
+
+function artY(H, pngY) {
+  return (pngY / COMPLETION_ART.pngH) * H;
+}
+
+function textTopForBaseline(doc, pageH, pngBaselineY, fontSize) {
+  const baseline = artY(pageH, pngBaselineY);
+  const ascent = ((doc._font && doc._font.ascender) || 891) / 1000 * fontSize;
+  return baseline - ascent;
+}
+
+function textTopAboveGold(doc, pageH, pngGoldY, fontSize) {
+  const gold = artY(pageH, pngGoldY);
+  const ascent = ((doc._font && doc._font.ascender) || 891) / 1000 * fontSize;
+  return gold - COMPLETION_ART.nameGoldGap - ascent;
+}
+
+function stampBlank(doc, pageW, value, pngRange, y, fontSize) {
+  if (!value) return;
+  const x = artX(pageW, pngRange[0]);
+  const width = artX(pageW, pngRange[1]) - x;
+  doc.fontSize(fontSize).text(String(value), x, y, {
+    width,
+    align: "center",
+    lineBreak: false,
+  });
 }
 
 function pdfFilenameForLang(row, lang) {
@@ -220,6 +277,7 @@ function fitNameSize(doc, name, maxWidth, start = 36, min = 18) {
 
 function renderOverlayCertificatePdf(doc, cert, template, fonts) {
   const locale = template.language === "en" ? "en" : "vi";
+  const layout = COMPLETION_ART[locale];
   const background = resolveBackgroundPath(template);
   const W = doc.page.width;
   const H = doc.page.height;
@@ -233,34 +291,32 @@ function renderOverlayCertificatePdf(doc, cert, template, fonts) {
     locale === "en" ? cert.program_name_en_snapshot || cert.program_name_vi_snapshot : cert.program_name_vi_snapshot;
   const name = String(cert.student_name_snapshot || "").trim();
   const nameSize = fitNameSize(doc.font(fonts.serifBold), name, W * 0.62, 28, 14);
-  doc.fillColor(NAVY).font(fonts.serifBold).fontSize(nameSize).text(name, W * 0.19, H * 0.438, {
-    width: W * 0.62,
-    align: "center",
-    lineBreak: false,
-  });
+  doc.fillColor(NAVY).font(fonts.serifBold).fontSize(nameSize).text(
+    name,
+    W * 0.19,
+    textTopAboveGold(doc, H, layout.nameGoldY, nameSize),
+    { width: W * 0.62, align: "center", lineBreak: false },
+  );
 
   const courseSize = fitNameSize(doc.font(fonts.serifBold), programNameText, W * 0.62, 16, 11);
-  doc.fillColor(NAVY).font(fonts.serifBold).fontSize(courseSize).text(programNameText, W * 0.19, H * 0.558, {
-    width: W * 0.62,
-    align: "center",
-    lineBreak: false,
-  });
+  doc.fillColor(NAVY).font(fonts.serifBold).fontSize(courseSize).text(
+    programNameText,
+    W * 0.19,
+    textTopAboveGold(doc, H, layout.courseGoldY, courseSize),
+    { width: W * 0.62, align: "center", lineBreak: false },
+  );
 
   const { serial, year2 } = overlaySerialParts(cert);
-  const { day, month } = issueDateParts(cert.issue_date);
-  const layout = locale === "en"
-    ? { numberY: 0.880, dateY: 0.896, serialX: 0.228, yearX: 0.274, dayX: 0.476, monthX: 0.556, year2X: 0.620 }
-    : { numberY: 0.880, dateY: 0.896, serialX: 0.234, yearX: 0.280, dayX: 0.496, monthX: 0.566, year2X: 0.636 };
-  doc.fillColor(NAVY).font(fonts.serif).fontSize(7.2);
-  const stamp = (value, x, y) => {
-    if (!value) return;
-    doc.text(String(value), W * x, H * y, { lineBreak: false });
-  };
-  stamp(serial, layout.serialX, layout.numberY);
-  stamp(year2, layout.yearX, layout.numberY);
-  stamp(day, layout.dayX, layout.dateY);
-  stamp(month, layout.monthX, layout.dateY);
-  stamp(year2, layout.year2X, layout.dateY);
+  const { month, day } = issueDateParts(cert.issue_date);
+  const footerSize = 8.5;
+  doc.fillColor(NAVY).font(fonts.serif).fontSize(footerSize);
+  const numberY = textTopForBaseline(doc, H, layout.numberBaselineY, footerSize);
+  const dateY = textTopForBaseline(doc, H, layout.dateBaselineY, footerSize);
+  stampBlank(doc, W, serial, layout.serial, numberY, footerSize);
+  stampBlank(doc, W, year2, layout.year2, numberY, footerSize);
+  stampBlank(doc, W, day, layout.day, dateY, footerSize);
+  stampBlank(doc, W, month, layout.month, dateY, footerSize);
+  stampBlank(doc, W, year2, layout.dateYear2, dateY, footerSize);
 }
 
 async function renderCertificatePdf(cert, template) {
@@ -718,6 +774,7 @@ module.exports = {
   resolveTemplate,
   resolveIssueTemplates,
   displayCertificateNo,
+  overlaySerialParts,
   pdfFilenameForLang,
   renderCertificatePdf,
   publicCertificate,
