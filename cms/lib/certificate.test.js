@@ -8,6 +8,8 @@ const {
   COMPLETION_TEMPLATE_VI,
   COMPLETION_TEMPLATE_EN,
   displayCertificateNo,
+  displayStudentName,
+  stripVietnameseDiacritics,
   overlaySerialParts,
   overlayNumberText,
   overlayDateText,
@@ -41,6 +43,13 @@ test("overlay templates render Vietnamese and English PDFs", async () => {
   assert.equal(en.slice(0, 4).toString(), "%PDF");
   assert.ok(vi.length > 8000);
   assert.ok(en.length > 8000);
+});
+
+test("English certificates drop Vietnamese diacritics from the student name", () => {
+  assert.equal(stripVietnameseDiacritics("Nguyễn Thùy Phương Khuyên"), "Nguyen Thuy Phuong Khuyen");
+  assert.equal(stripVietnameseDiacritics("Đặng Trần Anh Đào"), "Dang Tran Anh Dao");
+  assert.equal(displayStudentName(sample, "vi"), "Nguyễn Thị Minh Châu");
+  assert.equal(displayStudentName(sample, "en"), "Nguyen Thi Minh Chau");
 });
 
 test("display number and pair resolution follow the completion templates", () => {
