@@ -313,7 +313,7 @@ function renderOverlayCertificatePdf(doc, cert, template, fonts) {
     { width: W * 0.62, align: "center", lineBreak: false },
   );
 
-  const courseSize = fitNameSize(doc.font(fonts.serifBold), programNameText, W * 0.62, 16, 11);
+  const courseSize = fitNameSize(doc.font(fonts.serifBold), programNameText, W * 0.62, nameSize, 16);
   doc.fillColor(NAVY).font(fonts.serifBold).fontSize(courseSize).text(
     programNameText,
     W * 0.19,
