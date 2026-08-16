@@ -2030,43 +2030,91 @@
     const editing = parts()[2];
     const data = await api("/certificate-templates");
     if (!editing) {
-      app.innerHTML = `<div class="toolbar"><a class="btn btn-primary" href="${href("/certificate-templates/new")}">+ Mẫu mới</a></div>
+      app.innerHTML = `<div class="toolbar">${canManageStaff() ? `<a class="btn btn-primary" href="${href("/certificate-templates/new")}">+ Mẫu mới</a>` : ""}</div>
         ${table(
-          ["Tên", "Ngôn ngữ", "Trạng thái", "Phiên bản"],
-          data.items.map((x) => `<tr><td><a href="${href(`/certificate-templates/${x.id}`)}">${esc(x.name)}</a></td><td>${esc(x.language)}</td><td>${badge(x.status)}</td><td>${esc(x.version)}</td></tr>`),
+          ["Tên", "Ngôn ngữ", "Trạng thái", "Phiên bản", "Thao tác"],
+          data.items.map((x) => `<tr>
+            <td><a href="${href(`/certificate-templates/${x.id}`)}">${esc(x.name)}</a></td>
+            <td>${esc(x.language)}</td>
+            <td>${badge(x.status)}</td>
+            <td>${esc(x.version)}</td>
+            <td>${canManageStaff()
+              ? `<a class="btn" href="${href(`/certificate-templates/${x.id}`)}">Sửa</a> <button class="btn-danger" type="button" data-tpl-delete="${esc(x.id)}">Xóa</button>`
+              : `<a class="btn" href="${href(`/certificate-templates/${x.id}`)}">Xem</a>`}</td>
+          </tr>`),
         )}`;
+      app.querySelectorAll("[data-tpl-delete]").forEach((button) => button.addEventListener("click", async () => {
+        if (!confirmAction("Xóa mẫu chứng nhận này?")) return;
+        button.disabled = true;
+        try {
+          await api(`/certificate-templates/${button.dataset.tplDelete}`, { method: "DELETE" });
+          toast("Đã xóa mẫu chứng nhận");
+          render();
+        } catch (err) {
+          button.disabled = false;
+          toast(err.message, true);
+        }
+      }));
       return;
     }
-    const item = editing === "new" ? {} : data.items.find((x) => x.id === editing) || data.items[0] || {};
+    if (editing === "new" && !canManageStaff()) {
+      go(href("/certificate-templates"));
+      return;
+    }
+    const item = editing === "new" ? {} : data.items.find((x) => x.id === editing) || {};
+    const locked = !canManageStaff();
     app.innerHTML = `<form id="tpl-form" class="card" style="padding:18px">
       <div class="form-grid">
-        <div class="field"><label>Tên mẫu</label><input name="name" value="${esc(item.name || "")}" required /></div>
-        <div class="field"><label>Ngôn ngữ</label><select name="language">${optList([["vi","Tiếng Việt"],["en","Tiếng Anh"]], item.language || "vi")}</select></div>
-        <div class="field full"><label>Tiêu đề tiếng Việt</label><input name="titleVi" value="${esc(item.title_vi || "")}" /></div>
-        <div class="field full"><label>Tiêu đề tiếng Anh</label><input name="titleEn" value="${esc(item.title_en || "")}" /></div>
-        <div class="field full"><label>Nội dung tiếng Việt</label><textarea name="bodyVi">${esc(item.body_vi || "")}</textarea></div>
-        <div class="field full"><label>Nội dung tiếng Anh</label><textarea name="bodyEn">${esc(item.body_en || "")}</textarea></div>
-        <div class="field"><label>Người ký 1</label><input name="signer1Name" value="${esc(item.signer1_name || "")}" /></div>
-        <div class="field"><label>Chức danh người ký 1</label><input name="signer1Title" value="${esc(item.signer1_title || "")}" /></div>
-        <div class="field"><label>Người ký 2</label><input name="signer2Name" value="${esc(item.signer2_name || "")}" /></div>
-        <div class="field"><label>Chức danh người ký 2</label><input name="signer2Title" value="${esc(item.signer2_title || "")}" /></div>
-        <div class="field full"><label>Chân trang tiếng Việt</label><textarea name="footerVi">${esc(item.footer_vi || "")}</textarea></div>
-        <div class="field full"><label>Chân trang tiếng Anh</label><textarea name="footerEn">${esc(item.footer_en || "")}</textarea></div>
-        <div class="field"><label>Trạng thái</label><select name="status">${opts({ published: "Đã xuất bản", draft: "Nháp" }, item.status || "draft")}</select></div>
+        <div class="field"><label>Tên mẫu</label><input name="name" value="${esc(item.name || "")}" required ${locked ? "disabled" : ""} /></div>
+        <div class="field"><label>Ngôn ngữ</label><select name="language" ${locked ? "disabled" : ""}>${optList([["vi","Tiếng Việt"],["en","Tiếng Anh"]], item.language || "vi")}</select></div>
+        <div class="field full"><label>Tiêu đề tiếng Việt</label><input name="titleVi" value="${esc(item.title_vi || "")}" ${locked ? "disabled" : ""} /></div>
+        <div class="field full"><label>Tiêu đề tiếng Anh</label><input name="titleEn" value="${esc(item.title_en || "")}" ${locked ? "disabled" : ""} /></div>
+        <div class="field full"><label>Nội dung tiếng Việt</label><textarea name="bodyVi" ${locked ? "disabled" : ""}>${esc(item.body_vi || "")}</textarea></div>
+        <div class="field full"><label>Nội dung tiếng Anh</label><textarea name="bodyEn" ${locked ? "disabled" : ""}>${esc(item.body_en || "")}</textarea></div>
+        <div class="field"><label>Người ký 1</label><input name="signer1Name" value="${esc(item.signer1_name || "")}" ${locked ? "disabled" : ""} /></div>
+        <div class="field"><label>Chức danh người ký 1</label><input name="signer1Title" value="${esc(item.signer1_title || "")}" ${locked ? "disabled" : ""} /></div>
+        <div class="field"><label>Người ký 2</label><input name="signer2Name" value="${esc(item.signer2_name || "")}" ${locked ? "disabled" : ""} /></div>
+        <div class="field"><label>Chức danh người ký 2</label><input name="signer2Title" value="${esc(item.signer2_title || "")}" ${locked ? "disabled" : ""} /></div>
+        <div class="field full"><label>Chân trang tiếng Việt</label><textarea name="footerVi" ${locked ? "disabled" : ""}>${esc(item.footer_vi || "")}</textarea></div>
+        <div class="field full"><label>Chân trang tiếng Anh</label><textarea name="footerEn" ${locked ? "disabled" : ""}>${esc(item.footer_en || "")}</textarea></div>
+        <div class="field"><label>Trạng thái</label><select name="status" ${locked ? "disabled" : ""}>${opts({ published: "Đã xuất bản", draft: "Nháp" }, item.status || "draft")}</select></div>
       </div>
-      <button class="btn btn-primary" style="margin-top:12px">Lưu mẫu</button>
+      ${canManageStaff() ? `<div class="toolbar" style="margin-top:12px"><button class="btn btn-primary">Lưu mẫu</button>${editing !== "new" ? `<button type="button" class="btn-danger" id="tpl-del">Xóa</button>` : ""}</div>` : ""}
     </form>`;
+    if (!canManageStaff()) return;
     $("#tpl-form").onsubmit = async (e) => {
       e.preventDefault();
+      const button = e.target.querySelector('[type="submit"]');
+      if (button) button.disabled = true;
       const body = Object.fromEntries(new FormData(e.target).entries());
-      if (editing === "new") {
-        const r = await api("/certificate-templates", { method: "POST", body });
-        go(href(`/certificate-templates/${r.id}`));
-      } else {
-        await api(`/certificate-templates/${editing}`, { method: "PUT", body });
-        toast("Đã lưu mẫu");
+      try {
+        if (editing === "new") {
+          const r = await api("/certificate-templates", { method: "POST", body });
+          toast("Đã thêm mẫu chứng nhận");
+          go(href(`/certificate-templates/${r.id}`));
+        } else {
+          await api(`/certificate-templates/${editing}`, { method: "PUT", body });
+          toast("Đã lưu mẫu");
+        }
+      } catch (err) {
+        toast(err.message, true);
+      } finally {
+        if (button) button.disabled = false;
       }
     };
+    $("#tpl-del")?.addEventListener("click", async () => {
+      if (!confirmAction("Xóa mẫu chứng nhận này?")) return;
+      const button = $("#tpl-del");
+      button.disabled = true;
+      try {
+        await api(`/certificate-templates/${editing}`, { method: "DELETE" });
+        toast("Đã xóa mẫu chứng nhận");
+        go(href("/certificate-templates"));
+      } catch (err) {
+        button.disabled = false;
+        toast(err.message, true);
+      }
+    });
   }
 
   async function viewSettings() {

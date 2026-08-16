@@ -936,6 +936,23 @@ function attachLearnerAdmin(router, store) {
     res.json({ ok: true });
   });
 
+  router.delete("/certificate-templates/:id", requireRole("OWNER", "ADMIN"), async (req, res) => {
+    try {
+      const snap = await store.dump(true);
+      const row = (snap.certificate_templates || []).find((t) => t.id === req.params.id);
+      if (!row) return res.status(404).json({ error: "Not found" });
+      if (row.id === "tpl-vsc-default") {
+        return res.status(409).json({ error: "Không xóa được mẫu mặc định" });
+      }
+      const inUse = (snap.certificates || []).some((c) => c.template_id === row.id);
+      if (inUse) return res.status(409).json({ error: "Không xóa được mẫu đang được chứng nhận sử dụng" });
+      await store.remove("certificate_templates", row.id);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(err.status || 500).json({ error: err.message || "Không xóa được mẫu chứng nhận" });
+    }
+  });
+
   router.get("/certificates", async (req, res) => {
     const snap = await store.dump();
     const items = Security.scopedCertificates(req.lmsScope, snap.certificates, req.query.sessionId)

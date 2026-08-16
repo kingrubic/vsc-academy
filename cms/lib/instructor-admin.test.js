@@ -190,6 +190,7 @@ test("instructor API allowlist permits class-scoped work and denies CMS/enrollme
     ["GET", "/api/admin/registrations"],
     ["GET", "/api/admin/settings"],
     ["POST", "/api/admin/certificates/issue", { enrollmentId: "e1" }],
+    ["DELETE", "/api/admin/certificate-templates/t1"],
   ];
   for (const [method, path, body] of denied) {
     const res = await request(app, { method, path, body });
@@ -366,6 +367,64 @@ test("admin UI exposes announcement add, edit, and delete controls", () => {
   assert.match(ui, /data-ann-delete/);
   assert.match(ui, /id="ann-del"/);
   assert.match(ui, /confirmAction\("Xóa thông báo này\?"\)/);
+});
+
+test("admin can create, edit, and delete certificate templates", async () => {
+  const admin = { role: "ADMIN", instructor_id: null, email: "admin@vsc.academy" };
+  const { app, store } = harnessFor(admin, {
+    allowWrite: true,
+    sessionUser: { role: "ADMIN", instructorId: null, email: "admin@vsc.academy" },
+  });
+
+  const listed = await request(app, { path: "/api/admin/certificate-templates" });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.json.items.some((row) => row.id === "tpl-vsc-default"), true);
+  const blockedDefault = await request(app, { method: "DELETE", path: "/api/admin/certificate-templates/tpl-vsc-default" });
+  assert.equal(blockedDefault.status, 409);
+
+  const created = await request(app, {
+    method: "POST",
+    path: "/api/admin/certificate-templates",
+    body: { name: "Mẫu offline", language: "vi", status: "draft" },
+  });
+  assert.equal(created.status, 200);
+  const row = store.snap.certificate_templates.find((item) => item.id === created.json.id);
+  assert.equal(row.name, "Mẫu offline");
+  assert.equal(row.status, "draft");
+
+  const edited = await request(app, {
+    method: "PUT",
+    path: `/api/admin/certificate-templates/${created.json.id}`,
+    body: { name: "Mẫu offline 2", language: "en", status: "published" },
+  });
+  assert.equal(edited.status, 200);
+  const updated = store.snap.certificate_templates.find((item) => item.id === created.json.id);
+  assert.equal(updated.name, "Mẫu offline 2");
+  assert.equal(updated.language, "en");
+
+  store.snap.certificates.push({ id: "c-used", template_id: created.json.id, status: "issued" });
+  const inUse = await request(app, { method: "DELETE", path: `/api/admin/certificate-templates/${created.json.id}` });
+  assert.equal(inUse.status, 409);
+  store.snap.certificates = [];
+
+  const deleted = await request(app, { method: "DELETE", path: `/api/admin/certificate-templates/${created.json.id}` });
+  assert.equal(deleted.status, 200);
+  assert.equal(store.snap.certificate_templates.some((item) => item.id === created.json.id), false);
+  const missing = await request(app, { method: "DELETE", path: `/api/admin/certificate-templates/${created.json.id}` });
+  assert.equal(missing.status, 404);
+
+  const editor = appFor({ role: "EDITOR", instructor_id: null }, { sessionUser: { role: "EDITOR", instructorId: null } });
+  const forbidden = await request(editor, { method: "POST", path: "/api/admin/certificate-templates", body: { name: "x" } });
+  assert.equal(forbidden.status, 403);
+});
+
+test("admin UI exposes certificate template add, edit, and delete controls", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /\+ Mẫu mới/);
+  assert.match(ui, /\["Tên", "Ngôn ngữ", "Trạng thái", "Phiên bản", "Thao tác"\]/);
+  assert.match(ui, /data-tpl-delete/);
+  assert.match(ui, /id="tpl-del"/);
+  assert.match(ui, /confirmAction\("Xóa mẫu chứng nhận này\?"\)/);
 });
 
 test("admin UI exposes enrollment add, edit, and delete controls", () => {

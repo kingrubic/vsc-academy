@@ -75,6 +75,7 @@ const ADMIN_MUTATION_SAMPLES = [
   ["DELETE", "/announcements/a1"],
   ["POST", "/certificate-templates"],
   ["PUT", "/certificate-templates/t1"],
+  ["DELETE", "/certificate-templates/t1"],
   ["POST", "/certificates/issue"],
   ["POST", "/certificates/issue-bulk"],
   ["POST", "/certificates/c1/revoke"],
