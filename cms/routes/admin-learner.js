@@ -69,7 +69,7 @@ function attachLearnerAdmin(router, store) {
       if (!allowed) return res.status(403).json({ error: "Forbidden" });
     }
     const enrollments = (snap.enrollments || [])
-      .filter((e) => e.student_id === student.id)
+      .filter((e) => e.student_id === student.id && !e.deleted_at)
       .filter((e) => Security.instructorOwnsSession(req.lmsScope, e.session_id))
       .sort((a, b) => String(b.joined_at).localeCompare(String(a.joined_at)))
       .map((row) => {
@@ -260,8 +260,8 @@ function attachLearnerAdmin(router, store) {
       const student = aliveById(snap.students, req.params.id);
       const session = aliveById(snap.sessions, req.body.sessionId);
       if (!student || !session) throw V.fail("Student or session not found");
-      if ((snap.enrollments || []).some((e) => e.student_id === student.id && e.session_id === session.id)) {
-        throw V.fail("Already enrolled");
+      if ((snap.enrollments || []).some((e) => e.student_id === student.id && e.session_id === session.id && !e.deleted_at)) {
+        throw V.fail("Học viên đã ghi danh lớp này");
       }
       const id = randomId("enr");
       const ts = now();
@@ -288,42 +288,113 @@ function attachLearnerAdmin(router, store) {
     }
   });
 
-  router.put("/enrollments/:id", requireRole("OWNER", "ADMIN"), async (req, res) => {
-    const snap = await store.dump(true);
-    const row = (snap.enrollments || []).find((e) => e.id === req.params.id);
-    if (!row) return res.status(404).json({ error: "Not found" });
-    let sessionId = req.body.sessionId || row.session_id;
-    let programId = row.program_id;
-    if (req.body.sessionId && req.body.sessionId !== row.session_id) {
+  router.post("/enrollments", requireRole("OWNER", "ADMIN"), async (req, res) => {
+    try {
+      V.required(req.body, ["studentId", "sessionId"]);
+      const snap = await store.dump(true);
+      const student = aliveById(snap.students, req.body.studentId);
       const session = aliveById(snap.sessions, req.body.sessionId);
-      if (!session) return res.status(400).json({ error: "Session not found" });
-      sessionId = session.id;
-      programId = session.program_id;
+      if (!student || !session) throw V.fail("Học viên hoặc lớp không tồn tại");
+      if ((snap.enrollments || []).some((e) => e.student_id === student.id && e.session_id === session.id && !e.deleted_at)) {
+        throw V.fail("Học viên đã ghi danh lớp này");
+      }
+      const id = randomId("enr");
+      const ts = now();
+      await store.upsert("enrollments", {
+        id,
+        student_id: student.id,
+        program_id: session.program_id,
+        session_id: session.id,
+        registration_id: null,
+        status: req.body.status || "active",
+        payment_status: req.body.paymentStatus || "paid",
+        progress: 0,
+        completion_status: "in_progress",
+        certificate_status: "none",
+        joined_at: ts,
+        completed_at: null,
+        notes: req.body.notes || "",
+        created_at: ts,
+        updated_at: ts,
+      });
+      res.json({ ok: true, id });
+    } catch (err) {
+      res.status(err.status || 400).json({ error: err.message });
     }
-    const status = req.body.status || row.status;
-    const completionStatus =
-      req.body.completionStatus ||
-      (status === "completed" ? "completed" : row.completion_status || "in_progress");
-    await store.upsert("enrollments", {
+  });
+
+  router.get("/enrollments/:id", async (req, res) => {
+    const snap = await store.dump();
+    const row = (snap.enrollments || []).find((e) => e.id === req.params.id && !e.deleted_at);
+    if (!row) return res.status(404).json({ error: "Not found" });
+    if (!Security.instructorOwnsSession(req.lmsScope, row.session_id)) return res.status(403).json({ error: "Forbidden" });
+    const student = aliveById(snap.students, row.student_id);
+    const session = aliveById(snap.sessions, row.session_id);
+    const program = aliveById(snap.programs, row.program_id);
+    res.json({
       ...row,
-      session_id: sessionId,
-      program_id: programId,
-      status,
-      payment_status: req.body.paymentStatus || row.payment_status,
-      completion_status: completionStatus,
-      notes: req.body.notes ?? row.notes,
-      completed_at: status === "completed" || completionStatus === "completed" ? now() : row.completed_at,
-      updated_at: now(),
-      updated_by: req.session.user.id,
+      student_name: student?.full_name,
+      student_email: student?.email,
+      session_name: session?.session_name,
+      program_name: programShortName(program),
+      progress: L.enrollmentProgress(snap, row.id, row.session_id),
     });
-    res.json({ ok: true });
+  });
+
+  router.put("/enrollments/:id", requireRole("OWNER", "ADMIN"), async (req, res) => {
+    try {
+      const snap = await store.dump(true);
+      const row = (snap.enrollments || []).find((e) => e.id === req.params.id && !e.deleted_at);
+      if (!row) return res.status(404).json({ error: "Not found" });
+      let sessionId = req.body.sessionId || row.session_id;
+      let programId = row.program_id;
+      if (req.body.sessionId && req.body.sessionId !== row.session_id) {
+        const session = aliveById(snap.sessions, req.body.sessionId);
+        if (!session) return res.status(400).json({ error: "Lớp học không tồn tại" });
+        sessionId = session.id;
+        programId = session.program_id;
+      }
+      const status = req.body.status || row.status;
+      const completionStatus =
+        req.body.completionStatus ||
+        (status === "completed" ? "completed" : row.completion_status || "in_progress");
+      await store.upsert("enrollments", {
+        ...row,
+        session_id: sessionId,
+        program_id: programId,
+        status,
+        payment_status: req.body.paymentStatus || row.payment_status,
+        completion_status: completionStatus,
+        notes: req.body.notes ?? row.notes,
+        completed_at: status === "completed" || completionStatus === "completed" ? now() : row.completed_at,
+        updated_at: now(),
+        updated_by: req.session.user.id,
+      });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(err.status || 500).json({ error: err.message || "Không lưu được ghi danh" });
+    }
   });
 
   router.delete("/enrollments/:id", requireRole("OWNER", "ADMIN"), async (req, res) => {
-    const snap = await store.dump(true);
-    const row = (snap.enrollments || []).find((e) => e.id === req.params.id);
-    if (row) await store.upsert("enrollments", { ...row, status: "cancelled", updated_at: now() });
-    res.json({ ok: true });
+    try {
+      const snap = await store.dump(true);
+      const row = (snap.enrollments || []).find((e) => e.id === req.params.id && !e.deleted_at);
+      if (!row) return res.status(404).json({ error: "Not found" });
+      const issued = (snap.certificates || []).some((c) => c.enrollment_id === row.id && c.status === "issued");
+      if (issued) return res.status(409).json({ error: "Không xóa được ghi danh đã có chứng nhận đã cấp" });
+      const ts = now();
+      await store.upsert("enrollments", {
+        ...row,
+        status: "cancelled",
+        deleted_at: ts,
+        updated_at: ts,
+        updated_by: req.session.user.id,
+      });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(err.status || 500).json({ error: err.message || "Không xóa được ghi danh" });
+    }
   });
 
   router.post("/enrollments/:id/recommend-completion", requireRole("OWNER", "ADMIN", "INSTRUCTOR"), async (req, res) => {
@@ -717,6 +788,7 @@ function attachLearnerAdmin(router, store) {
     const snap = await store.dump();
     const q = String(req.query.q || "").trim().toLowerCase();
     const items = (snap.enrollments || [])
+      .filter((row) => !row.deleted_at)
       .filter((row) => Security.instructorOwnsSession(req.lmsScope, row.session_id))
       .map((row) => {
         const student = aliveById(snap.students, row.student_id);

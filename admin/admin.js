@@ -1840,9 +1840,12 @@
     const q = new URLSearchParams(location.search).get("q") || "";
     const data = await api(`/enrollments?q=${encodeURIComponent(q)}`);
     app.innerHTML = `
-      <div class="toolbar"><input id="search" placeholder="Học viên, email, khóa" value="${esc(q)}" /></div>
+      <div class="toolbar">
+        <input id="search" placeholder="Học viên, email, khóa" value="${esc(q)}" />
+        ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/enrollments/new")}">+ Ghi danh</a>` : ""}
+      </div>
       ${table(
-        ["Học viên", "Khóa", "Lớp", "Trạng thái", "Thanh toán", "Tiến độ", "Chứng nhận"],
+        ["Học viên", "Khóa", "Lớp", "Trạng thái", "Thanh toán", "Tiến độ", "Chứng nhận", "Thao tác"],
         data.items.map(
           (e) => `<tr>
             <td><a href="${href(`/students/${e.student_id}`)}">${esc(e.student_name)}</a><br><small>${esc(e.student_email || "")}</small></td>
@@ -1852,12 +1855,104 @@
             <td>${badge(e.payment_status)}</td>
             <td>${e.progress?.percent ?? e.progress}%</td>
             <td>${badge(e.eligibility?.certificateStatus || e.certificate_status || "none")}</td>
+            <td>${canManageStaff()
+              ? `<a class="btn" href="${href(`/enrollments/${e.id}`)}">Sửa</a> <button class="btn-danger" type="button" data-enroll-delete="${esc(e.id)}">Xóa</button>`
+              : `<a class="btn" href="${href(`/enrollments/${e.id}`)}">Xem</a>`}</td>
           </tr>`,
         ),
       )}`;
     $("#search").addEventListener("keydown", (e) => {
       if (e.key === "Enter") go(`${href("/enrollments")}?q=${encodeURIComponent(e.target.value)}`);
     });
+    app.querySelectorAll("[data-enroll-delete]").forEach((button) => button.addEventListener("click", async () => {
+      if (!confirmAction("Xóa ghi danh này? Bản ghi sẽ bị ẩn khỏi danh sách.")) return;
+      button.disabled = true;
+      try {
+        await api(`/enrollments/${button.dataset.enrollDelete}`, { method: "DELETE" });
+        toast("Đã xóa ghi danh");
+        render();
+      } catch (err) {
+        button.disabled = false;
+        toast(err.message, true);
+      }
+    }));
+  }
+
+  async function viewEnrollment(id) {
+    const isNew = id === "new";
+    if (isNew && !canManageStaff()) {
+      go(href("/enrollments"));
+      return;
+    }
+    $("#page-title").textContent = isNew ? "Thêm ghi danh" : "Sửa ghi danh";
+    const [row, students, sessions] = await Promise.all([
+      isNew ? Promise.resolve({ status: "active", payment_status: "paid", notes: "" }) : api(`/enrollments/${id}`),
+      api("/students"),
+      api("/sessions"),
+    ]);
+    app.innerHTML = `
+      <form class="card" style="padding:18px" id="enr-form">
+        <div class="form-grid">
+          <div class="field"><label>Học viên</label>
+            ${isNew
+              ? `<select name="studentId" required ${canManageStaff() ? "" : "disabled"}><option value="">Chọn học viên</option>${(students.items || []).map((s) => `<option value="${esc(s.id)}">${esc(s.full_name)} · ${esc(s.email)}</option>`).join("")}</select>`
+              : `<input value="${esc(row.student_name || "")} · ${esc(row.student_email || "")}" disabled />`}
+          </div>
+          <div class="field"><label>Lớp học</label>
+            <select name="sessionId" required ${canManageStaff() ? "" : "disabled"}>
+              <option value="">Chọn lớp</option>
+              ${(sessions.items || []).map((s) => `<option value="${esc(s.id)}" ${row.session_id === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field"><label>Trạng thái</label>
+            <select name="status" ${canManageStaff() ? "" : "disabled"}>${opts(ENROLL_LABEL, row.status)}</select>
+          </div>
+          <div class="field"><label>Thanh toán</label>
+            <select name="paymentStatus" ${canManageStaff() ? "" : "disabled"}>${opts(PAY_LABEL, row.payment_status)}</select>
+          </div>
+          <div class="field full"><label>Ghi chú</label>
+            <textarea name="notes" ${canManageStaff() ? "" : "disabled"}>${esc(row.notes || "")}</textarea>
+          </div>
+        </div>
+        ${canManageStaff() ? `<div class="toolbar"><button class="btn btn-primary" type="submit">${isNew ? "Thêm ghi danh" : "Lưu thay đổi"}</button>${isNew ? "" : `<button class="btn-danger" type="button" id="enr-delete">Xóa</button>`}</div>` : ""}
+      </form>`;
+    if (canManageStaff()) {
+      $("#enr-form").onsubmit = async (e) => {
+        e.preventDefault();
+        const button = e.target.querySelector('[type="submit"]');
+        button.disabled = true;
+        try {
+          const body = {
+            studentId: val(e.target, "studentId"),
+            sessionId: val(e.target, "sessionId"),
+            status: val(e.target, "status"),
+            paymentStatus: val(e.target, "paymentStatus"),
+            notes: val(e.target, "notes") || "",
+          };
+          const data = await api(isNew ? "/enrollments" : `/enrollments/${id}`, {
+            method: isNew ? "POST" : "PUT",
+            body,
+          });
+          toast(isNew ? "Đã thêm ghi danh" : "Đã cập nhật ghi danh");
+          go(href(isNew ? `/enrollments/${data.id}` : "/enrollments"));
+        } catch (err) {
+          button.disabled = false;
+          toast(err.message, true);
+        }
+      };
+    }
+    if (!isNew && canManageStaff()) {
+      $("#enr-delete").onclick = async () => {
+        if (!confirmAction("Xóa ghi danh này? Bản ghi sẽ bị ẩn khỏi danh sách.")) return;
+        try {
+          await api(`/enrollments/${id}`, { method: "DELETE" });
+          toast("Đã xóa ghi danh");
+          go(href("/enrollments"));
+        } catch (err) {
+          toast(err.message, true);
+        }
+      };
+    }
   }
 
   async function viewCertificates() {
@@ -2046,6 +2141,7 @@
       if (key === "registrations") return viewRegistrations();
       if (key === "students" && id) return viewStudent(id);
       if (key === "students") return viewStudents();
+      if (key === "enrollments" && id) return viewEnrollment(id);
       if (key === "enrollments") return viewEnrollments();
       if (key === "materials") return viewLearnerMaterials();
       if (key === "announcements") return viewAdminAnnouncements();

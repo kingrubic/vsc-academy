@@ -178,7 +178,9 @@ test("instructor API allowlist permits class-scoped work and denies CMS/enrollme
     ["GET", "/api/admin/insights"],
     ["POST", "/api/admin/insights", { titleVi: "x", slugVi: "x" }],
     ["POST", "/api/admin/resources", { titleVi: "x", slug: "x" }],
+    ["POST", "/api/admin/enrollments", { studentId: "st1", sessionId: "s1" }],
     ["PUT", "/api/admin/enrollments/e1", { status: "completed" }],
+    ["DELETE", "/api/admin/enrollments/e1"],
     ["PUT", "/api/admin/students/st1", { notes: "nope" }],
     ["DELETE", "/api/admin/students/st1"],
     ["DELETE", "/api/admin/materials/m1"],
@@ -252,6 +254,79 @@ test("registration CRUD enforces roles, validation, persistence, and protected s
   const editor = appFor({ role: "EDITOR", instructor_id: null }, { sessionUser: { role: "EDITOR", instructorId: null } });
   const forbidden = await request(editor, { method: "POST", path: "/api/admin/registrations", body: {} });
   assert.equal(forbidden.status, 403);
+});
+
+test("enrollment CRUD enforces roles, duplicates, and protected soft deletion", async () => {
+  const admin = { role: "ADMIN", instructor_id: null, email: "admin@vsc.academy" };
+  const { app, store } = harnessFor(admin, {
+    allowWrite: true,
+    sessionUser: { role: "ADMIN", instructorId: null, email: "admin@vsc.academy" },
+  });
+  store.snap.students.push({ id: "st2", full_name: "Lan", email: "lan@x.test" });
+  store.snap.sessions.push({ id: "s2", program_id: "p1", session_name: "Lớp 2" });
+
+  const invalid = await request(app, { method: "POST", path: "/api/admin/enrollments", body: {} });
+  assert.equal(invalid.status, 400);
+
+  const created = await request(app, {
+    method: "POST",
+    path: "/api/admin/enrollments",
+    body: { studentId: "st2", sessionId: "s2", paymentStatus: "unpaid", notes: "manual" },
+  });
+  assert.equal(created.status, 200);
+  const enrollment = store.snap.enrollments.find((row) => row.id === created.json.id);
+  assert.equal(enrollment.student_id, "st2");
+  assert.equal(enrollment.session_id, "s2");
+  assert.equal(enrollment.payment_status, "unpaid");
+  assert.equal(enrollment.notes, "manual");
+
+  const duplicate = await request(app, {
+    method: "POST",
+    path: "/api/admin/enrollments",
+    body: { studentId: "st2", sessionId: "s2" },
+  });
+  assert.equal(duplicate.status, 400);
+
+  const edited = await request(app, {
+    method: "PUT",
+    path: `/api/admin/enrollments/${created.json.id}`,
+    body: { status: "paused", paymentStatus: "paid", notes: "updated" },
+  });
+  assert.equal(edited.status, 200);
+  const updated = store.snap.enrollments.find((row) => row.id === created.json.id);
+  assert.equal(updated.status, "paused");
+  assert.equal(updated.payment_status, "paid");
+  assert.equal(updated.notes, "updated");
+
+  const listed = await request(app, { path: "/api/admin/enrollments" });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.json.items.some((row) => row.id === created.json.id), true);
+
+  store.snap.certificates.push({ id: "c1", enrollment_id: "e1", status: "issued" });
+  const protectedDelete = await request(app, { method: "DELETE", path: "/api/admin/enrollments/e1" });
+  assert.equal(protectedDelete.status, 409);
+
+  const deleted = await request(app, { method: "DELETE", path: `/api/admin/enrollments/${created.json.id}` });
+  assert.equal(deleted.status, 200);
+  assert.ok(store.snap.enrollments.find((row) => row.id === created.json.id).deleted_at);
+  const hidden = await request(app, { path: "/api/admin/enrollments" });
+  assert.equal(hidden.json.items.some((row) => row.id === created.json.id), false);
+  const missing = await request(app, { method: "DELETE", path: `/api/admin/enrollments/${created.json.id}` });
+  assert.equal(missing.status, 404);
+
+  const editor = appFor({ role: "EDITOR", instructor_id: null }, { sessionUser: { role: "EDITOR", instructorId: null } });
+  const forbidden = await request(editor, { method: "POST", path: "/api/admin/enrollments", body: {} });
+  assert.equal(forbidden.status, 403);
+});
+
+test("admin UI exposes enrollment add, edit, and delete controls", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /\+ Ghi danh/);
+  assert.match(ui, /\["Học viên", "Khóa", "Lớp", "Trạng thái", "Thanh toán", "Tiến độ", "Chứng nhận", "Thao tác"\]/);
+  assert.match(ui, /data-enroll-delete/);
+  assert.match(ui, /id="enr-delete"/);
+  assert.match(ui, /confirmAction\("Xóa ghi danh này\?/);
+  assert.match(ui, /canManageStaff\(\) \? `<a class="btn btn-primary" href="\$\{href\("\/enrollments\/new"\)\}"/);
 });
 
 test("unmatched admin API returns JSON instead of an HTML error page", async () => {
