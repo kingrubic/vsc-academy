@@ -1792,9 +1792,28 @@
     if (!editing) {
       app.innerHTML = `<div class="toolbar"><a class="btn btn-primary" href="${href("/announcements/new")}">+ Thông báo</a></div>
         ${table(
-          ["Tiêu đề", "Đối tượng", "Mức ưu tiên"],
-          data.items.map((x) => `<tr><td><a href="${href(`/announcements/${x.id}`)}">${esc(x.title_vi)}</a></td><td>${esc(TARGET_LABEL[x.target_type] || x.target_type)}</td><td>${esc(PRIORITY_LABEL[x.priority] || x.priority)}</td></tr>`),
+          ["Tiêu đề", "Đối tượng", "Mức ưu tiên", "Thao tác"],
+          data.items.map((x) => `<tr>
+            <td><a href="${href(`/announcements/${x.id}`)}">${esc(x.title_vi)}</a></td>
+            <td>${esc(TARGET_LABEL[x.target_type] || x.target_type)}</td>
+            <td>${esc(PRIORITY_LABEL[x.priority] || x.priority)}</td>
+            <td>${canManageStaff()
+              ? `<a class="btn" href="${href(`/announcements/${x.id}`)}">Sửa</a> <button class="btn-danger" type="button" data-ann-delete="${esc(x.id)}">Xóa</button>`
+              : `<a class="btn" href="${href(`/announcements/${x.id}`)}">Sửa</a>`}</td>
+          </tr>`),
         )}`;
+      app.querySelectorAll("[data-ann-delete]").forEach((button) => button.addEventListener("click", async () => {
+        if (!confirmAction("Xóa thông báo này?")) return;
+        button.disabled = true;
+        try {
+          await api(`/announcements/${button.dataset.annDelete}`, { method: "DELETE" });
+          toast("Đã xóa thông báo");
+          render();
+        } catch (err) {
+          button.disabled = false;
+          toast(err.message, true);
+        }
+      }));
       return;
     }
     const item = editing === "new" ? {} : data.items.find((x) => x.id === editing) || {};
@@ -1815,10 +1834,13 @@
     </form>`;
     $("#ann-form").onsubmit = async (e) => {
       e.preventDefault();
+      const button = e.target.querySelector('[type="submit"]');
+      if (button) button.disabled = true;
       const body = Object.fromEntries(new FormData(e.target).entries());
       try {
         if (editing === "new") {
           const r = await api("/announcements", { method: "POST", body });
+          toast("Đã thêm thông báo");
           go(href(`/announcements/${r.id}`));
         } else {
           await api(`/announcements/${editing}`, { method: "PUT", body });
@@ -1826,12 +1848,22 @@
         }
       } catch (err) {
         toast(err.message, true);
+      } finally {
+        if (button) button.disabled = false;
       }
     };
     $("#ann-del")?.addEventListener("click", async () => {
-      if (!confirmAction("Xóa thông báo?")) return;
-      await api(`/announcements/${editing}`, { method: "DELETE" });
-      go(href("/announcements"));
+      if (!confirmAction("Xóa thông báo này?")) return;
+      const button = $("#ann-del");
+      button.disabled = true;
+      try {
+        await api(`/announcements/${editing}`, { method: "DELETE" });
+        toast("Đã xóa thông báo");
+        go(href("/announcements"));
+      } catch (err) {
+        button.disabled = false;
+        toast(err.message, true);
+      }
     });
   }
 

@@ -780,8 +780,15 @@ function attachLearnerAdmin(router, store) {
   });
 
   router.delete("/announcements/:id", requireRole("OWNER", "ADMIN"), async (req, res) => {
-    await store.remove("announcements", req.params.id);
-    res.json({ ok: true });
+    try {
+      const snap = await store.dump(true);
+      const row = (snap.announcements || []).find((a) => a.id === req.params.id);
+      if (!row) return res.status(404).json({ error: "Not found" });
+      await store.remove("announcements", req.params.id);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(err.status || 500).json({ error: err.message || "Không xóa được thông báo" });
+    }
   });
 
   router.get("/enrollments", async (req, res) => {

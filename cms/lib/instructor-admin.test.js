@@ -77,8 +77,10 @@ function mockStore(user, options = {}) {
       if (idx >= 0) list[idx] = { ...list[idx], ...row };
       else list.push(row);
     },
-    remove: async () => {
-      throw new Error("instructor must not delete");
+    remove: async (table, id) => {
+      if (!options.allowWrite) throw new Error("instructor must not delete");
+      const list = snap[table] || [];
+      snap[table] = list.filter((item) => String(item.id) !== String(id));
     },
     removeWhere: async () => {},
     url: "mock",
@@ -317,6 +319,53 @@ test("enrollment CRUD enforces roles, duplicates, and protected soft deletion", 
   const editor = appFor({ role: "EDITOR", instructor_id: null }, { sessionUser: { role: "EDITOR", instructorId: null } });
   const forbidden = await request(editor, { method: "POST", path: "/api/admin/enrollments", body: {} });
   assert.equal(forbidden.status, 403);
+});
+
+test("admin can create, edit, and delete announcements", async () => {
+  const admin = { role: "ADMIN", instructor_id: null, email: "admin@vsc.academy" };
+  const { app, store } = harnessFor(admin, {
+    allowWrite: true,
+    sessionUser: { role: "ADMIN", instructorId: null, email: "admin@vsc.academy" },
+  });
+
+  const invalid = await request(app, { method: "POST", path: "/api/admin/announcements", body: {} });
+  assert.equal(invalid.status, 400);
+
+  const created = await request(app, {
+    method: "POST",
+    path: "/api/admin/announcements",
+    body: { titleVi: "Nhắc buổi học", targetType: "session", sessionId: "s1", priority: "high" },
+  });
+  assert.equal(created.status, 200);
+  const row = store.snap.announcements.find((item) => item.id === created.json.id);
+  assert.equal(row.title_vi, "Nhắc buổi học");
+  assert.equal(row.target_type, "session");
+  assert.equal(row.session_id, "s1");
+
+  const edited = await request(app, {
+    method: "PUT",
+    path: `/api/admin/announcements/${created.json.id}`,
+    body: { titleVi: "Nhắc buổi học 2", targetType: "session", sessionId: "s1", priority: "normal" },
+  });
+  assert.equal(edited.status, 200);
+  const updated = store.snap.announcements.find((item) => item.id === created.json.id);
+  assert.equal(updated.title_vi, "Nhắc buổi học 2");
+  assert.equal(updated.priority, "normal");
+
+  const deleted = await request(app, { method: "DELETE", path: `/api/admin/announcements/${created.json.id}` });
+  assert.equal(deleted.status, 200);
+  assert.equal(store.snap.announcements.some((item) => item.id === created.json.id), false);
+  const missing = await request(app, { method: "DELETE", path: `/api/admin/announcements/${created.json.id}` });
+  assert.equal(missing.status, 404);
+});
+
+test("admin UI exposes announcement add, edit, and delete controls", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /\+ Thông báo/);
+  assert.match(ui, /\["Tiêu đề", "Đối tượng", "Mức ưu tiên", "Thao tác"\]/);
+  assert.match(ui, /data-ann-delete/);
+  assert.match(ui, /id="ann-del"/);
+  assert.match(ui, /confirmAction\("Xóa thông báo này\?"\)/);
 });
 
 test("admin UI exposes enrollment add, edit, and delete controls", () => {
