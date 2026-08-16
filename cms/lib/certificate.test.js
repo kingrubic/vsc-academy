@@ -31,6 +31,8 @@ test("certificate PDF is a non-empty PDF buffer", async () => {
 });
 
 test("overlay templates render Vietnamese and English PDFs", async () => {
+  const font = path.join(__dirname, "..", "..", "assets", "fonts", "great-vibes", "GreatVibes-Regular.ttf");
+  assert.equal(fs.existsSync(font), true);
   const vi = await renderCertificatePdf(sample, COMPLETION_TEMPLATE_VI);
   const en = await renderCertificatePdf(sample, COMPLETION_TEMPLATE_EN);
   assert.equal(vi.slice(0, 4).toString(), "%PDF");

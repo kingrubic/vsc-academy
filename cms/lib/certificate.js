@@ -45,6 +45,9 @@ const FONT_SERIF_BOLD = firstExisting([
   FONT_BOLD,
   FONT_SERIF,
 ]);
+const FONT_SCRIPT = firstExisting([
+  path.join(ASSETS_DIR, "fonts/great-vibes/GreatVibes-Regular.ttf"),
+]);
 
 const DEFAULT_TEMPLATE = {
   id: "tpl-vsc-default",
@@ -175,6 +178,7 @@ const COMPLETION_ART = {
   pngW: 1491,
   pngH: 1055,
   nameGoldGap: 8.9,
+  nameScriptGap: 6,
   vi: {
     nameGoldY: 522,
     courseGoldY: 661.5,
@@ -213,10 +217,10 @@ function textTopForBaseline(doc, pageH, pngBaselineY, fontSize) {
   return baseline - ascent;
 }
 
-function textTopAboveGold(doc, pageH, pngGoldY, fontSize) {
+function textTopAboveGold(doc, pageH, pngGoldY, fontSize, gap) {
   const gold = artY(pageH, pngGoldY);
   const ascent = ((doc._font && doc._font.ascender) || 891) / 1000 * fontSize;
-  return gold - COMPLETION_ART.nameGoldGap - ascent;
+  return gold - (gap ?? COMPLETION_ART.nameGoldGap) - ascent;
 }
 
 function stampBlank(doc, pageW, value, pngRange, y, fontSize) {
@@ -243,11 +247,13 @@ function registerFonts(doc) {
   }
   if (FONT_SERIF) doc.registerFont("VSC-Serif", FONT_SERIF);
   if (FONT_SERIF_BOLD) doc.registerFont("VSC-Serif-Bold", FONT_SERIF_BOLD);
+  if (FONT_SCRIPT) doc.registerFont("VSC-Script", FONT_SCRIPT);
   return {
     regular: hasSans ? "VSC" : "Helvetica",
     bold: hasSans ? "VSC-Bold" : "Helvetica-Bold",
     serif: FONT_SERIF ? "VSC-Serif" : hasSans ? "VSC" : "Times-Roman",
     serifBold: FONT_SERIF_BOLD ? "VSC-Serif-Bold" : hasSans ? "VSC-Bold" : "Times-Bold",
+    script: FONT_SCRIPT ? "VSC-Script" : FONT_SERIF_BOLD ? "VSC-Serif-Bold" : hasSans ? "VSC-Bold" : "Times-Bold",
   };
 }
 
@@ -290,11 +296,11 @@ function renderOverlayCertificatePdf(doc, cert, template, fonts) {
   const programNameText =
     locale === "en" ? cert.program_name_en_snapshot || cert.program_name_vi_snapshot : cert.program_name_vi_snapshot;
   const name = String(cert.student_name_snapshot || "").trim();
-  const nameSize = fitNameSize(doc.font(fonts.serifBold), name, W * 0.62, 28, 14);
-  doc.fillColor(NAVY).font(fonts.serifBold).fontSize(nameSize).text(
+  const nameSize = fitNameSize(doc.font(fonts.script), name, W * 0.62, 42, 22);
+  doc.fillColor(NAVY).font(fonts.script).fontSize(nameSize).text(
     name,
     W * 0.19,
-    textTopAboveGold(doc, H, layout.nameGoldY, nameSize),
+    textTopAboveGold(doc, H, layout.nameGoldY, nameSize, COMPLETION_ART.nameScriptGap),
     { width: W * 0.62, align: "center", lineBreak: false },
   );
 
