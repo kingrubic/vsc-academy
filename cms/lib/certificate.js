@@ -161,6 +161,19 @@ function displayCertificateNo(cert) {
   return `VSCA-${tail}/${year}`;
 }
 
+function stripVietnameseDiacritics(text) {
+  return String(text || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D");
+}
+
+function displayStudentName(cert, locale) {
+  const name = String(cert?.student_name_snapshot || "").trim();
+  return locale === "en" ? stripVietnameseDiacritics(name) : name;
+}
+
 function overlaySerialParts(cert) {
   const year = String(cert.issue_date || "").slice(0, 4) || String(new Date().getFullYear());
   const no = displayCertificateNo(cert);
@@ -291,7 +304,7 @@ function renderOverlayCertificatePdf(doc, cert, template, fonts) {
 
   const programNameText =
     locale === "en" ? cert.program_name_en_snapshot || cert.program_name_vi_snapshot : cert.program_name_vi_snapshot;
-  const name = String(cert.student_name_snapshot || "").trim();
+  const name = displayStudentName(cert, locale);
   const nameSize = fitNameSize(doc.font(fonts.script), name, W * 0.62, 42, 22);
   doc.fillColor(NAVY).font(fonts.script).fontSize(nameSize).text(
     name,
@@ -300,7 +313,7 @@ function renderOverlayCertificatePdf(doc, cert, template, fonts) {
     { width: W * 0.62, align: "center", lineBreak: false },
   );
 
-  const courseSize = fitNameSize(doc.font(fonts.serifBold), programNameText, W * 0.62, 16, 11);
+  const courseSize = fitNameSize(doc.font(fonts.serifBold), programNameText, W * 0.62, 33, 16);
   doc.fillColor(NAVY).font(fonts.serifBold).fontSize(courseSize).text(
     programNameText,
     W * 0.19,
@@ -391,8 +404,9 @@ async function renderCertificatePdf(cert, template) {
       align: "center",
     });
 
-    const nameSize = fitNameSize(doc.font(bold), cert.student_name_snapshot, W - 160, 34, 16);
-    doc.fillColor("#ffffff").font(bold).fontSize(nameSize).text(cert.student_name_snapshot, 80, 178, {
+    const displayName = displayStudentName(cert, locale);
+    const nameSize = fitNameSize(doc.font(bold), displayName, W - 160, 34, 16);
+    doc.fillColor("#ffffff").font(bold).fontSize(nameSize).text(displayName, 80, 178, {
       width: W - 160,
       align: "center",
     });
@@ -525,13 +539,19 @@ function removeCertificatePdfs(files) {
   });
 }
 
+function isBlankTemplateKey(key) {
+  const value = String(key || "").trim();
+  return !value || value === "tpl-vsc-default";
+}
+
 function selectedTemplateKey(req, program, fallback) {
-  return (
-    req?.body?.templateId ||
-    program?.certificate_template_id ||
-    fallback ||
-    COMPLETION_PAIR_ID
-  );
+  const requested = String(req?.body?.templateId || "").trim();
+  if (requested) return requested;
+  const previous = String(fallback || "").trim();
+  if (!isBlankTemplateKey(previous)) return previous;
+  const programKey = String(program?.certificate_template_id || "").trim();
+  if (!isBlankTemplateKey(programKey)) return programKey;
+  return COMPLETION_PAIR_ID;
 }
 
 async function issueCertificate(store, snap, enrollmentId, actor, req) {
@@ -774,7 +794,10 @@ module.exports = {
   programName,
   resolveTemplate,
   resolveIssueTemplates,
+  selectedTemplateKey,
   displayCertificateNo,
+  displayStudentName,
+  stripVietnameseDiacritics,
   overlaySerialParts,
   overlayNumberText,
   overlayDateText,
