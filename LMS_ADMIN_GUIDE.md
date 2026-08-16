@@ -1,4 +1,8 @@
-# VSC Academy Learner Portal — Hướng dẫn quản trị
+# VSC Academy Learner Portal — Ghi chú kỹ thuật quản trị
+
+Hướng dẫn dùng trang quản trị cho admin: [`HUONG_DAN_QUAN_TRI.md`](HUONG_DAN_QUAN_TRI.md).
+
+Tài liệu này giữ các ghi chú kỹ thuật (cổng học viên, chứng nhận, email).
 
 - Cổng học viên: `http://localhost:4173/hoc-vien` (EN: `/en/student`)
 - Admin: `http://localhost:4173/admin`

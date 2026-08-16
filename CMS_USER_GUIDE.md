@@ -1,4 +1,8 @@
-# VSC Academy Admin — Hướng dẫn vận hành
+# VSC Academy Admin — Ghi chú kỹ thuật vận hành
+
+Hướng dẫn dùng trang quản trị cho admin (ngôn ngữ thường, đủ menu): xem [`HUONG_DAN_QUAN_TRI.md`](HUONG_DAN_QUAN_TRI.md).
+
+Tài liệu này giữ các ghi chú kỹ thuật khi triển khai.
 
 - Admin: `http://localhost:4173/admin`
 - Giảng viên: `http://localhost:4173/giang-vien`
