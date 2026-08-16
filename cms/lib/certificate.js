@@ -163,17 +163,14 @@ function issueDateParts(iso) {
   return { year: year || "", month: month || "", day: day || "" };
 }
 
-function overlayDateText(iso, locale) {
-  const { year, month, day } = issueDateParts(iso);
-  if (!year) return "";
-  return locale === "en"
-    ? `Ho Chi Minh City, date ${day} month ${month} year ${year}`
-    : `TP. Hồ Chí Minh, ngày ${day} tháng ${month} năm ${year}`;
-}
-
-function overlayNumberText(cert, locale) {
+function overlaySerialParts(cert) {
   const no = displayCertificateNo(cert);
-  return locale === "en" ? `Certificate No.: ${no}` : `Số chứng nhận: ${no}`;
+  const match = String(no).match(/^VSCA-([A-Z0-9]{4})\/(\d{4})$/i);
+  const year = match?.[2] || String(cert.issue_date || "").slice(0, 4);
+  return {
+    serial: (match?.[1] || "0000").toUpperCase(),
+    year2: String(year || "").slice(-2),
+  };
 }
 
 function pdfFilenameForLang(row, lang) {
@@ -249,24 +246,21 @@ function renderOverlayCertificatePdf(doc, cert, template, fonts) {
     lineBreak: false,
   });
 
-  const footerY = H * 0.889;
-  doc.save();
-  doc.fillColor("#ffffff");
-  doc.rect(W * 0.058, H * 0.872, W * 0.34, 24).fill();
-  doc.rect(W * 0.348, H * 0.872, W * 0.34, 24).fill();
-  doc.restore();
-
-  doc.fillColor(NAVY).font(fonts.regular).fontSize(7.2);
-  doc.text(overlayNumberText(cert, locale), W * 0.068, footerY, {
-    width: W * 0.325,
-    align: "left",
-    lineBreak: false,
-  });
-  doc.text(overlayDateText(cert.issue_date, locale), W * 0.348, footerY, {
-    width: W * 0.34,
-    align: "center",
-    lineBreak: false,
-  });
+  const { serial, year2 } = overlaySerialParts(cert);
+  const { day, month } = issueDateParts(cert.issue_date);
+  const layout = locale === "en"
+    ? { numberY: 0.880, dateY: 0.896, serialX: 0.228, yearX: 0.274, dayX: 0.476, monthX: 0.556, year2X: 0.620 }
+    : { numberY: 0.880, dateY: 0.896, serialX: 0.234, yearX: 0.280, dayX: 0.496, monthX: 0.566, year2X: 0.636 };
+  doc.fillColor(NAVY).font(fonts.serif).fontSize(7.2);
+  const stamp = (value, x, y) => {
+    if (!value) return;
+    doc.text(String(value), W * x, H * y, { lineBreak: false });
+  };
+  stamp(serial, layout.serialX, layout.numberY);
+  stamp(year2, layout.yearX, layout.numberY);
+  stamp(day, layout.dayX, layout.dateY);
+  stamp(month, layout.monthX, layout.dateY);
+  stamp(year2, layout.year2X, layout.dateY);
 }
 
 async function renderCertificatePdf(cert, template) {
