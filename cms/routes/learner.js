@@ -447,12 +447,17 @@ function createLearnerRouter(store) {
         (c.id === req.params.id || c.certificate_code === req.params.id),
     );
     if (!row || row.status !== "issued") return res.status(404).json({ error: "Not found" });
-    const abs = Cert.pdfAbsolutePath(row);
+    const lang = req.query.lang === "en" ? "en" : "vi";
+    const abs = Cert.pdfAbsolutePath(row, lang);
     if (!abs) return res.status(404).json({ error: "PDF missing" });
+    const download = req.query.download === "1" || req.query.download === "true";
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Cache-Control", "private, no-store, max-age=0");
-    res.setHeader("Content-Disposition", `attachment; filename="${row.certificate_code}.pdf"`);
+    res.setHeader(
+      "Content-Disposition",
+      `${download ? "attachment" : "inline"}; filename="${Cert.pdfDownloadName(row, lang)}"`,
+    );
     res.sendFile(abs);
   });
 
@@ -476,6 +481,8 @@ function serializeLearnerCert(row, locale) {
     issueDate: row.issue_date,
     status: row.status,
     verificationUrl: row.verification_url,
+    hasPdfVi: Boolean(row.pdf_url_vi || row.pdf_url),
+    hasPdfEn: Boolean(row.pdf_url_en),
   };
 }
 

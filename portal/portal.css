@@ -119,6 +119,7 @@ h1, h2, h3 { font-family: var(--display); letter-spacing: -0.02em; margin: 0; }
 .week-item { font-size: 12px; margin-bottom: 8px; }
 .week-item span { display: block; color: var(--muted); }
 .cert-card { display: grid; gap: 6px; }
+.cert-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .cert-code { letter-spacing: 0.12em; color: var(--blue); font-size: 13px; }
 .sticky-join {
   position: fixed;

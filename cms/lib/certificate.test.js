@@ -1,21 +1,57 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { renderCertificatePdf, DEFAULT_TEMPLATE } = require("./certificate");
+const fs = require("fs");
+const path = require("path");
+const {
+  renderCertificatePdf,
+  DEFAULT_TEMPLATE,
+  COMPLETION_TEMPLATE_VI,
+  COMPLETION_TEMPLATE_EN,
+  displayCertificateNo,
+  pdfFilenameForLang,
+  resolveIssueTemplates,
+} = require("./certificate");
+
+const sample = {
+  certificate_code: "VSC-2026-AIS-TEST01",
+  student_name_snapshot: "Nguyễn Thị Minh Châu",
+  program_name_vi_snapshot: "AI Starter",
+  program_name_en_snapshot: "AI Starter",
+  completion_date: "2026-08-14",
+  issue_date: "2026-08-14",
+  verification_url: "https://vscacademy.vn/verify/VSC-2026-AIS-TEST01",
+};
 
 test("certificate PDF is a non-empty PDF buffer", async () => {
-  const buf = await renderCertificatePdf(
-    {
-      certificate_code: "VSC-2026-AIS-TEST01",
-      student_name_snapshot: "Nguyễn Thị Minh Châu",
-      program_name_vi_snapshot: "AI Starter",
-      program_name_en_snapshot: "AI Starter",
-      completion_date: "2026-08-14",
-      issue_date: "2026-08-14",
-      verification_url: "https://vscacademy.vn/verify/VSC-2026-AIS-TEST01",
-    },
-    DEFAULT_TEMPLATE,
-  );
+  const buf = await renderCertificatePdf(sample, DEFAULT_TEMPLATE);
   assert.ok(Buffer.isBuffer(buf));
   assert.ok(buf.length > 2000);
   assert.equal(buf.slice(0, 4).toString(), "%PDF");
+});
+
+test("overlay templates render Vietnamese and English PDFs", async () => {
+  const vi = await renderCertificatePdf(sample, COMPLETION_TEMPLATE_VI);
+  const en = await renderCertificatePdf(sample, COMPLETION_TEMPLATE_EN);
+  assert.equal(vi.slice(0, 4).toString(), "%PDF");
+  assert.equal(en.slice(0, 4).toString(), "%PDF");
+  assert.ok(vi.length > 8000);
+  assert.ok(en.length > 8000);
+});
+
+test("display number and pair resolution follow the completion templates", () => {
+  assert.equal(displayCertificateNo(sample), "VSCA-TEST/2026");
+  assert.equal(pdfFilenameForLang({ pdf_url: "a.pdf", pdf_url_vi: "a-vi.pdf", pdf_url_en: "a-en.pdf" }, "en"), "a-en.pdf");
+  assert.equal(pdfFilenameForLang({ pdf_url: "a.pdf" }, "vi"), "a.pdf");
+  const pair = resolveIssueTemplates({ certificate_templates: [] }, "vsc-completion");
+  assert.equal(pair.length, 2);
+  assert.equal(pair[0].language, "vi");
+  assert.equal(pair[1].language, "en");
+});
+
+test("learner portal exposes bilingual certificate view and download", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "portal", "portal.js"), "utf8");
+  assert.match(ui, /downloadPdfVi/);
+  assert.match(ui, /downloadPdfEn/);
+  assert.match(ui, /lang=vi&download=1/);
+  assert.match(ui, /lang=en&download=1/);
 });

@@ -251,6 +251,36 @@
       .map(([k, l]) => `<option value="${esc(k)}" ${String(selected) === String(k) ? "selected" : ""}>${esc(l)}</option>`)
       .join("");
   }
+  const OFFICIAL_TEMPLATE_IDS = new Set([
+    "tpl-vsc-default",
+    "tpl-vsc-completion-vi",
+    "tpl-vsc-completion-en",
+  ]);
+  function issueTemplateChoices(items) {
+    const published = (items || []).filter((item) => item.status === "published");
+    const seen = new Set();
+    const choices = [];
+    published.forEach((item) => {
+      if (item.pair_id) {
+        if (seen.has(item.pair_id)) return;
+        seen.add(item.pair_id);
+        const name = (published.find((row) => row.pair_id === item.pair_id && row.language === "vi") || item).name
+          .replace(/\s*\((VI|EN)\)\s*$/i, "");
+        choices.push({ value: item.pair_id, label: `${name} (VI + EN)` });
+        return;
+      }
+      choices.push({ value: item.id, label: item.name });
+    });
+    return choices;
+  }
+  function certificatePdfLinks(cert) {
+    if (!cert || cert.status !== "issued") return "";
+    if (cert.pdf_url_en) {
+      return `<a class="btn" href="/api/admin/certificates/${cert.id}/pdf?lang=vi" target="_blank">PDF VI</a>
+            <a class="btn" href="/api/admin/certificates/${cert.id}/pdf?lang=en" target="_blank">PDF EN</a>`;
+    }
+    return `<a class="btn" href="/api/admin/certificates/${cert.id}/pdf" target="_blank">PDF</a>`;
+  }
   function confirmAction(message) {
     return window.confirm(message);
   }
@@ -930,7 +960,7 @@
         </div>`,
       );
       const pane = $("#lms-pane");
-      const show = (k) => {
+      const show = async (k) => {
         app.querySelectorAll("[data-stab]").forEach((b) => b.classList.toggle("active", b.dataset.stab === k));
         if (k === "overview") {
           pane.innerHTML = `<p>${lms.summary.total} học viên · ${lms.summary.eligible} đủ điều kiện · ${lms.summary.missingAttendance} thiếu điểm danh · ${lms.summary.incomplete} chưa hoàn thành</p>`;
@@ -1023,6 +1053,11 @@
             )}`;
             return;
           }
+          const templates = await api("/certificate-templates");
+          const choices = issueTemplateChoices(templates.items);
+          const selectedTemplate = choices.some((item) => item.value === "vsc-completion")
+            ? "vsc-completion"
+            : (choices[0]?.value || "tpl-vsc-default");
           pane.innerHTML = `<p>${lms.summary.eligible} đủ điều kiện · ${lms.summary.missingAttendance} thiếu điểm danh · ${lms.summary.incomplete} chưa hoàn thành</p>
             ${table(
               ["Học viên", "Điểm danh", "Hoàn thành", "Thanh toán", "Chứng nhận", ""],
@@ -1037,11 +1072,18 @@
                 </tr>`,
               ),
             )}
-            <button class="btn btn-primary" id="issue-selected">Cấp chứng nhận đã chọn</button>`;
+            <div class="toolbar" style="margin-top:12px;align-items:end">
+              <div class="field" style="margin:0">
+                <label for="issue-template">Mẫu chứng nhận</label>
+                <select id="issue-template">${optList(choices.map((item) => [item.value, item.label]), selectedTemplate)}</select>
+              </div>
+              <button class="btn btn-primary" id="issue-selected" type="button">Cấp chứng nhận đã chọn</button>
+            </div>`;
           $("#issue-selected").onclick = async () => {
             const ids = [...pane.querySelectorAll("[data-bulk]:checked")].map((x) => x.dataset.bulk);
             if (!ids.length) return toast("Chưa chọn học viên", true);
-            const r = await api("/certificates/issue-bulk", { method: "POST", body: { enrollmentIds: ids } });
+            const templateId = $("#issue-template")?.value || selectedTemplate;
+            const r = await api("/certificates/issue-bulk", { method: "POST", body: { enrollmentIds: ids, templateId } });
             toast(`Đã cấp ${r.issued.length}, lỗi ${r.failed.length}`);
             render();
           };
@@ -1607,7 +1649,7 @@
               <td>${badge(c.status)}</td>
               <td>${fmtDate(c.issue_date || c.issued_at)}</td>
               <td>
-                ${c.status === "issued" && canManageStaff() ? `<a class="btn" href="/api/admin/certificates/${c.id}/pdf">PDF</a>
+                ${c.status === "issued" && canManageStaff() ? `${certificatePdfLinks(c)}
                 <button class="btn" data-reissue="${c.id}">Cấp lại</button>
                 <button class="btn-danger" data-revoke="${c.id}">Thu hồi</button>` : ""}
               </td>
@@ -2001,7 +2043,7 @@
           <td>${fmtDate(c.issue_date)}</td>
           <td>
             ${c.status === "issued" ? `<a class="btn" href="/verify/${esc(c.certificate_code)}" target="_blank">Xác minh</a>
-            <a class="btn" href="/api/admin/certificates/${c.id}/pdf">PDF</a>
+            ${certificatePdfLinks(c)}
             <button class="btn" data-reissue="${c.id}">Cấp lại</button>
             <button class="btn-danger" data-revoke="${c.id}">Thu hồi</button>` : ""}
           </td>
@@ -2035,11 +2077,11 @@
           ["Tên", "Ngôn ngữ", "Trạng thái", "Phiên bản", "Thao tác"],
           data.items.map((x) => `<tr>
             <td><a href="${href(`/certificate-templates/${x.id}`)}">${esc(x.name)}</a></td>
-            <td>${esc(x.language)}</td>
+            <td>${esc(x.pair_id ? `${x.language} · cặp` : x.language)}</td>
             <td>${badge(x.status)}</td>
             <td>${esc(x.version)}</td>
             <td>${canManageStaff()
-              ? `<a class="btn" href="${href(`/certificate-templates/${x.id}`)}">Sửa</a> <button class="btn-danger" type="button" data-tpl-delete="${esc(x.id)}">Xóa</button>`
+              ? `<a class="btn" href="${href(`/certificate-templates/${x.id}`)}">Sửa</a>${OFFICIAL_TEMPLATE_IDS.has(x.id) ? "" : ` <button class="btn-danger" type="button" data-tpl-delete="${esc(x.id)}">Xóa</button>`}`
               : `<a class="btn" href="${href(`/certificate-templates/${x.id}`)}">Xem</a>`}</td>
           </tr>`),
         )}`;
@@ -2063,7 +2105,9 @@
     }
     const item = editing === "new" ? {} : data.items.find((x) => x.id === editing) || {};
     const locked = !canManageStaff();
+    const official = OFFICIAL_TEMPLATE_IDS.has(item.id);
     app.innerHTML = `<form id="tpl-form" class="card" style="padding:18px">
+      ${item.background_image ? `<p><img src="/assets/${esc(item.background_image)}" alt="${esc(item.name || "Mẫu chứng nhận")}" style="max-width:min(100%,640px);border:1px solid #d7deea;border-radius:8px" /></p>` : ""}
       <div class="form-grid">
         <div class="field"><label>Tên mẫu</label><input name="name" value="${esc(item.name || "")}" required ${locked ? "disabled" : ""} /></div>
         <div class="field"><label>Ngôn ngữ</label><select name="language" ${locked ? "disabled" : ""}>${optList([["vi","Tiếng Việt"],["en","Tiếng Anh"]], item.language || "vi")}</select></div>
@@ -2079,7 +2123,7 @@
         <div class="field full"><label>Chân trang tiếng Anh</label><textarea name="footerEn" ${locked ? "disabled" : ""}>${esc(item.footer_en || "")}</textarea></div>
         <div class="field"><label>Trạng thái</label><select name="status" ${locked ? "disabled" : ""}>${opts({ published: "Đã xuất bản", draft: "Nháp" }, item.status || "draft")}</select></div>
       </div>
-      ${canManageStaff() ? `<div class="toolbar" style="margin-top:12px"><button class="btn btn-primary">Lưu mẫu</button>${editing !== "new" ? `<button type="button" class="btn-danger" id="tpl-del">Xóa</button>` : ""}</div>` : ""}
+      ${canManageStaff() ? `<div class="toolbar" style="margin-top:12px"><button class="btn btn-primary" type="submit">Lưu mẫu</button>${editing !== "new" && !official ? `<button type="button" class="btn-danger" id="tpl-del">Xóa</button>` : ""}</div>` : ""}
     </form>`;
     if (!canManageStaff()) return;
     $("#tpl-form").onsubmit = async (e) => {
