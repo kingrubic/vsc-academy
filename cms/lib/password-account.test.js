@@ -299,6 +299,60 @@ test("admin reset password emails a link and does not return the token", async (
   });
 });
 
+test("admin can create, edit, and soft-delete students", async () => {
+  const store = mockStore();
+  store.data.sessions = [{ id: "s1", program_id: "p1", session_name: "Lớp 1" }];
+  store.data.enrollments = [
+    { id: "e1", student_id: "st1", session_id: "s1", program_id: "p1", status: "active" },
+    { id: "e2", student_id: "st1", session_id: "s1", program_id: "p1", status: "completed" },
+  ];
+  store.data.password_resets = [
+    { id: "pr1", token_hash: "pr1", student_id: "st1", used_at: null, expires_at: new Date(Date.now() + 3600_000).toISOString() },
+  ];
+  const app = appFor(store, owner);
+
+  const created = await request(app, {
+    method: "POST",
+    path: "/api/admin/students",
+    body: { fullName: "Lan", email: "lan@vsc.academy", phone: "0901111222", temporaryPassword: STUDENT_TMP },
+  });
+  assert.equal(created.status, 200);
+  const createdStudent = store.data.students.find((row) => row.email === "lan@vsc.academy");
+  assert.equal(createdStudent.full_name, "Lan");
+  assert.equal(createdStudent.phone, "0901111222");
+
+  const edited = await request(app, {
+    method: "PUT",
+    path: `/api/admin/students/${createdStudent.id}`,
+    body: { fullName: "Lan Nguyễn", phone: "0903333444", status: "active" },
+  });
+  assert.equal(edited.status, 200);
+  assert.equal(createdStudent.full_name, "Lan Nguyễn");
+  assert.equal(createdStudent.phone, "0903333444");
+
+  const listed = await request(app, { path: "/api/admin/students" });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.json.items.some((row) => row.id === "st1"), true);
+
+  const deleted = await request(app, { method: "DELETE", path: "/api/admin/students/st1" });
+  assert.equal(deleted.status, 200);
+  const student = store.data.students.find((row) => row.id === "st1");
+  assert.ok(student.deleted_at);
+  assert.equal(student.status, "inactive");
+  assert.equal(store.data.enrollments.find((row) => row.id === "e1").status, "cancelled");
+  assert.equal(store.data.enrollments.find((row) => row.id === "e2").status, "completed");
+  assert.ok(store.data.password_resets[0].used_at);
+
+  const hidden = await request(app, { path: "/api/admin/students" });
+  assert.equal(hidden.json.items.some((row) => row.id === "st1"), false);
+  const missing = await request(app, { method: "DELETE", path: "/api/admin/students/st1" });
+  assert.equal(missing.status, 404);
+
+  const editorApp = appFor(store, editor);
+  const forbidden = await request(editorApp, { method: "DELETE", path: `/api/admin/students/${createdStudent.id}` });
+  assert.equal(forbidden.status, 403);
+});
+
 test("admin UI adds temporary password fields and reset buttons", () => {
   const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
   assert.match(ui, /name="temporaryPassword"/);
@@ -307,6 +361,16 @@ test("admin UI adds temporary password fields and reset buttons", () => {
   assert.match(ui, /student-reset-password/);
   assert.match(ui, /\/students\/\$\{id\}\/reset-password/);
   assert.doesNotMatch(ui, /xếp hàng gửi email/);
+});
+
+test("admin UI exposes student add, edit, and delete controls", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /\+ Học viên/);
+  assert.match(ui, /\["Tên", "Email", "SĐT", "Đang học", "Hoàn thành", "Trạng thái", "Ngày tạo", "Thao tác"\]/);
+  assert.match(ui, /data-student-delete/);
+  assert.match(ui, /id="student-delete"/);
+  assert.match(ui, /confirmAction\("Xóa học viên này\?/);
+  assert.match(ui, /canManageStaff\(\) \? `<a class="btn btn-primary" href="\$\{href\("\/students\/new"\)\}"/);
 });
 
 test("unauthenticated staff reset path stays on dat-lai-mat-khau", () => {

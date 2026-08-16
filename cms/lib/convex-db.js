@@ -120,6 +120,12 @@ function createStore() {
     return result;
   }
 
+  async function softDeleteStudent(args) {
+    const result = await client.mutation(anyApi.store.softDeleteStudent, args);
+    invalidate();
+    return result;
+  }
+
   async function upsertInstructorAccount(payload) {
     const result = await client.mutation(anyApi.store.upsertInstructorAccount, payload);
     invalidate();
@@ -209,6 +215,7 @@ function createStore() {
     consumePasswordReset,
     applyPasswordChange,
     patchStudentFields,
+    softDeleteStudent,
     upsertInstructorAccount,
     createStudentAccount,
     issuePasswordReset,

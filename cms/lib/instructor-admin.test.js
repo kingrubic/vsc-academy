@@ -180,6 +180,7 @@ test("instructor API allowlist permits class-scoped work and denies CMS/enrollme
     ["POST", "/api/admin/resources", { titleVi: "x", slug: "x" }],
     ["PUT", "/api/admin/enrollments/e1", { status: "completed" }],
     ["PUT", "/api/admin/students/st1", { notes: "nope" }],
+    ["DELETE", "/api/admin/students/st1"],
     ["DELETE", "/api/admin/materials/m1"],
     ["DELETE", "/api/admin/announcements/a1"],
     ["GET", "/api/admin/registrations"],

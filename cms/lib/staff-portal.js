@@ -62,6 +62,7 @@ const ADMIN_MUTATION_SAMPLES = [
   ["PUT", "/settings"],
   ["POST", "/students"],
   ["PUT", "/students/st1"],
+  ["DELETE", "/students/st1"],
   ["POST", "/students/st1/reset-access"],
   ["POST", "/students/st1/reset-password"],
   ["POST", "/instructors/i1/reset-password"],

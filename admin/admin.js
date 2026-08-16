@@ -1446,7 +1446,7 @@
         ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/students/new")}">+ Học viên</a>` : ""}
       </div>
       ${table(
-        ["Tên", "Email", "SĐT", "Đang học", "Hoàn thành", "Trạng thái", "Ngày tạo"],
+        ["Tên", "Email", "SĐT", "Đang học", "Hoàn thành", "Trạng thái", "Ngày tạo", "Thao tác"],
         data.items.map(
           (s) => `<tr>
             <td><a href="${href(`/students/${s.id}`)}">${esc(s.full_name)}</a></td>
@@ -1456,12 +1456,27 @@
             <td>${s.completed_courses}</td>
             <td>${badge(s.status)}</td>
             <td>${fmtDate(s.created_at)}</td>
+            <td>${canManageStaff()
+              ? `<a class="btn" href="${href(`/students/${s.id}`)}">Sửa</a> <button class="btn-danger" type="button" data-student-delete="${esc(s.id)}">Xóa</button>`
+              : `<a class="btn" href="${href(`/students/${s.id}`)}">Xem</a>`}</td>
           </tr>`,
         ),
       )}`;
     $("#search").addEventListener("keydown", (e) => {
       if (e.key === "Enter") go(`${href("/students")}?q=${encodeURIComponent(e.target.value)}`);
     });
+    app.querySelectorAll("[data-student-delete]").forEach((button) => button.addEventListener("click", async () => {
+      if (!confirmAction("Xóa học viên này? Tài khoản sẽ bị vô hiệu và các lớp đang học sẽ bị hủy ghi danh.")) return;
+      button.disabled = true;
+      try {
+        await api(`/students/${button.dataset.studentDelete}`, { method: "DELETE" });
+        toast("Đã xóa học viên");
+        render();
+      } catch (err) {
+        button.disabled = false;
+        toast(err.message, true);
+      }
+    }));
   }
 
   async function viewStudent(id) {
@@ -1481,9 +1496,17 @@
       </form>`;
       $("#stu-new").onsubmit = async (e) => {
         e.preventDefault();
-        const body = Object.fromEntries(new FormData(e.target).entries());
-        const r = await api("/students", { method: "POST", body });
-        go(href(`/students/${r.id}`));
+        const button = e.target.querySelector('[type="submit"]');
+        button.disabled = true;
+        try {
+          const body = Object.fromEntries(new FormData(e.target).entries());
+          const r = await api("/students", { method: "POST", body });
+          toast("Đã thêm học viên");
+          go(href(`/students/${r.id}`));
+        } catch (err) {
+          button.disabled = false;
+          toast(err.message, true);
+        }
       };
       return;
     }
@@ -1510,7 +1533,8 @@
             </div>
           </div>
           <div class="toolbar">${canManageStaff() ? `<button class="btn btn-primary">Lưu</button>
-            <button type="button" class="btn" id="student-reset-password">Reset mật khẩu</button>` : ""}</div>
+            <button type="button" class="btn" id="student-reset-password">Reset mật khẩu</button>
+            <button type="button" class="btn-danger" id="student-delete">Xóa</button>` : ""}</div>
         </form>
       </section>
       <section data-pane="enroll" class="hidden">
@@ -1601,9 +1625,32 @@
     $("#stu-form").onsubmit = async (e) => {
       e.preventDefault();
       if (!canManageStaff()) return;
-      await api(`/students/${id}`, { method: "PUT", body: Object.fromEntries(new FormData(e.target).entries()) });
-      toast("Đã lưu");
+      const button = e.target.querySelector('[type="submit"]');
+      if (button) button.disabled = true;
+      try {
+        await api(`/students/${id}`, { method: "PUT", body: Object.fromEntries(new FormData(e.target).entries()) });
+        toast("Đã lưu");
+      } catch (err) {
+        toast(err.message, true);
+      } finally {
+        if (button) button.disabled = false;
+      }
     };
+    const deleteBtn = $("#student-delete");
+    if (deleteBtn) {
+      deleteBtn.onclick = async () => {
+        if (!confirmAction("Xóa học viên này? Tài khoản sẽ bị vô hiệu và các lớp đang học sẽ bị hủy ghi danh.")) return;
+        deleteBtn.disabled = true;
+        try {
+          await api(`/students/${id}`, { method: "DELETE" });
+          toast("Đã xóa học viên");
+          go(href("/students"));
+        } catch (err) {
+          deleteBtn.disabled = false;
+          toast(err.message, true);
+        }
+      };
+    }
     const resetBtn = $("#student-reset-password");
     if (resetBtn) {
       resetBtn.onclick = async () => {

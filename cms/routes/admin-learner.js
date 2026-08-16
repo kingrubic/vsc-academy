@@ -170,6 +170,15 @@ function attachLearnerAdmin(router, store) {
     res.json({ ok: true });
   });
 
+  router.delete("/students/:id", requireRole("OWNER", "ADMIN"), async (req, res) => {
+    const snap = await store.dump(true);
+    const row = aliveById(snap.students, req.params.id);
+    if (!row) return res.status(404).json({ error: "Not found" });
+    const deleted = await store.softDeleteStudent({ id: row.id, now: now() });
+    if (!deleted?.ok) return res.status(404).json({ error: deleted?.error || "Not found" });
+    res.json({ ok: true, cancelledEnrollments: deleted.cancelledEnrollments || 0 });
+  });
+
   router.post("/students/:id/reset-access", requireRole("OWNER", "ADMIN"), async (req, res) => {
     try {
       const snap = await store.dump(true);
