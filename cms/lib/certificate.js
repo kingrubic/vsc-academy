@@ -198,7 +198,7 @@ const COMPLETION_ART = {
     numberX: 188,
     numberBaselineY: 912,
     dateX: 562,
-    dateBaselineY: 968,
+    dateBaselineY: 978,
   },
   en: {
     nameGoldY: 503,
@@ -206,7 +206,7 @@ const COMPLETION_ART = {
     numberX: 178,
     numberBaselineY: 913,
     dateX: 540,
-    dateBaselineY: 961,
+    dateBaselineY: 971,
   },
 };
 
@@ -308,7 +308,7 @@ function renderOverlayCertificatePdf(doc, cert, template, fonts) {
     { width: W * 0.62, align: "center", lineBreak: false },
   );
 
-  const footerSize = 8;
+  const footerSize = 10;
   const numberText = overlayNumberText(cert, locale);
   const dateText = overlayDateText(cert.issue_date, locale);
   doc.fillColor(NAVY).font(fonts.serif).fontSize(footerSize);
