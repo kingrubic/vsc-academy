@@ -93,7 +93,12 @@
       throw new Error("Phiên đăng nhập đã hết hạn");
     }
     const text = await res.text();
-    const data = text ? JSON.parse(text) : {};
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error(res.ok ? "Phản hồi máy chủ không hợp lệ" : "Không gọi được API. Tải lại trang rồi thử lại.");
+    }
     if (res.status === 403 && data.code === "MUST_CHANGE_PASSWORD") {
       if (state.user) state.user.mustChangePassword = true;
       render();

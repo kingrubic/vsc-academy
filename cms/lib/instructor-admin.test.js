@@ -254,6 +254,16 @@ test("registration CRUD enforces roles, validation, persistence, and protected s
   assert.equal(forbidden.status, 403);
 });
 
+test("unmatched admin API returns JSON instead of an HTML error page", async () => {
+  const { app } = harnessFor({ role: "ADMIN", instructor_id: null }, {
+    allowWrite: true,
+    sessionUser: { role: "ADMIN", instructorId: null, email: "admin@vsc.academy" },
+  });
+  const res = await request(app, { method: "DELETE", path: "/api/admin/does-not-exist" });
+  assert.equal(res.status, 404);
+  assert.equal(res.json.error, "Not found");
+});
+
 test("admin UI exposes registration add, edit, delete, and core fields", () => {
   const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
   assert.match(ui, /\+ Thêm đăng ký/);
