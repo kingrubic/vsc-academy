@@ -59,7 +59,8 @@ test("display number and pair resolution follow the completion templates", () =>
   assert.equal(overlayNumberText(sample, "vi"), "Số chứng nhận: VSCA-TEST/2026");
   assert.equal(overlayNumberText(sample, "en"), "Certificate No.: VSCA-TEST/2026");
   assert.equal(overlayDateText(sample.issue_date, "vi"), "TP. Hồ Chí Minh, ngày 14 tháng 08 năm 2026");
-  assert.equal(overlayDateText(sample.issue_date, "en"), "Ho Chi Minh City, date 14 month 08 year 2026");
+  assert.equal(overlayDateText(sample.issue_date, "en"), "Ho Chi Minh City, 14 August 2026");
+  assert.equal(overlayDateText("2026-08-16", "en"), "Ho Chi Minh City, 16 August 2026");
   assert.equal(pdfFilenameForLang({ pdf_url: "a.pdf", pdf_url_vi: "a-vi.pdf", pdf_url_en: "a-en.pdf" }, "en"), "a-en.pdf");
   assert.equal(pdfFilenameForLang({ pdf_url: "a.pdf" }, "vi"), "a.pdf");
   const pair = resolveIssueTemplates({ certificate_templates: [] }, "vsc-completion");
