@@ -192,6 +192,81 @@ test("instructor API allowlist permits class-scoped work and denies CMS/enrollme
   }
 });
 
+test("registration CRUD enforces roles, validation, persistence, and protected soft deletion", async () => {
+  const admin = { role: "ADMIN", instructor_id: null, email: "admin@vsc.academy" };
+  const { app, store } = harnessFor(admin, {
+    allowWrite: true,
+    sessionUser: { role: "ADMIN", instructorId: null, email: "admin@vsc.academy" },
+  });
+  store.snap.registrations = [];
+  store.snap.sessions[0].registered_count = 0;
+
+  const invalid = await request(app, { method: "POST", path: "/api/admin/registrations", body: {} });
+  assert.equal(invalid.status, 400);
+  const created = await request(app, {
+    method: "POST", path: "/api/admin/registrations",
+    body: { fullName: "Nguyễn An", phone: "0901234567", email: "AN@example.com", sessionId: "s1", amount: 1200000, status: "new", consentPrivacy: true },
+  });
+  assert.equal(created.status, 201);
+  assert.match(created.json.id, /^VSC-\d{4}-000001$/);
+  const registration = store.snap.registrations.find((row) => row.id === created.json.id);
+  assert.equal(registration.program_id, "p1");
+  assert.equal(registration.email, "an@example.com");
+  assert.equal(store.snap.sessions[0].registered_count, 1);
+
+  const edited = await request(app, {
+    method: "PUT", path: `/api/admin/registrations/${created.json.id}`,
+    body: { fullName: "Nguyễn An B", phone: "0901234567", email: "an@example.com", sessionId: "s1", amount: 0, status: "cancelled", jobRole: "Quản lý" },
+  });
+  assert.equal(edited.status, 200);
+  assert.equal(registration.created_at, store.snap.registrations[0].created_at);
+  assert.equal(store.snap.registrations[0].job_role, "Quản lý");
+  assert.equal(store.snap.sessions[0].registered_count, 0);
+
+  let confirmedUpdates = 0;
+  store.provisionLearnerAccount = async ({ registration }) => {
+    confirmedUpdates += 1;
+    return { ok: true, student: {}, enrollment: {}, ownership: {}, registration };
+  };
+  store.finalizeLearnerProvision = async () => {};
+  store.abortLearnerProvision = async () => {};
+  store.snap.students.push({ id: "st-confirmed", email: "an@example.com", status: "active" });
+  store.snap.registrations[0].status = "confirmed";
+  const confirmedEdit = await request(app, {
+    method: "PUT", path: `/api/admin/registrations/${created.json.id}`,
+    body: { fullName: "Nguyễn An C", sessionId: "s1", status: "confirmed" },
+  });
+  assert.equal(confirmedEdit.status, 200);
+  assert.equal(confirmedUpdates, 1, "editing a confirmed registration must keep learner/enrollment synchronization");
+
+  store.snap.registrations[0].student_id = "st1";
+  const protectedDelete = await request(app, { method: "DELETE", path: `/api/admin/registrations/${created.json.id}` });
+  assert.equal(protectedDelete.status, 409);
+  store.snap.registrations[0].student_id = null;
+  store.snap.enrollments = [];
+  const deleted = await request(app, { method: "DELETE", path: `/api/admin/registrations/${created.json.id}` });
+  assert.equal(deleted.status, 200);
+  assert.ok(store.snap.registrations[0].deleted_at);
+
+  const editor = appFor({ role: "EDITOR", instructor_id: null }, { sessionUser: { role: "EDITOR", instructorId: null } });
+  const forbidden = await request(editor, { method: "POST", path: "/api/admin/registrations", body: {} });
+  assert.equal(forbidden.status, 403);
+});
+
+test("admin UI exposes registration add, edit, delete, and core fields", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /\+ Thêm đăng ký/);
+  assert.match(ui, /\["ID", "Họ tên", "Khóa", "Lớp", "Số tiền", "Ngày", "Trạng thái", "Thao tác"\]/);
+  assert.match(ui, /data-reg-delete/);
+  for (const field of ["fullName", "phone", "email", "sessionId", "amount", "status", "jobRole", "organization", "goal", "source", "consentPrivacy", "consentMarketing"]) {
+    assert.match(ui, new RegExp(`name=\\"${field}\\"`), `missing registration field ${field}`);
+  }
+  assert.match(ui, /confirmAction\("Xóa đăng ký này\?"\)/);
+  assert.match(ui, /canManageStaff\(\) \? `<a class="btn btn-primary" href="\$\{href\("\/registrations\/new"\)\}"/);
+  assert.match(ui, /canManageStaff\(\) \? `<a class="btn" href="\$\{href\(`\/registrations\/\$\{r\.id\}`\)\}">Sửa/);
+  assert.match(ui, /if \(isNew && !canManageStaff\(\)\)/);
+});
+
 test("admin UI hides instructor-forbidden enrollment and delete controls", () => {
   const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
   assert.match(ui, /canManageStaff\(\) \? `<select data-enr=/);
