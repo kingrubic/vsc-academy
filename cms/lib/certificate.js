@@ -182,24 +182,24 @@ const COMPLETION_ART = {
   vi: {
     nameGoldY: 522,
     courseGoldY: 661.5,
-    numberBaselineY: 934,
-    dateBaselineY: 984,
-    serial: [386, 428],
+    numberBaselineY: 928,
+    dateBaselineY: 974,
+    serial: [374, 416],
     year2: [446, 468],
-    day: [708, 761],
-    month: [805, 858],
-    dateYear2: [912, 940],
+    day: [728, 790],
+    month: [800, 858],
+    dateYear2: [882, 906],
   },
   en: {
     nameGoldY: 505,
     courseGoldY: 637.5,
-    numberBaselineY: 931,
-    dateBaselineY: 972,
-    serial: [356, 402],
-    year2: [478, 500],
-    day: [710, 754],
-    month: [780, 830],
-    dateYear2: [912, 940],
+    numberBaselineY: 926,
+    dateBaselineY: 966,
+    serial: [374, 420],
+    year2: [450, 472],
+    day: [714, 764],
+    month: [772, 826],
+    dateYear2: [882, 906],
   },
 };
 
@@ -225,13 +225,12 @@ function textTopAboveGold(doc, pageH, pngGoldY, fontSize, gap) {
 
 function stampBlank(doc, pageW, value, pngRange, y, fontSize) {
   if (!value) return;
-  const x = artX(pageW, pngRange[0]);
-  const width = artX(pageW, pngRange[1]) - x;
-  doc.fontSize(fontSize).text(String(value), x, y, {
-    width,
-    align: "center",
-    lineBreak: false,
-  });
+  const x0 = artX(pageW, pngRange[0]);
+  const x1 = artX(pageW, pngRange[1]);
+  doc.fontSize(fontSize);
+  const w = doc.widthOfString(String(value));
+  const x = x0 + Math.max(0, (x1 - x0 - w) / 2);
+  doc.text(String(value), x, y, { lineBreak: false });
 }
 
 function pdfFilenameForLang(row, lang) {
@@ -314,7 +313,7 @@ function renderOverlayCertificatePdf(doc, cert, template, fonts) {
 
   const { serial, year2 } = overlaySerialParts(cert);
   const { month, day } = issueDateParts(cert.issue_date);
-  const footerSize = 8.5;
+  const footerSize = 7.8;
   doc.fillColor(NAVY).font(fonts.serif).fontSize(footerSize);
   const numberY = textTopForBaseline(doc, H, layout.numberBaselineY, footerSize);
   const dateY = textTopForBaseline(doc, H, layout.dateBaselineY, footerSize);
