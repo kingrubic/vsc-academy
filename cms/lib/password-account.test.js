@@ -372,6 +372,8 @@ test("admin UI exposes student add, edit, and delete controls", () => {
   assert.match(ui, /confirmAction\("Xóa học viên này\?/);
   assert.match(ui, /canManageStaff\(\) \? `<a class="btn btn-primary" href="\$\{href\("\/students\/new"\)\}"/);
   assert.match(ui, /Phản hồi máy chủ không hợp lệ/);
+  assert.match(ui, /function submitButton\(form\)/);
+  assert.match(ui, /<button class="btn btn-primary" type="submit">Tạo<\/button>/);
 });
 
 test("unauthenticated staff reset path stays on dat-lai-mat-khau", () => {
