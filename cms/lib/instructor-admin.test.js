@@ -379,8 +379,12 @@ test("admin can create, edit, and delete certificate templates", async () => {
   const listed = await request(app, { path: "/api/admin/certificate-templates" });
   assert.equal(listed.status, 200);
   assert.equal(listed.json.items.some((row) => row.id === "tpl-vsc-default"), true);
+  assert.equal(listed.json.items.some((row) => row.id === "tpl-vsc-completion-vi"), true);
+  assert.equal(listed.json.items.some((row) => row.id === "tpl-vsc-completion-en"), true);
   const blockedDefault = await request(app, { method: "DELETE", path: "/api/admin/certificate-templates/tpl-vsc-default" });
   assert.equal(blockedDefault.status, 409);
+  const blockedPair = await request(app, { method: "DELETE", path: "/api/admin/certificate-templates/tpl-vsc-completion-vi" });
+  assert.equal(blockedPair.status, 409);
 
   const created = await request(app, {
     method: "POST",
@@ -424,6 +428,10 @@ test("admin UI exposes certificate template add, edit, and delete controls", () 
   assert.match(ui, /\["Tên", "Ngôn ngữ", "Trạng thái", "Phiên bản", "Thao tác"\]/);
   assert.match(ui, /data-tpl-delete/);
   assert.match(ui, /id="tpl-del"/);
+  assert.match(ui, /id="issue-template"/);
+  assert.match(ui, /templateId/);
+  assert.match(ui, /override: needsOverride/);
+  assert.match(ui, /data-eligible/);
   assert.match(ui, /confirmAction\("Xóa mẫu chứng nhận này\?"\)/);
 });
 

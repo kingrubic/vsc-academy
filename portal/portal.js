@@ -101,6 +101,10 @@
         revoked: "Revoked",
         viewCert: "VIEW CERTIFICATE →",
         downloadPdf: "DOWNLOAD PDF ↓",
+        viewPdfVi: "VIEW VIETNAMESE →",
+        viewPdfEn: "VIEW ENGLISH →",
+        downloadPdfVi: "DOWNLOAD VIETNAMESE PDF ↓",
+        downloadPdfEn: "DOWNLOAD ENGLISH PDF ↓",
         verify: "VERIFY →",
         finished: "YOU HAVE COMPLETED THE PROGRAMME",
         certReady: "YOUR CERTIFICATE IS READY",
@@ -209,6 +213,10 @@
         revoked: "Đã thu hồi",
         viewCert: "XEM CHỨNG NHẬN →",
         downloadPdf: "TẢI PDF ↓",
+        viewPdfVi: "XEM TIẾNG VIỆT →",
+        viewPdfEn: "XEM TIẾNG ANH →",
+        downloadPdfVi: "TẢI PDF TIẾNG VIỆT ↓",
+        downloadPdfEn: "TẢI PDF TIẾNG ANH ↓",
         verify: "XÁC MINH →",
         finished: "BẠN ĐÃ HOÀN THÀNH CHƯƠNG TRÌNH",
         certReady: "CHỨNG NHẬN CỦA BẠN ĐÃ SẴN SÀNG",
@@ -912,8 +920,16 @@
             <p>${statusLabel(c.status)}</p>
             ${
               c.status === "issued"
-                ? `<div>
-                    <a class="btn btn-primary" href="/api/learner/certificates/${c.id}/pdf">${t.downloadPdf}</a>
+                ? `<div class="cert-actions">
+                    ${
+                      c.hasPdfEn
+                        ? `<a class="btn" href="/api/learner/certificates/${c.id}/pdf?lang=vi" target="_blank">${t.viewPdfVi}</a>
+                    <a class="btn btn-primary" href="/api/learner/certificates/${c.id}/pdf?lang=vi&download=1">${t.downloadPdfVi}</a>
+                    <a class="btn" href="/api/learner/certificates/${c.id}/pdf?lang=en" target="_blank">${t.viewPdfEn}</a>
+                    <a class="btn btn-primary" href="/api/learner/certificates/${c.id}/pdf?lang=en&download=1">${t.downloadPdfEn}</a>`
+                        : `<a class="btn" href="/api/learner/certificates/${c.id}/pdf" target="_blank">${t.viewCert}</a>
+                    <a class="btn btn-primary" href="/api/learner/certificates/${c.id}/pdf?download=1">${t.downloadPdf}</a>`
+                    }
                     <a class="btn" href="${esc(c.verificationUrl || `/verify/${c.certificateCode}`)}" target="_blank">${t.verify}</a>
                   </div>`
                 : ""

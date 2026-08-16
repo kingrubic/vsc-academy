@@ -870,13 +870,7 @@ function attachLearnerAdmin(router, store) {
 
   router.get("/certificate-templates", async (_req, res) => {
     const snap = await store.dump(true);
-    let items = snap.certificate_templates || [];
-    if (!items.find((t) => t.id === "tpl-vsc-default")) {
-      const ts = now();
-      const row = { ...Cert.DEFAULT_TEMPLATE, created_at: ts, updated_at: ts };
-      await store.upsert("certificate_templates", row);
-      items = [row, ...items];
-    }
+    const items = await Cert.ensureOfficialTemplates(store, snap);
     res.json({ items });
   });
 
@@ -899,6 +893,8 @@ function attachLearnerAdmin(router, store) {
       signer2_title: req.body.signer2Title || "",
       program_id: req.body.programId || null,
       language: req.body.language || "vi",
+      pair_id: req.body.pairId || "",
+      background_image: req.body.backgroundImage || "",
       status: req.body.status || "published",
       version: Number(req.body.version || 1),
       created_at: ts,
@@ -928,6 +924,8 @@ function attachLearnerAdmin(router, store) {
       signer2_name: req.body.signer2Name ?? row.signer2_name,
       signer2_title: req.body.signer2Title ?? row.signer2_title,
       language: req.body.language ?? row.language,
+      pair_id: req.body.pairId ?? row.pair_id ?? "",
+      background_image: req.body.backgroundImage ?? row.background_image ?? "",
       status: req.body.status || row.status,
       version: Number(row.version || 1) + (req.body.bumpVersion ? 1 : 0),
       updated_at: now(),
@@ -941,7 +939,7 @@ function attachLearnerAdmin(router, store) {
       const snap = await store.dump(true);
       const row = (snap.certificate_templates || []).find((t) => t.id === req.params.id);
       if (!row) return res.status(404).json({ error: "Not found" });
-      if (row.id === "tpl-vsc-default") {
+      if (Cert.isOfficialTemplateId(row.id)) {
         return res.status(409).json({ error: "Không xóa được mẫu mặc định" });
       }
       const inUse = (snap.certificates || []).some((c) => c.template_id === row.id);
@@ -1034,10 +1032,12 @@ function attachLearnerAdmin(router, store) {
     const snap = await store.dump();
     const row = (snap.certificates || []).find((c) => c.id === req.params.id || c.certificate_code === req.params.id);
     if (!row || row.status !== "issued") return res.status(404).json({ error: "Not found" });
-    const abs = Cert.pdfAbsolutePath(row);
+    const lang = req.query.lang === "en" ? "en" : "vi";
+    const abs = Cert.pdfAbsolutePath(row, lang);
     if (!abs) return res.status(404).json({ error: "PDF missing" });
     res.setHeader("Content-Type", "application/pdf");
     Security.setPrivateDownloadHeaders(res);
+    res.setHeader("Content-Disposition", `inline; filename="${Cert.pdfDownloadName(row, lang)}"`);
     res.sendFile(abs);
   });
 

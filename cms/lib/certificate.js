@@ -15,15 +15,47 @@ const {
 const CERT_DIR = Security.CERTIFICATE_DIR;
 fs.mkdirSync(CERT_DIR, { recursive: true });
 
-const FONT_REG =
-  "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf";
-const FONT_BOLD = "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf";
+const ASSETS_DIR = path.join(__dirname, "..", "..", "assets");
+const COMPLETION_PAIR_ID = "vsc-completion";
+const NAVY = "#10213a";
+
+function firstExisting(paths) {
+  return paths.find((item) => item && fs.existsSync(item)) || "";
+}
+
+const FONT_REG = firstExisting([
+  "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+  "/System/Library/Fonts/Supplemental/Arial.ttf",
+  "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+]);
+const FONT_BOLD = firstExisting([
+  "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+  "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+  "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+  FONT_REG,
+]);
+const FONT_SERIF = firstExisting([
+  "/usr/share/fonts/truetype/noto/NotoSerif-Regular.ttf",
+  "/System/Library/Fonts/Supplemental/Times New Roman.ttf",
+  FONT_REG,
+]);
+const FONT_SERIF_BOLD = firstExisting([
+  "/usr/share/fonts/truetype/noto/NotoSerif-Bold.ttf",
+  "/System/Library/Fonts/Supplemental/Times New Roman Bold.ttf",
+  FONT_BOLD,
+  FONT_SERIF,
+]);
+const FONT_SCRIPT = firstExisting([
+  path.join(ASSETS_DIR, "fonts/great-vibes/GreatVibes-Regular.ttf"),
+]);
 
 const DEFAULT_TEMPLATE = {
   id: "tpl-vsc-default",
   name: "VSC Academy Standard",
   program_id: null,
   language: "vi",
+  pair_id: "",
+  background_image: "",
   title_vi: "CHỨNG NHẬN HOÀN THÀNH",
   title_en: "CERTIFICATE OF COMPLETION",
   body_vi: "VSC Academy chứng nhận rằng",
@@ -39,6 +71,40 @@ const DEFAULT_TEMPLATE = {
   version: 1,
 };
 
+const COMPLETION_TEMPLATE_VI = {
+  ...DEFAULT_TEMPLATE,
+  id: "tpl-vsc-completion-vi",
+  name: "Chứng nhận hoàn thành khóa học (VI)",
+  language: "vi",
+  pair_id: COMPLETION_PAIR_ID,
+  background_image: "certificates/vsc-completion-vi.png",
+  title_vi: "CHỨNG NHẬN HOÀN THÀNH KHÓA HỌC",
+  title_en: "CERTIFICATE OF COURSE COMPLETION",
+  body_vi: "Chứng nhận này được trân trọng trao cho",
+  body_en: "This certificate is proudly presented to",
+  footer_vi: "Với tinh thần học tập nghiêm túc và hoàn thành đầy đủ nội dung của khóa học do VSC Academy tổ chức.",
+  footer_en: "In recognition of dedicated learning, active participation, and successful completion of all course requirements organized by VSC Academy.",
+};
+
+const COMPLETION_TEMPLATE_EN = {
+  ...COMPLETION_TEMPLATE_VI,
+  id: "tpl-vsc-completion-en",
+  name: "Certificate of Course Completion (EN)",
+  language: "en",
+  background_image: "certificates/vsc-completion-en.png",
+};
+
+const OFFICIAL_TEMPLATES = [DEFAULT_TEMPLATE, COMPLETION_TEMPLATE_VI, COMPLETION_TEMPLATE_EN];
+const OFFICIAL_TEMPLATE_IDS = new Set(OFFICIAL_TEMPLATES.map((item) => item.id));
+
+function officialTemplates() {
+  return OFFICIAL_TEMPLATES.map((item) => ({ ...item }));
+}
+
+function isOfficialTemplateId(id) {
+  return OFFICIAL_TEMPLATE_IDS.has(id);
+}
+
 function programName(row, locale) {
   const content = parseJson(locale === "en" ? row?.content_en : row?.content_vi, {});
   return content.shortName || content.name || row?.id || "";
@@ -47,6 +113,158 @@ function programName(row, locale) {
 function resolveTemplate(snap, templateId) {
   const row = (snap.certificate_templates || []).find((t) => t.id === templateId && t.status !== "archived");
   return row || (snap.certificate_templates || []).find((t) => t.id === "tpl-vsc-default") || DEFAULT_TEMPLATE;
+}
+
+function sortPair(templates) {
+  return [...templates].sort((a, b) => {
+    if (a.language === b.language) return 0;
+    return a.language === "vi" ? -1 : 1;
+  });
+}
+
+function resolveIssueTemplates(snap, templateIdOrPair) {
+  const key = String(templateIdOrPair || "").trim();
+  const rows = snap.certificate_templates || [];
+  const byPair = rows.filter((t) => t.pair_id && t.pair_id === key && t.status !== "archived");
+  if (byPair.length) return sortPair(byPair);
+  const officialPair = officialTemplates().filter((t) => t.pair_id && t.pair_id === key);
+  if (officialPair.length) return sortPair(officialPair);
+  const officialOne = officialTemplates().find((t) => t.id === key);
+  if (officialOne?.pair_id) {
+    const siblings = rows.filter((t) => t.pair_id === officialOne.pair_id && t.status !== "archived");
+    if (siblings.length) return sortPair(siblings);
+    return sortPair(officialTemplates().filter((t) => t.pair_id === officialOne.pair_id));
+  }
+  const one = officialOne || resolveTemplate(snap, key || "tpl-vsc-default");
+  if (one.pair_id) {
+    const siblings = rows.filter((t) => t.pair_id === one.pair_id && t.status !== "archived");
+    if (siblings.length) return sortPair(siblings);
+    const fallback = officialTemplates().filter((t) => t.pair_id === one.pair_id);
+    if (fallback.length) return sortPair(fallback);
+  }
+  return [one];
+}
+
+function resolveBackgroundPath(template) {
+  const rel = String(template?.background_image || "").replace(/^\/+/, "");
+  if (!rel || rel.includes("..") || path.isAbsolute(rel)) return null;
+  const root = path.resolve(ASSETS_DIR);
+  const abs = path.resolve(ASSETS_DIR, rel);
+  if (abs !== root && !abs.startsWith(root + path.sep)) return null;
+  return fs.existsSync(abs) ? abs : null;
+}
+
+function displayCertificateNo(cert) {
+  const year = String(cert.issue_date || "").slice(0, 4) || String(new Date().getFullYear());
+  const parts = String(cert.certificate_code || "").split("-");
+  const tail = (parts[parts.length - 1] || "0000").replace(/[^A-Z0-9]/gi, "").slice(0, 4).padEnd(4, "0");
+  return `VSCA-${tail}/${year}`;
+}
+
+function overlaySerialParts(cert) {
+  const year = String(cert.issue_date || "").slice(0, 4) || String(new Date().getFullYear());
+  const no = displayCertificateNo(cert);
+  const serial = no.split("/")[0].replace(/^VSCA-/i, "");
+  return { serial, year2: year.slice(-2) };
+}
+
+function issueDateParts(iso) {
+  const [year, month, day] = String(iso || "").slice(0, 10).split("-");
+  return { year: year || "", month: month || "", day: day || "" };
+}
+
+function overlayNumberText(cert, locale) {
+  const no = displayCertificateNo(cert);
+  return locale === "en" ? `Certificate No.: ${no}` : `Số chứng nhận: ${no}`;
+}
+
+function overlayDateText(iso, locale) {
+  const { year, month, day } = issueDateParts(iso);
+  if (!year) return "";
+  return locale === "en"
+    ? `Ho Chi Minh City, date ${day} month ${month} year ${year}`
+    : `TP. Hồ Chí Minh, ngày ${day} tháng ${month} năm ${year}`;
+}
+
+/** Pixel layout of assets/certificates/vsc-completion-{vi,en}.png (1491×1055). */
+const COMPLETION_ART = {
+  pngW: 1491,
+  pngH: 1055,
+  nameGoldGap: 8.9,
+  nameScriptGap: 6,
+  vi: {
+    nameGoldY: 517.5,
+    courseGoldY: 657.5,
+    numberX: 188,
+    numberBaselineY: 912,
+    dateX: 562,
+    dateBaselineY: 978,
+  },
+  en: {
+    nameGoldY: 503,
+    courseGoldY: 635.5,
+    numberX: 178,
+    numberBaselineY: 913,
+    dateX: 540,
+    dateBaselineY: 971,
+  },
+};
+
+function artX(W, pngX) {
+  return (pngX / COMPLETION_ART.pngW) * W;
+}
+
+function artY(H, pngY) {
+  return (pngY / COMPLETION_ART.pngH) * H;
+}
+
+function textTopForBaseline(doc, pageH, pngBaselineY, fontSize) {
+  const baseline = artY(pageH, pngBaselineY);
+  const ascent = ((doc._font && doc._font.ascender) || 891) / 1000 * fontSize;
+  return baseline - ascent;
+}
+
+function textTopAboveGold(doc, pageH, pngGoldY, fontSize, gap) {
+  const gold = artY(pageH, pngGoldY);
+  const ascent = ((doc._font && doc._font.ascender) || 891) / 1000 * fontSize;
+  return gold - (gap ?? COMPLETION_ART.nameGoldGap) - ascent;
+}
+
+function pdfFilenameForLang(row, lang) {
+  if (lang === "en") return row?.pdf_url_en || row?.pdf_url || "";
+  return row?.pdf_url_vi || row?.pdf_url || "";
+}
+
+function registerFonts(doc) {
+  const hasSans = FONT_REG && FONT_BOLD;
+  if (hasSans) {
+    doc.registerFont("VSC", FONT_REG);
+    doc.registerFont("VSC-Bold", FONT_BOLD);
+  }
+  if (FONT_SERIF) doc.registerFont("VSC-Serif", FONT_SERIF);
+  if (FONT_SERIF_BOLD) doc.registerFont("VSC-Serif-Bold", FONT_SERIF_BOLD);
+  if (FONT_SCRIPT) doc.registerFont("VSC-Script", FONT_SCRIPT);
+  return {
+    regular: hasSans ? "VSC" : "Helvetica",
+    bold: hasSans ? "VSC-Bold" : "Helvetica-Bold",
+    serif: FONT_SERIF ? "VSC-Serif" : hasSans ? "VSC" : "Times-Roman",
+    serifBold: FONT_SERIF_BOLD ? "VSC-Serif-Bold" : hasSans ? "VSC-Bold" : "Times-Bold",
+    script: FONT_SCRIPT ? "VSC-Script" : FONT_SERIF_BOLD ? "VSC-Serif-Bold" : hasSans ? "VSC-Bold" : "Times-Bold",
+  };
+}
+
+async function ensureOfficialTemplates(store, snap) {
+  const ts = now();
+  const existing = new Map((snap.certificate_templates || []).map((row) => [row.id, row]));
+  const items = [...(snap.certificate_templates || [])];
+  for (const template of officialTemplates()) {
+    if (existing.has(template.id)) continue;
+    const row = { ...template, created_at: ts, updated_at: ts };
+    await store.upsert("certificate_templates", row);
+    items.push(row);
+    existing.set(row.id, row);
+  }
+  return items;
 }
 
 function fitNameSize(doc, name, maxWidth, start = 36, min = 18) {
@@ -59,18 +277,64 @@ function fitNameSize(doc, name, maxWidth, start = 36, min = 18) {
   return size;
 }
 
-async function renderCertificatePdf(cert, template) {
-  const qrPng = await QRCode.toBuffer(cert.verification_url, {
-    margin: 1,
-    width: 320,
-    color: { dark: "#10213a", light: "#ffffff" },
+function renderOverlayCertificatePdf(doc, cert, template, fonts) {
+  const locale = template.language === "en" ? "en" : "vi";
+  const layout = COMPLETION_ART[locale];
+  const background = resolveBackgroundPath(template);
+  const W = doc.page.width;
+  const H = doc.page.height;
+  if (background) {
+    doc.image(background, 0, 0, { width: W, height: H });
+  } else {
+    doc.rect(0, 0, W, H).fill("#ffffff");
+  }
+
+  const programNameText =
+    locale === "en" ? cert.program_name_en_snapshot || cert.program_name_vi_snapshot : cert.program_name_vi_snapshot;
+  const name = String(cert.student_name_snapshot || "").trim();
+  const nameSize = fitNameSize(doc.font(fonts.script), name, W * 0.62, 42, 22);
+  doc.fillColor(NAVY).font(fonts.script).fontSize(nameSize).text(
+    name,
+    W * 0.19,
+    textTopAboveGold(doc, H, layout.nameGoldY, nameSize, COMPLETION_ART.nameScriptGap),
+    { width: W * 0.62, align: "center", lineBreak: false },
+  );
+
+  const courseSize = fitNameSize(doc.font(fonts.serifBold), programNameText, W * 0.62, 16, 11);
+  doc.fillColor(NAVY).font(fonts.serifBold).fontSize(courseSize).text(
+    programNameText,
+    W * 0.19,
+    textTopAboveGold(doc, H, layout.courseGoldY, courseSize),
+    { width: W * 0.62, align: "center", lineBreak: false },
+  );
+
+  const footerSize = 10;
+  const numberText = overlayNumberText(cert, locale);
+  const dateText = overlayDateText(cert.issue_date, locale);
+  doc.fillColor(NAVY).font(fonts.serif).fontSize(footerSize);
+  doc.text(numberText, artX(W, layout.numberX), textTopForBaseline(doc, H, layout.numberBaselineY, footerSize), {
+    lineBreak: false,
   });
+  doc.text(dateText, artX(W, layout.dateX), textTopForBaseline(doc, H, layout.dateBaselineY, footerSize), {
+    lineBreak: false,
+  });
+}
+
+async function renderCertificatePdf(cert, template) {
   const locale = template.language === "en" ? "en" : "vi";
   const title = locale === "en" ? template.title_en || template.title_vi : template.title_vi;
   const body = locale === "en" ? template.body_en || template.body_vi : template.body_vi;
   const footer = locale === "en" ? template.footer_en || template.footer_vi : template.footer_vi;
   const programNameText =
     locale === "en" ? cert.program_name_en_snapshot || cert.program_name_vi_snapshot : cert.program_name_vi_snapshot;
+  const overlay = Boolean(resolveBackgroundPath(template) || template.background_image);
+  const qrPng = overlay
+    ? null
+    : await QRCode.toBuffer(cert.verification_url, {
+        margin: 1,
+        width: 320,
+        color: { dark: "#10213a", light: "#ffffff" },
+      });
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: 0 });
@@ -81,13 +345,15 @@ async function renderCertificatePdf(cert, template) {
 
     const W = doc.page.width;
     const H = doc.page.height;
-    const hasFonts = fs.existsSync(FONT_REG) && fs.existsSync(FONT_BOLD);
-    if (hasFonts) {
-      doc.registerFont("VSC", FONT_REG);
-      doc.registerFont("VSC-Bold", FONT_BOLD);
+    const fonts = registerFonts(doc);
+    const regular = fonts.regular;
+    const bold = fonts.bold;
+
+    if (overlay) {
+      renderOverlayCertificatePdf(doc, cert, template, fonts);
+      doc.end();
+      return;
     }
-    const regular = hasFonts ? "VSC" : "Helvetica";
-    const bold = hasFonts ? "VSC-Bold" : "Helvetica-Bold";
 
     doc.rect(0, 0, W, H).fill("#0b1324");
     doc.save();
@@ -229,6 +495,45 @@ async function writeAudit(store, action, actor, target, detail) {
   });
 }
 
+async function writeCertificatePdfs(cert, templates) {
+  const written = [];
+  const files = { pdf_url: "", pdf_url_vi: "", pdf_url_en: "" };
+  try {
+    const pair = templates.length > 1;
+    for (const template of templates) {
+      const locale = template.language === "en" ? "en" : "vi";
+      const filename = pair ? `${cert.id}-${locale}.pdf` : `${cert.id}.pdf`;
+      const pdfPath = path.join(CERT_DIR, filename);
+      const pdf = await renderCertificatePdf(cert, template);
+      fs.writeFileSync(pdfPath, pdf, { flag: "wx", mode: 0o600 });
+      written.push(pdfPath);
+      if (locale === "en") files.pdf_url_en = filename;
+      else files.pdf_url_vi = filename;
+      if (!files.pdf_url) files.pdf_url = filename;
+    }
+    if (!files.pdf_url) files.pdf_url = files.pdf_url_vi || files.pdf_url_en;
+    return files;
+  } catch (err) {
+    written.forEach((item) => Security.removeFile(item));
+    throw err;
+  }
+}
+
+function removeCertificatePdfs(files) {
+  ["pdf_url", "pdf_url_vi", "pdf_url_en"].forEach((key) => {
+    if (files?.[key]) Security.removeFile(path.join(CERT_DIR, files[key]));
+  });
+}
+
+function selectedTemplateKey(req, program, fallback) {
+  return (
+    req?.body?.templateId ||
+    program?.certificate_template_id ||
+    fallback ||
+    COMPLETION_PAIR_ID
+  );
+}
+
 async function issueCertificate(store, snap, enrollmentId, actor, req) {
   const enrollment = (snap.enrollments || []).find((e) => e.id === enrollmentId);
   if (!enrollment) throw Object.assign(new Error("Enrollment not found"), { status: 404 });
@@ -243,13 +548,15 @@ async function issueCertificate(store, snap, enrollmentId, actor, req) {
   if (!student || !program) throw Object.assign(new Error("Student or program missing"), { status: 400 });
 
   const check = evaluateEligibility(snap, enrollment, program);
-  if (!check.eligible) {
+  const override = Boolean(req?.body?.override);
+  if (!check.eligible && !override) {
     const err = Object.assign(new Error("Student is not eligible"), { status: 400 });
     err.reasons = check.reasons;
     throw err;
   }
 
-  const template = resolveTemplate(snap, program.certificate_template_id || "tpl-vsc-default");
+  const templates = resolveIssueTemplates(snap, selectedTemplateKey(req, program));
+  const template = templates[0];
   const existingCodes = new Set((snap.certificates || []).map((c) => c.certificate_code));
   const code = generateCertificateCode(program, existingCodes);
   const base = publicSiteUrl(req, snap.settings);
@@ -264,6 +571,7 @@ async function issueCertificate(store, snap, enrollmentId, actor, req) {
     program_id: program.id,
     session_id: session?.id || enrollment.session_id,
     template_id: template.id,
+    template_pair_id: template.pair_id || "",
     template_version: template.version || 1,
     student_name_snapshot: student.full_name,
     program_name_vi_snapshot: programName(program, "vi"),
@@ -275,6 +583,8 @@ async function issueCertificate(store, snap, enrollmentId, actor, req) {
     issued_by: actor?.id || null,
     issued_at: ts,
     pdf_url: "",
+    pdf_url_vi: "",
+    pdf_url_en: "",
     verification_url: verificationUrl,
     qr_code_data: verificationUrl,
     revoked_at: null,
@@ -289,18 +599,14 @@ async function issueCertificate(store, snap, enrollmentId, actor, req) {
 
   const claim = await store.claimCertificate(cert);
   if (!claim.claimed) throw Object.assign(new Error("Certificate already issued or issuance is in progress"), { status: 409 });
-  const filename = `${cert.id}.pdf`;
-  const pdfPath = path.join(CERT_DIR, filename);
+  let files = null;
   try {
-    const pdf = await renderCertificatePdf(cert, template);
-    fs.writeFileSync(pdfPath, pdf, { flag: "wx", mode: 0o600 });
+    files = await writeCertificatePdfs(cert, templates);
   } catch (err) {
-    Security.removeFile(pdfPath);
     await store.remove("certificates", cert.id).catch(() => {});
     throw err;
   }
-  cert.pdf_url = filename;
-  cert.status = "issued";
+  Object.assign(cert, files, { status: "issued" });
   try {
     await store.finalizeCertificate(cert, {
       ...enrollment,
@@ -312,11 +618,15 @@ async function issueCertificate(store, snap, enrollmentId, actor, req) {
       updated_by: actor?.id || null,
     });
   } catch (err) {
-    Security.removeFile(pdfPath);
+    removeCertificatePdfs(files);
     await store.remove("certificates", cert.id).catch(() => {});
     throw err;
   }
-  await writeAudit(store, "certificate.issue", actor, { type: "certificate", id: cert.id }, { code });
+  await writeAudit(store, "certificate.issue", actor, { type: "certificate", id: cert.id }, {
+    code,
+    override,
+    reasons: check.reasons,
+  });
   return cert;
 }
 
@@ -359,7 +669,11 @@ async function reissueCertificate(store, snap, certificateId, actor, req) {
   const program = aliveById(snap.programs, enrollment.program_id);
   const session = aliveById(snap.sessions, enrollment.session_id);
   if (!student || !program || !session) throw Object.assign(new Error("Student, program, or session missing"), { status: 400 });
-  const template = resolveTemplate(snap, program?.certificate_template_id || old.template_id);
+  const templates = resolveIssueTemplates(
+    snap,
+    selectedTemplateKey(req, program, old.template_pair_id || old.template_id),
+  );
+  const template = templates[0];
   const existingCodes = new Set((snap.certificates || []).map((c) => c.certificate_code));
   existingCodes.add(old.certificate_code);
   const code = generateCertificateCode(program, existingCodes);
@@ -373,6 +687,7 @@ async function reissueCertificate(store, snap, certificateId, actor, req) {
     program_id: program.id,
     session_id: session?.id || enrollment.session_id,
     template_id: template.id,
+    template_pair_id: template.pair_id || "",
     template_version: template.version || 1,
     student_name_snapshot: student.full_name,
     program_name_vi_snapshot: programName(program, "vi"),
@@ -384,6 +699,8 @@ async function reissueCertificate(store, snap, certificateId, actor, req) {
     issued_by: actor?.id || null,
     issued_at: ts,
     pdf_url: "",
+    pdf_url_vi: "",
+    pdf_url_en: "",
     verification_url: verificationUrl,
     qr_code_data: verificationUrl,
     revoked_at: null,
@@ -397,18 +714,14 @@ async function reissueCertificate(store, snap, certificateId, actor, req) {
   };
   const claim = await store.claimCertificate(cert, old.id);
   if (!claim.claimed) throw Object.assign(new Error("Certificate reissue conflict"), { status: 409 });
-  const filename = `${cert.id}.pdf`;
-  const pdfPath = path.join(CERT_DIR, filename);
+  let files = null;
   try {
-    const pdf = await renderCertificatePdf(cert, template);
-    fs.writeFileSync(pdfPath, pdf, { flag: "wx", mode: 0o600 });
+    files = await writeCertificatePdfs(cert, templates);
   } catch (err) {
-    Security.removeFile(pdfPath);
     await store.remove("certificates", cert.id).catch(() => {});
     throw err;
   }
-  cert.pdf_url = filename;
-  cert.status = "issued";
+  Object.assign(cert, files, { status: "issued" });
   try {
     await store.finalizeCertificate(cert, {
       ...enrollment,
@@ -417,7 +730,7 @@ async function reissueCertificate(store, snap, certificateId, actor, req) {
       updated_by: actor?.id || null,
     }, old.id);
   } catch (err) {
-    Security.removeFile(pdfPath);
+    removeCertificatePdfs(files);
     await store.remove("certificates", cert.id).catch(() => {});
     throw err;
   }
@@ -433,20 +746,39 @@ function findByCode(snap, code) {
   return (snap.certificates || []).find((c) => String(c.certificate_code).toUpperCase() === needle) || null;
 }
 
-function pdfAbsolutePath(row) {
-  if (!row?.pdf_url) return null;
+function pdfAbsolutePath(row, lang) {
+  const filename = pdfFilenameForLang(row, lang === "en" ? "en" : "vi");
+  if (!filename) return null;
   const root = path.resolve(CERT_DIR);
-  const abs = Security.privateFilePath(CERT_DIR, row.pdf_url, "uploads/certificates");
+  const abs = Security.privateFilePath(CERT_DIR, filename, "uploads/certificates");
   if (!abs) return null;
   if (abs !== root && !abs.startsWith(root + path.sep)) return null;
   return fs.existsSync(abs) ? abs : null;
 }
 
+function pdfDownloadName(row, lang) {
+  const code = String(row?.certificate_code || "certificate").replace(/[^\w.-]+/g, "-");
+  const suffix = row?.pdf_url_en && row?.pdf_url_vi ? `-${lang === "en" ? "en" : "vi"}` : "";
+  return `${code}${suffix}.pdf`;
+}
+
 module.exports = {
   CERT_DIR,
   DEFAULT_TEMPLATE,
+  COMPLETION_TEMPLATE_VI,
+  COMPLETION_TEMPLATE_EN,
+  COMPLETION_PAIR_ID,
+  officialTemplates,
+  isOfficialTemplateId,
+  ensureOfficialTemplates,
   programName,
   resolveTemplate,
+  resolveIssueTemplates,
+  displayCertificateNo,
+  overlaySerialParts,
+  overlayNumberText,
+  overlayDateText,
+  pdfFilenameForLang,
   renderCertificatePdf,
   publicCertificate,
   issueCertificate,
@@ -454,6 +786,7 @@ module.exports = {
   reissueCertificate,
   findByCode,
   pdfAbsolutePath,
+  pdfDownloadName,
   writeAudit,
   programCode,
 };
