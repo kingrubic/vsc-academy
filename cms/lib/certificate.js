@@ -191,12 +191,31 @@ function overlayNumberText(cert, locale) {
   return locale === "en" ? `Certificate No.: ${no}` : `Số chứng nhận: ${no}`;
 }
 
+const EN_MONTHS = [
+  "",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
 function overlayDateText(iso, locale) {
   const { year, month, day } = issueDateParts(iso);
   if (!year) return "";
-  return locale === "en"
-    ? `Ho Chi Minh City, date ${day} month ${month} year ${year}`
-    : `TP. Hồ Chí Minh, ngày ${day} tháng ${month} năm ${year}`;
+  if (locale === "en") {
+    const monthName = EN_MONTHS[Number(month)] || month;
+    const dayNum = Number(day) ? String(Number(day)) : day;
+    return `Ho Chi Minh City, ${dayNum} ${monthName} ${year}`;
+  }
+  return `TP. Hồ Chí Minh, ngày ${day} tháng ${month} năm ${year}`;
 }
 
 /** Pixel layout of assets/certificates/vsc-completion-{vi,en}.png (1491×1055). */
