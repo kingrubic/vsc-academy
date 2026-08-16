@@ -173,6 +173,19 @@ function issueDateParts(iso) {
   return { year: year || "", month: month || "", day: day || "" };
 }
 
+function overlayNumberText(cert, locale) {
+  const no = displayCertificateNo(cert);
+  return locale === "en" ? `Certificate No.: ${no}` : `Số chứng nhận: ${no}`;
+}
+
+function overlayDateText(iso, locale) {
+  const { year, month, day } = issueDateParts(iso);
+  if (!year) return "";
+  return locale === "en"
+    ? `Ho Chi Minh City, date ${day} month ${month} year ${year}`
+    : `TP. Hồ Chí Minh, ngày ${day} tháng ${month} năm ${year}`;
+}
+
 /** Pixel layout of assets/certificates/vsc-completion-{vi,en}.png (1491×1055). */
 const COMPLETION_ART = {
   pngW: 1491,
@@ -180,26 +193,20 @@ const COMPLETION_ART = {
   nameGoldGap: 8.9,
   nameScriptGap: 6,
   vi: {
-    nameGoldY: 522,
-    courseGoldY: 661.5,
-    numberBaselineY: 928,
-    dateBaselineY: 974,
-    serial: [374, 416],
-    year2: [446, 468],
-    day: [728, 790],
-    month: [800, 858],
-    dateYear2: [882, 906],
+    nameGoldY: 517.5,
+    courseGoldY: 657.5,
+    numberX: 188,
+    numberBaselineY: 912,
+    dateX: 562,
+    dateBaselineY: 968,
   },
   en: {
-    nameGoldY: 505,
-    courseGoldY: 637.5,
-    numberBaselineY: 926,
-    dateBaselineY: 966,
-    serial: [374, 420],
-    year2: [450, 472],
-    day: [714, 764],
-    month: [772, 826],
-    dateYear2: [882, 906],
+    nameGoldY: 503,
+    courseGoldY: 635.5,
+    numberX: 178,
+    numberBaselineY: 913,
+    dateX: 540,
+    dateBaselineY: 961,
   },
 };
 
@@ -221,16 +228,6 @@ function textTopAboveGold(doc, pageH, pngGoldY, fontSize, gap) {
   const gold = artY(pageH, pngGoldY);
   const ascent = ((doc._font && doc._font.ascender) || 891) / 1000 * fontSize;
   return gold - (gap ?? COMPLETION_ART.nameGoldGap) - ascent;
-}
-
-function stampBlank(doc, pageW, value, pngRange, y, fontSize) {
-  if (!value) return;
-  const x0 = artX(pageW, pngRange[0]);
-  const x1 = artX(pageW, pngRange[1]);
-  doc.fontSize(fontSize);
-  const w = doc.widthOfString(String(value));
-  const x = x0 + Math.max(0, (x1 - x0 - w) / 2);
-  doc.text(String(value), x, y, { lineBreak: false });
 }
 
 function pdfFilenameForLang(row, lang) {
@@ -311,17 +308,16 @@ function renderOverlayCertificatePdf(doc, cert, template, fonts) {
     { width: W * 0.62, align: "center", lineBreak: false },
   );
 
-  const { serial, year2 } = overlaySerialParts(cert);
-  const { month, day } = issueDateParts(cert.issue_date);
-  const footerSize = 7.8;
+  const footerSize = 8;
+  const numberText = overlayNumberText(cert, locale);
+  const dateText = overlayDateText(cert.issue_date, locale);
   doc.fillColor(NAVY).font(fonts.serif).fontSize(footerSize);
-  const numberY = textTopForBaseline(doc, H, layout.numberBaselineY, footerSize);
-  const dateY = textTopForBaseline(doc, H, layout.dateBaselineY, footerSize);
-  stampBlank(doc, W, serial, layout.serial, numberY, footerSize);
-  stampBlank(doc, W, year2, layout.year2, numberY, footerSize);
-  stampBlank(doc, W, day, layout.day, dateY, footerSize);
-  stampBlank(doc, W, month, layout.month, dateY, footerSize);
-  stampBlank(doc, W, year2, layout.dateYear2, dateY, footerSize);
+  doc.text(numberText, artX(W, layout.numberX), textTopForBaseline(doc, H, layout.numberBaselineY, footerSize), {
+    lineBreak: false,
+  });
+  doc.text(dateText, artX(W, layout.dateX), textTopForBaseline(doc, H, layout.dateBaselineY, footerSize), {
+    lineBreak: false,
+  });
 }
 
 async function renderCertificatePdf(cert, template) {
@@ -780,6 +776,8 @@ module.exports = {
   resolveIssueTemplates,
   displayCertificateNo,
   overlaySerialParts,
+  overlayNumberText,
+  overlayDateText,
   pdfFilenameForLang,
   renderCertificatePdf,
   publicCertificate,
