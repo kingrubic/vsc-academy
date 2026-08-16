@@ -15,6 +15,7 @@ const {
   overlayDateText,
   pdfFilenameForLang,
   resolveIssueTemplates,
+  selectedTemplateKey,
 } = require("./certificate");
 
 const sample = {
@@ -65,6 +66,20 @@ test("display number and pair resolution follow the completion templates", () =>
   assert.equal(pair.length, 2);
   assert.equal(pair[0].language, "vi");
   assert.equal(pair[1].language, "en");
+});
+
+test("reissue keeps completion art instead of the program default template", () => {
+  const program = { certificate_template_id: "tpl-vsc-default" };
+  assert.equal(selectedTemplateKey({ body: {} }, program, "vsc-completion"), "vsc-completion");
+  assert.equal(selectedTemplateKey({ body: {} }, program, "tpl-vsc-completion-vi"), "tpl-vsc-completion-vi");
+  assert.equal(selectedTemplateKey({ body: {} }, program, "tpl-vsc-default"), "vsc-completion");
+  assert.equal(selectedTemplateKey({ body: {} }, program), "vsc-completion");
+  assert.equal(
+    selectedTemplateKey({ body: { templateId: "tpl-vsc-default" } }, program, "vsc-completion"),
+    "tpl-vsc-default",
+  );
+  const custom = { certificate_template_id: "tpl-custom" };
+  assert.equal(selectedTemplateKey({ body: {} }, custom), "tpl-custom");
 });
 
 test("learner portal exposes bilingual certificate view and download", () => {

@@ -539,13 +539,19 @@ function removeCertificatePdfs(files) {
   });
 }
 
+function isBlankTemplateKey(key) {
+  const value = String(key || "").trim();
+  return !value || value === "tpl-vsc-default";
+}
+
 function selectedTemplateKey(req, program, fallback) {
-  return (
-    req?.body?.templateId ||
-    program?.certificate_template_id ||
-    fallback ||
-    COMPLETION_PAIR_ID
-  );
+  const requested = String(req?.body?.templateId || "").trim();
+  if (requested) return requested;
+  const previous = String(fallback || "").trim();
+  if (!isBlankTemplateKey(previous)) return previous;
+  const programKey = String(program?.certificate_template_id || "").trim();
+  if (!isBlankTemplateKey(programKey)) return programKey;
+  return COMPLETION_PAIR_ID;
 }
 
 async function issueCertificate(store, snap, enrollmentId, actor, req) {
@@ -788,6 +794,7 @@ module.exports = {
   programName,
   resolveTemplate,
   resolveIssueTemplates,
+  selectedTemplateKey,
   displayCertificateNo,
   displayStudentName,
   stripVietnameseDiacritics,
