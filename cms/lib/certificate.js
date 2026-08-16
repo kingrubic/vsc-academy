@@ -497,7 +497,8 @@ async function issueCertificate(store, snap, enrollmentId, actor, req) {
   if (!student || !program) throw Object.assign(new Error("Student or program missing"), { status: 400 });
 
   const check = evaluateEligibility(snap, enrollment, program);
-  if (!check.eligible) {
+  const override = Boolean(req?.body?.override);
+  if (!check.eligible && !override) {
     const err = Object.assign(new Error("Student is not eligible"), { status: 400 });
     err.reasons = check.reasons;
     throw err;
@@ -570,7 +571,11 @@ async function issueCertificate(store, snap, enrollmentId, actor, req) {
     await store.remove("certificates", cert.id).catch(() => {});
     throw err;
   }
-  await writeAudit(store, "certificate.issue", actor, { type: "certificate", id: cert.id }, { code });
+  await writeAudit(store, "certificate.issue", actor, { type: "certificate", id: cert.id }, {
+    code,
+    override,
+    reasons: check.reasons,
+  });
   return cert;
 }
 

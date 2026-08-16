@@ -36,7 +36,7 @@
   const TYPE_LABEL = { course: "Khóa học", workshop: "Hội thảo" };
   const FACULTY_ROLE = { lead: "Phụ trách", instructor: "Giảng viên", guest: "Khách mời" };
   const STUDENT_LABEL = { invited: "Đã mời", active: "Đang học", inactive: "Ngưng", suspended: "Tạm khóa" };
-  const ENROLL_LABEL = { active: "Đang học", completed: "Đã hoàn thành", paused: "Tạm dừng", cancelled: "Đã hủy" };
+  const ENROLL_LABEL = { active: "Đang học", completed: "Đã hoàn thành", in_progress: "Đang học", paused: "Tạm dừng", cancelled: "Đã hủy" };
   const PAY_LABEL = { unpaid: "Chưa thanh toán", pending: "Chờ thanh toán", paid: "Đã thanh toán", refunded: "Đã hoàn tiền" };
   const ATT_LABEL = { not_recorded: "Chưa ghi", present: "Có mặt", absent: "Vắng", excused: "Có phép" };
   const CERT_LABEL = {
@@ -46,6 +46,13 @@
     revoked: "Đã thu hồi",
     reissued: "Đã cấp lại",
     pending: "Chờ duyệt",
+  };
+  const ELIGIBILITY_REASON = {
+    completion: "chưa hoàn thành",
+    attendance: "thiếu điểm danh",
+    payment: "chưa thanh toán",
+    cancelled: "đã hủy",
+    disabled: "khóa chưa bật chứng nhận",
   };
   const PRIORITY_LABEL = { normal: "Thường", important: "Quan trọng", urgent: "Khẩn" };
   const TARGET_LABEL = { all: "Tất cả", program: "Khóa học", session: "Lớp học", student: "Học viên", meeting: "Buổi học" };
@@ -1061,16 +1068,19 @@
           pane.innerHTML = `<p>${lms.summary.eligible} đủ điều kiện · ${lms.summary.missingAttendance} thiếu điểm danh · ${lms.summary.incomplete} chưa hoàn thành</p>
             ${table(
               ["Học viên", "Điểm danh", "Hoàn thành", "Thanh toán", "Chứng nhận", ""],
-              lms.enrollments.map(
-                (e) => `<tr>
+              lms.enrollments.map((e) => {
+                const issued = e.certificate.status === "issued";
+                const blocked = issued || e.status === "cancelled";
+                const reasons = (e.eligibility.reasons || []).map((reason) => ELIGIBILITY_REASON[reason] || reason);
+                return `<tr>
                   <td>${esc(e.student_name)}</td>
                   <td>${e.attendance.percent}%</td>
-                  <td>${esc(e.completion_status || e.status)}</td>
-                  <td>${esc(e.payment_status)}</td>
+                  <td>${esc(statusText(e.completion_status || e.status))}</td>
+                  <td>${badge(e.payment_status)}</td>
                   <td>${badge(e.certificate.status)}</td>
-                  <td><label><input type="checkbox" data-bulk="${e.id}" ${e.eligibility.eligible && e.certificate.status !== "issued" ? "" : "disabled"} /> Cấp</label></td>
-                </tr>`,
-              ),
+                  <td><label><input type="checkbox" data-bulk="${e.id}" data-eligible="${e.eligibility.eligible ? "1" : "0"}" ${blocked ? "disabled" : ""} /> Cấp</label>${!e.eligibility.eligible && !issued ? `<small style="display:block;color:#6b7c94">${esc(reasons.join(", ") || "chưa đủ điều kiện")}</small>` : ""}</td>
+                </tr>`;
+              }),
             )}
             <div class="toolbar" style="margin-top:12px;align-items:end">
               <div class="field" style="margin:0">
@@ -1080,10 +1090,16 @@
               <button class="btn btn-primary" id="issue-selected" type="button">Cấp chứng nhận đã chọn</button>
             </div>`;
           $("#issue-selected").onclick = async () => {
-            const ids = [...pane.querySelectorAll("[data-bulk]:checked")].map((x) => x.dataset.bulk);
+            const selected = [...pane.querySelectorAll("[data-bulk]:checked")];
+            const ids = selected.map((x) => x.dataset.bulk);
             if (!ids.length) return toast("Chưa chọn học viên", true);
+            const needsOverride = selected.some((x) => x.dataset.eligible !== "1");
+            if (needsOverride && !confirmAction("Có học viên chưa đủ điều kiện (ví dụ chưa hoàn thành). Vẫn cấp chứng nhận?")) return;
             const templateId = $("#issue-template")?.value || selectedTemplate;
-            const r = await api("/certificates/issue-bulk", { method: "POST", body: { enrollmentIds: ids, templateId } });
+            const r = await api("/certificates/issue-bulk", {
+              method: "POST",
+              body: { enrollmentIds: ids, templateId, override: needsOverride },
+            });
             toast(`Đã cấp ${r.issued.length}, lỗi ${r.failed.length}`);
             render();
           };
