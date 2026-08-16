@@ -54,6 +54,22 @@ function json(value, fallback) {
   return JSON.stringify(value == null ? fallback : value);
 }
 
+function registrationCounts(status) {
+  return !["waitlist", "cancelled"].includes(status);
+}
+
+function nextRegistrationId(snap) {
+  const year = new Date().getFullYear();
+  const prefix = `VSC-${year}-`;
+  const sequence = (snap.registrations || []).reduce((max, row) => {
+    const id = String(row.id || "");
+    if (!id.startsWith(prefix)) return max;
+    const value = Number(id.slice(prefix.length));
+    return Number.isInteger(value) ? Math.max(max, value) : max;
+  }, 0) + 1;
+  return `${prefix}${String(sequence).padStart(6, "0")}`;
+}
+
 function createAdminRouter(store) {
   const router = express.Router();
 
@@ -799,43 +815,104 @@ function createAdminRouter(store) {
     });
   });
 
-  router.put("/registrations/:id", requireRole("OWNER", "ADMIN"), async (req, res) => {
+  async function adjustRegistrationCount(snap, sessionId, delta, ts) {
+    if (!sessionId || !delta) return;
+    const session = aliveById(snap.sessions, sessionId);
+    if (!session) return;
+    await store.upsert("sessions", {
+      ...session,
+      registered_count: Math.max(0, Number(session.registered_count || 0) + delta),
+      updated_at: ts,
+    });
+  }
+
+  async function saveRegistration(req, res) {
+    try {
+      const isNew = req.method === "POST";
+      const body = req.body || {};
+      const snap = await store.dump(true);
+      const row = isNew ? null : aliveById(snap.registrations, req.params.id);
+      if (!isNew && !row) return res.status(404).json({ error: "Not found" });
+      const value = (key, column, fallback = "") => body[key] !== undefined ? body[key] : row?.[column] ?? fallback;
+      const fullName = String(value("fullName", "full_name")).trim();
+      const phone = String(value("phone", "phone")).trim();
+      const email = String(value("email", "email")).trim().toLowerCase();
+      const sessionId = String(value("sessionId", "session_id")).trim();
+      const status = String(value("status", "status", "new")).trim();
+      const amount = body.amount !== undefined || isNew ? V.nonNegInt(value("amount", "amount", 0), "amount") : row.amount;
+      if (isNew) V.required({ fullName, phone, email, sessionId, status, amount }, ["fullName", "phone", "email", "sessionId", "status", "amount"]);
+      if (isNew || body.fullName !== undefined) V.required({ fullName }, ["fullName"]);
+      if (isNew || body.phone !== undefined) { V.required({ phone }, ["phone"]); V.phone(phone); }
+      if (isNew || body.email !== undefined) { V.required({ email }, ["email"]); V.email(email); }
+      if (isNew || body.status !== undefined) V.oneOf(status, V.REG_STATUS, "status");
+      const session = sessionId ? aliveById(snap.sessions, sessionId) : null;
+      if ((isNew || body.sessionId !== undefined) && !session) throw V.fail("Session not found");
+      const notes = parseJson(row?.notes, []);
+      if (body.note) notes.push({ at: now(), by: req.session.user.email, text: body.note, status });
+      const ts = now();
+      const updated = {
+        ...(row || {}),
+        id: row?.id || nextRegistrationId(snap),
+        full_name: fullName,
+        phone,
+        email,
+        job_role: String(value("jobRole", "job_role")).trim(),
+        organization: String(value("organization", "organization")).trim(),
+        goal: String(value("goal", "goal")).trim(),
+        source: String(value("source", "source")).trim(),
+        session_id: session?.id || row.session_id,
+        program_id: session?.program_id || row.program_id,
+        student_id: row?.student_id || null,
+        amount,
+        currency: "VND",
+        status,
+        consent_privacy: body.consentPrivacy !== undefined ? (body.consentPrivacy ? 1 : 0) : row?.consent_privacy ?? 0,
+        consent_marketing: body.consentMarketing !== undefined ? (body.consentMarketing ? 1 : 0) : row?.consent_marketing ?? 0,
+        utm: row?.utm || "{}",
+        invoice: row?.invoice || "{}",
+        notes: JSON.stringify(notes),
+        locale: row?.locale || "vi",
+        created_at: row?.created_at || ts,
+        created_by: row?.created_by || userId(req),
+        updated_at: ts,
+        updated_by: userId(req),
+      };
+      const oldCounted = row && registrationCounts(row.status);
+      const newCounted = registrationCounts(updated.status);
+      let activation = null;
+      if (updated.status === "confirmed") activation = await L.ensureStudentAndEnrollment(store, snap, updated);
+      else await store.upsert("registrations", updated);
+      if (row?.session_id !== updated.session_id) {
+        if (oldCounted) await adjustRegistrationCount(snap, row.session_id, -1, ts);
+        if (newCounted) await adjustRegistrationCount(snap, updated.session_id, 1, ts);
+      } else if (!!oldCounted !== newCounted) {
+        await adjustRegistrationCount(snap, updated.session_id, newCounted ? 1 : -1, ts);
+      } else if (isNew && newCounted) {
+        await adjustRegistrationCount(snap, updated.session_id, 1, ts);
+      }
+      res.status(isNew ? 201 : 200).json({ ok: true, id: updated.id, emailed: !!activation?.emailed, to: activation?.to });
+    } catch (err) {
+      sendErr(res, err);
+    }
+  }
+
+  router.post("/registrations", requireRole("OWNER", "ADMIN"), saveRegistration);
+  router.put("/registrations/:id", requireRole("OWNER", "ADMIN"), saveRegistration);
+
+  router.delete("/registrations/:id", requireRole("OWNER", "ADMIN"), async (req, res) => {
     const snap = await store.dump(true);
     const row = aliveById(snap.registrations, req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
-    if (req.body.status) V.oneOf(req.body.status, V.REG_STATUS, "status");
-    const notes = parseJson(row.notes, []);
-    if (req.body.note) {
-      notes.push({ at: now(), by: req.session.user.email, text: req.body.note, status: req.body.status || row.status });
-    }
-    let sessionId = req.body.sessionId ?? row.session_id;
-    let programId = req.body.programId ?? row.program_id;
-    if (req.body.sessionId && req.body.sessionId !== row.session_id) {
-      const session = aliveById(snap.sessions, req.body.sessionId);
-      if (!session) return res.status(400).json({ error: "Session not found" });
-      programId = session.program_id;
-      sessionId = session.id;
-    }
-    const updated = {
-      ...row,
-      status: req.body.status || row.status,
-      session_id: sessionId,
-      program_id: programId,
-      notes: JSON.stringify(notes),
-      updated_at: now(),
-      updated_by: userId(req),
-    };
-    let activation = null;
-    try {
-      if (updated.status === "confirmed") {
-        activation = await L.ensureStudentAndEnrollment(store, snap, updated);
-      } else {
-        await store.upsert("registrations", updated);
-      }
-    } catch (err) {
-      return sendErr(res, err);
-    }
-    res.json({ ok: true, emailed: !!activation?.emailed, to: activation?.to });
+    const linkedStudent = row.student_id && alive(snap.students).some((student) => String(student.id) === String(row.student_id));
+    const linked = alive(snap.enrollments).some((enrollment) =>
+      String(enrollment.registration_id || "") === String(row.id) ||
+      (row.student_id && String(enrollment.student_id || "") === String(row.student_id) && String(enrollment.session_id || "") === String(row.session_id)),
+    );
+    if (linkedStudent || linked) return res.status(409).json({ error: "Không thể xóa: đăng ký đã liên kết với học viên hoặc ghi danh đang hoạt động." });
+    const ts = now();
+    await store.upsert("registrations", { ...row, deleted_at: ts, updated_at: ts, updated_by: userId(req) });
+    if (registrationCounts(row.status)) await adjustRegistrationCount(snap, row.session_id, -1, ts);
+    res.json({ ok: true });
   });
 
   router.get("/insights", async (req, res) => {

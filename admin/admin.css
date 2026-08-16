@@ -189,10 +189,12 @@ th { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; font-weight: 
 }
 .tabs button.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 700; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-grid > *, .field { min-width: 0; }
 .field { display: grid; gap: 6px; }
 .field.full { grid-column: 1 / -1; }
 .field label { font-size: 11px; letter-spacing: 0.08em; color: var(--muted); }
 .field textarea { min-height: 110px; resize: vertical; }
+.field > input, .field > select, .field > textarea { width: 100%; min-width: 0; }
 .repeater { display: grid; gap: 10px; }
 .repeater-item {
   display: grid;
@@ -234,4 +236,7 @@ th { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; font-weight: 
   .sidebar { height: auto; position: relative; }
   .stats, .grid-2, .form-grid { grid-template-columns: 1fr; }
   .nav { grid-template-columns: repeat(2, 1fr); }
+  .topbar { align-items: flex-start; flex-wrap: wrap; padding: 16px; }
+  .topbar > div { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+  .page { padding: 16px 16px 40px; }
 }

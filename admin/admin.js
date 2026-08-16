@@ -1062,9 +1062,10 @@
         <select id="sessionId"><option value="">Lớp</option>${sessions.items.map((s) => `<option value="${s.id}" ${qs.get("sessionId") === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}</select>
         <select id="status"><option value="">Trạng thái</option>${Object.keys(REG_LABEL).map((k) => `<option value="${k}" ${qs.get("status") === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select>
         <a class="btn" href="/api/admin/registrations/export.csv">Tải CSV</a>
+        ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/registrations/new")}">+ Thêm đăng ký</a>` : ""}
       </div>
       ${table(
-        ["ID", "Họ tên", "Khóa", "Lớp", "Số tiền", "Ngày", "Trạng thái"],
+        ["ID", "Họ tên", "Khóa", "Lớp", "Số tiền", "Ngày", "Trạng thái", "Thao tác"],
         data.items.map(
           (r) => `<tr>
             <td><a href="${href(`/registrations/${r.id}`)}">${esc(r.id)}</a></td>
@@ -1074,6 +1075,7 @@
             <td>${fmtPrice(r.amount)}</td>
             <td>${fmtDate(r.created_at)}</td>
             <td>${badge(r.status)}</td>
+            <td>${canManageStaff() ? `<a class="btn" href="${href(`/registrations/${r.id}`)}">Sửa</a> <button class="btn-danger" type="button" data-reg-delete="${esc(r.id)}">Xóa</button>` : `<a class="btn" href="${href(`/registrations/${r.id}`)}">Xem</a>`}</td>
           </tr>`,
         ),
       )}`;
@@ -1089,48 +1091,74 @@
     $("#programId").onchange = apply;
     $("#sessionId").onchange = apply;
     $("#status").onchange = apply;
+    app.querySelectorAll("[data-reg-delete]").forEach((button) => button.addEventListener("click", async () => {
+      if (!confirmAction("Xóa đăng ký này?")) return;
+      button.disabled = true;
+      try {
+        await api(`/registrations/${button.dataset.regDelete}`, { method: "DELETE" });
+        toast("Đã xóa đăng ký");
+        render();
+      } catch (err) {
+        button.disabled = false;
+        toast(err.message, true);
+      }
+    }));
   }
 
   async function viewRegistration(id) {
-    $("#page-title").textContent = "Chi tiết đăng ký";
-    const [r, sessions] = await Promise.all([api(`/registrations/${id}`), api("/sessions")]);
+    const isNew = id === "new";
+    if (isNew && !canManageStaff()) {
+      go(href("/registrations"));
+      return;
+    }
+    $("#page-title").textContent = isNew ? "Thêm đăng ký" : "Sửa đăng ký";
+    const [r, sessions] = await Promise.all([isNew ? Promise.resolve({ status: "new", amount: 0 }) : api(`/registrations/${id}`), api("/sessions")]);
     app.innerHTML = `
-      <div class="grid-2">
-        <div class="card" style="padding:18px">
-          <h2>${esc(r.full_name)}</h2>
-          <p>${esc(r.email)} · ${esc(r.phone)}</p>
-          <p>${esc(r.job_role)} ${r.organization ? "· " + esc(r.organization) : ""}</p>
-          <p>Nhu cầu: ${esc(r.goal || "—")}</p>
-          <p>Nguồn: ${esc(r.source || "—")}</p>
-          <p>Đồng ý: bảo mật ${r.consent_privacy ? "có" : "không"} · marketing ${r.consent_marketing ? "có" : "không"}</p>
+      <form class="card" style="padding:18px" id="reg-form">
+        ${isNew ? "" : `<p><strong>ID:</strong> ${esc(r.id)} · <strong>Ngày tạo:</strong> ${fmtDate(r.created_at)}</p>`}
+        <div class="form-grid">
+          <div class="field"><label>Họ và tên</label><input name="fullName" required ${canManageStaff() ? "" : "disabled"} value="${esc(r.full_name || "")}" /></div>
+          <div class="field"><label>Số điện thoại</label><input name="phone" required ${canManageStaff() ? "" : "disabled"} value="${esc(r.phone || "")}" /></div>
+          <div class="field"><label>Email</label><input name="email" type="email" required ${canManageStaff() ? "" : "disabled"} value="${esc(r.email || "")}" /></div>
+          <div class="field"><label>Lớp học</label><select name="sessionId" required ${canManageStaff() ? "" : "disabled"}><option value="">Chọn lớp</option>${sessions.items.map((s) => `<option value="${s.id}" ${r.session_id === s.id ? "selected" : ""}>${esc(s.session_name)} · ${fmtDate(s.start_date)}</option>`).join("")}</select></div>
+          <div class="field"><label>Số tiền (VND)</label><input name="amount" type="number" min="0" step="1" required ${canManageStaff() ? "" : "disabled"} value="${esc(r.amount ?? 0)}" /></div>
+          <div class="field"><label>Trạng thái</label><select name="status" ${canManageStaff() ? "" : "disabled"}>${Object.keys(REG_LABEL).map((k) => `<option value="${k}" ${r.status === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select></div>
+          <div class="field"><label>Vai trò công việc</label><input name="jobRole" ${canManageStaff() ? "" : "disabled"} value="${esc(r.job_role || "")}" /></div>
+          <div class="field"><label>Tổ chức</label><input name="organization" ${canManageStaff() ? "" : "disabled"} value="${esc(r.organization || "")}" /></div>
+          <div class="field full"><label>Mục tiêu</label><textarea name="goal" ${canManageStaff() ? "" : "disabled"}>${esc(r.goal || "")}</textarea></div>
+          <div class="field"><label>Nguồn</label><input name="source" ${canManageStaff() ? "" : "disabled"} value="${esc(r.source || "")}" /></div>
+          <div class="field"><label><input name="consentPrivacy" type="checkbox" ${r.consent_privacy ? "checked" : ""} ${canManageStaff() ? "" : "disabled"} /> Đồng ý chính sách bảo mật</label><label><input name="consentMarketing" type="checkbox" ${r.consent_marketing ? "checked" : ""} ${canManageStaff() ? "" : "disabled"} /> Đồng ý nhận marketing</label></div>
+          ${isNew ? "" : `<div class="field full"><label>Ghi chú nội bộ</label><textarea name="note"></textarea></div>`}
         </div>
-        <form class="card" style="padding:18px" id="reg-form">
-          <div class="field"><label>Trạng thái</label>
-            <select name="status">${Object.keys(REG_LABEL).map((k) => `<option value="${k}" ${r.status === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select>
-          </div>
-          <div class="field"><label>Chuyển lớp</label>
-            <select name="sessionId">${sessions.items.map((s) => `<option value="${s.id}" ${r.session_id === s.id ? "selected" : ""}>${esc(s.session_name)} · ${fmtDate(s.start_date)}</option>`).join("")}</select>
-          </div>
-          <div class="field"><label>Ghi chú nội bộ</label><textarea name="note"></textarea></div>
-          <button class="btn btn-primary" type="submit">Cập nhật</button>
-        </form>
-      </div>
-      <div class="card" style="margin-top:16px;padding:18px">
-        <h2>Lịch sử</h2>
-        ${(r.notes || []).map((n) => `<p><small>${esc(n.at)} · ${esc(n.by)}</small><br>${esc(n.text)}</p>`).join("") || "<p class='empty'>Chưa có ghi chú</p>"}
-      </div>`;
-    $("#reg-form").onsubmit = async (e) => {
+        ${canManageStaff() ? `<div class="toolbar"><button class="btn btn-primary" type="submit">${isNew ? "Thêm đăng ký" : "Lưu thay đổi"}</button>${isNew ? "" : `<button class="btn-danger" type="button" id="reg-delete">Xóa</button>`}</div>` : ""}
+      </form>
+      ${isNew ? "" : `<div class="card" style="margin-top:16px;padding:18px"><h2>Lịch sử</h2>${(r.notes || []).map((n) => `<p><small>${esc(n.at)} · ${esc(n.by)}</small><br>${esc(n.text)}</p>`).join("") || "<p class='empty'>Chưa có ghi chú</p>"}</div>`}`;
+    if (canManageStaff()) $("#reg-form").onsubmit = async (e) => {
       e.preventDefault();
       try {
-        const data = await api(`/registrations/${id}`, {
-          method: "PUT",
-          body: { status: val(e.target, "status"), sessionId: val(e.target, "sessionId"), note: val(e.target, "note") },
+        const button = e.target.querySelector('[type="submit"]');
+        button.disabled = true;
+        const data = await api(isNew ? "/registrations" : `/registrations/${id}`, {
+          method: isNew ? "POST" : "PUT",
+          body: {
+            fullName: val(e.target, "fullName"), phone: val(e.target, "phone"), email: val(e.target, "email"),
+            sessionId: val(e.target, "sessionId"), amount: val(e.target, "amount"), status: val(e.target, "status"),
+            jobRole: val(e.target, "jobRole"), organization: val(e.target, "organization"), goal: val(e.target, "goal"),
+            source: val(e.target, "source"), consentPrivacy: e.target.elements.consentPrivacy.checked,
+            consentMarketing: e.target.elements.consentMarketing.checked, note: isNew ? "" : val(e.target, "note"),
+          },
         });
-        toast(data.emailed ? `Đã xác nhận và gửi email kích hoạt tới ${data.to}` : "Đã cập nhật đăng ký");
-        render();
+        toast(data.emailed ? `Đã xác nhận và gửi email kích hoạt tới ${data.to}` : isNew ? "Đã thêm đăng ký" : "Đã cập nhật đăng ký");
+        go(href(isNew ? `/registrations/${data.id}` : "/registrations"));
       } catch (err) {
+        e.target.querySelector('[type="submit"]').disabled = false;
         toast(err.message, true);
       }
+    };
+    if (!isNew) $("#reg-delete").onclick = async () => {
+      if (!confirmAction("Xóa đăng ký này?")) return;
+      try { await api(`/registrations/${id}`, { method: "DELETE" }); toast("Đã xóa đăng ký"); go(href("/registrations")); }
+      catch (err) { toast(err.message, true); }
     };
   }
 
