@@ -206,12 +206,14 @@ test("authoritative account mutations claim resets and write instructor/student 
   assert.match(source, /export const cancelPasswordReset = mutation/);
   assert.match(source, /export const upsertInstructorAccount = mutation/);
   assert.match(source, /export const createStudentAccount = mutation/);
+  assert.match(source, /export const softDeleteStudent = mutation/);
   assert.match(source, /session_version/);
   assert.match(admin, /expectedKind: "users"/);
   assert.match(admin, /upsertInstructorAccount/);
   assert.match(learner, /expectedKind: "students"/);
   assert.match(learner, /consumeActivation/);
   assert.match(students, /createStudentAccount/);
+  assert.match(students, /softDeleteStudent/);
   assert.match(students, /publicOutboxRow/);
   assert.match(students, /sendActivationEmail/);
 });

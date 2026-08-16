@@ -693,6 +693,43 @@ export const createStudentAccount = mutation({
   },
 });
 
+export const softDeleteStudent = mutation({
+  args: { id: v.string(), now: v.string() },
+  handler: async (ctx, args) => {
+    const doc = await findDoc(ctx, "students", args.id);
+    if (!doc || (doc.data as Record<string, unknown>).deleted_at) return { ok: false, error: "Not found" };
+    const student = { ...(doc.data as Record<string, unknown>) };
+    student.deleted_at = args.now;
+    student.updated_at = args.now;
+    student.status = "inactive";
+    student.activation_token = null;
+    student.activation_expires_at = null;
+    student.session_version = nextSessionVersion(student);
+    delete student.reset_access_operation_id;
+    delete student.reset_access_operation_expires_at;
+    delete student.reset_access_previous;
+    await ctx.db.patch(doc._id, { data: student });
+    let cancelledEnrollments = 0;
+    const enrollments = await collectTable(ctx, "enrollments");
+    for (const enrollmentDoc of enrollments) {
+      const enrollment = { ...(enrollmentDoc.data as Record<string, unknown>) };
+      if (String(enrollment.student_id) !== String(args.id) || enrollment.status !== "active") continue;
+      enrollment.status = "cancelled";
+      enrollment.updated_at = args.now;
+      await ctx.db.patch(enrollmentDoc._id, { data: enrollment });
+      cancelledEnrollments += 1;
+    }
+    const resets = await collectTable(ctx, "password_resets");
+    for (const resetDoc of resets) {
+      const reset = { ...(resetDoc.data as Record<string, unknown>) };
+      if (String(reset.student_id || "") !== String(args.id) || reset.used_at) continue;
+      reset.used_at = args.now;
+      await ctx.db.patch(resetDoc._id, { data: reset });
+    }
+    return { ok: true, id: args.id, cancelledEnrollments };
+  },
+});
+
 export const remove = mutation({
   args: {
     table: v.string(),

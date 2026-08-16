@@ -380,6 +380,31 @@ function patchStudentFieldsInSnap(snap, { id, expectedSessionVersion, fields }) 
   return { ok: true, student: { ...student } };
 }
 
+function softDeleteStudentInSnap(snap, { id, now }) {
+  const student = (snap.students || []).find((row) => String(row.id) === String(id) && !row.deleted_at);
+  if (!student) return { ok: false, error: "Not found" };
+  student.deleted_at = now;
+  student.updated_at = now;
+  student.status = "inactive";
+  student.activation_token = null;
+  student.activation_expires_at = null;
+  student.session_version = nextSessionVersion(student);
+  delete student.reset_access_operation_id;
+  delete student.reset_access_operation_expires_at;
+  delete student.reset_access_previous;
+  let cancelledEnrollments = 0;
+  for (const enrollment of snap.enrollments || []) {
+    if (String(enrollment.student_id) !== String(id) || enrollment.status !== "active") continue;
+    enrollment.status = "cancelled";
+    enrollment.updated_at = now;
+    cancelledEnrollments += 1;
+  }
+  for (const reset of snap.password_resets || []) {
+    if (String(reset.student_id || "") === String(id) && !reset.used_at) reset.used_at = now;
+  }
+  return { ok: true, id, cancelledEnrollments };
+}
+
 function withSnapLock(store, fn) {
   const prev = store._tx || Promise.resolve();
   let release = () => {};
@@ -408,6 +433,8 @@ function attachAccountTx(store, snap) {
     withSnapLock(store, () => applyPasswordChangeInSnap(snap, args));
   store.patchStudentFields = (args) =>
     withSnapLock(store, () => patchStudentFieldsInSnap(snap, args));
+  store.softDeleteStudent = (args) =>
+    withSnapLock(store, () => softDeleteStudentInSnap(snap, args));
   store.issuePasswordReset = (args) =>
     withSnapLock(store, () => issuePasswordResetInSnap(snap, args));
   store.consumeActivation = (args) =>
@@ -434,6 +461,7 @@ module.exports = {
   upsertInstructorAccountInSnap,
   createStudentAccountInSnap,
   applyPasswordChangeInSnap,
+  softDeleteStudentInSnap,
   issuePasswordResetInSnap,
   consumeActivationInSnap,
   provisionLearnerAccountInSnap,

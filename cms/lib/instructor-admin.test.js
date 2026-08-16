@@ -77,8 +77,10 @@ function mockStore(user, options = {}) {
       if (idx >= 0) list[idx] = { ...list[idx], ...row };
       else list.push(row);
     },
-    remove: async () => {
-      throw new Error("instructor must not delete");
+    remove: async (table, id) => {
+      if (!options.allowWrite) throw new Error("instructor must not delete");
+      const list = snap[table] || [];
+      snap[table] = list.filter((item) => String(item.id) !== String(id));
     },
     removeWhere: async () => {},
     url: "mock",
@@ -178,13 +180,17 @@ test("instructor API allowlist permits class-scoped work and denies CMS/enrollme
     ["GET", "/api/admin/insights"],
     ["POST", "/api/admin/insights", { titleVi: "x", slugVi: "x" }],
     ["POST", "/api/admin/resources", { titleVi: "x", slug: "x" }],
+    ["POST", "/api/admin/enrollments", { studentId: "st1", sessionId: "s1" }],
     ["PUT", "/api/admin/enrollments/e1", { status: "completed" }],
+    ["DELETE", "/api/admin/enrollments/e1"],
     ["PUT", "/api/admin/students/st1", { notes: "nope" }],
+    ["DELETE", "/api/admin/students/st1"],
     ["DELETE", "/api/admin/materials/m1"],
     ["DELETE", "/api/admin/announcements/a1"],
     ["GET", "/api/admin/registrations"],
     ["GET", "/api/admin/settings"],
     ["POST", "/api/admin/certificates/issue", { enrollmentId: "e1" }],
+    ["DELETE", "/api/admin/certificate-templates/t1"],
   ];
   for (const [method, path, body] of denied) {
     const res = await request(app, { method, path, body });
@@ -251,6 +257,194 @@ test("registration CRUD enforces roles, validation, persistence, and protected s
   const editor = appFor({ role: "EDITOR", instructor_id: null }, { sessionUser: { role: "EDITOR", instructorId: null } });
   const forbidden = await request(editor, { method: "POST", path: "/api/admin/registrations", body: {} });
   assert.equal(forbidden.status, 403);
+});
+
+test("enrollment CRUD enforces roles, duplicates, and protected soft deletion", async () => {
+  const admin = { role: "ADMIN", instructor_id: null, email: "admin@vsc.academy" };
+  const { app, store } = harnessFor(admin, {
+    allowWrite: true,
+    sessionUser: { role: "ADMIN", instructorId: null, email: "admin@vsc.academy" },
+  });
+  store.snap.students.push({ id: "st2", full_name: "Lan", email: "lan@x.test" });
+  store.snap.sessions.push({ id: "s2", program_id: "p1", session_name: "Lớp 2" });
+
+  const invalid = await request(app, { method: "POST", path: "/api/admin/enrollments", body: {} });
+  assert.equal(invalid.status, 400);
+
+  const created = await request(app, {
+    method: "POST",
+    path: "/api/admin/enrollments",
+    body: { studentId: "st2", sessionId: "s2", paymentStatus: "unpaid", notes: "manual" },
+  });
+  assert.equal(created.status, 200);
+  const enrollment = store.snap.enrollments.find((row) => row.id === created.json.id);
+  assert.equal(enrollment.student_id, "st2");
+  assert.equal(enrollment.session_id, "s2");
+  assert.equal(enrollment.payment_status, "unpaid");
+  assert.equal(enrollment.notes, "manual");
+
+  const duplicate = await request(app, {
+    method: "POST",
+    path: "/api/admin/enrollments",
+    body: { studentId: "st2", sessionId: "s2" },
+  });
+  assert.equal(duplicate.status, 400);
+
+  const edited = await request(app, {
+    method: "PUT",
+    path: `/api/admin/enrollments/${created.json.id}`,
+    body: { status: "paused", paymentStatus: "paid", notes: "updated" },
+  });
+  assert.equal(edited.status, 200);
+  const updated = store.snap.enrollments.find((row) => row.id === created.json.id);
+  assert.equal(updated.status, "paused");
+  assert.equal(updated.payment_status, "paid");
+  assert.equal(updated.notes, "updated");
+
+  const listed = await request(app, { path: "/api/admin/enrollments" });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.json.items.some((row) => row.id === created.json.id), true);
+
+  store.snap.certificates.push({ id: "c1", enrollment_id: "e1", status: "issued" });
+  const protectedDelete = await request(app, { method: "DELETE", path: "/api/admin/enrollments/e1" });
+  assert.equal(protectedDelete.status, 409);
+
+  const deleted = await request(app, { method: "DELETE", path: `/api/admin/enrollments/${created.json.id}` });
+  assert.equal(deleted.status, 200);
+  assert.ok(store.snap.enrollments.find((row) => row.id === created.json.id).deleted_at);
+  const hidden = await request(app, { path: "/api/admin/enrollments" });
+  assert.equal(hidden.json.items.some((row) => row.id === created.json.id), false);
+  const missing = await request(app, { method: "DELETE", path: `/api/admin/enrollments/${created.json.id}` });
+  assert.equal(missing.status, 404);
+
+  const editor = appFor({ role: "EDITOR", instructor_id: null }, { sessionUser: { role: "EDITOR", instructorId: null } });
+  const forbidden = await request(editor, { method: "POST", path: "/api/admin/enrollments", body: {} });
+  assert.equal(forbidden.status, 403);
+});
+
+test("admin can create, edit, and delete announcements", async () => {
+  const admin = { role: "ADMIN", instructor_id: null, email: "admin@vsc.academy" };
+  const { app, store } = harnessFor(admin, {
+    allowWrite: true,
+    sessionUser: { role: "ADMIN", instructorId: null, email: "admin@vsc.academy" },
+  });
+
+  const invalid = await request(app, { method: "POST", path: "/api/admin/announcements", body: {} });
+  assert.equal(invalid.status, 400);
+
+  const created = await request(app, {
+    method: "POST",
+    path: "/api/admin/announcements",
+    body: { titleVi: "Nhắc buổi học", targetType: "session", sessionId: "s1", priority: "high" },
+  });
+  assert.equal(created.status, 200);
+  const row = store.snap.announcements.find((item) => item.id === created.json.id);
+  assert.equal(row.title_vi, "Nhắc buổi học");
+  assert.equal(row.target_type, "session");
+  assert.equal(row.session_id, "s1");
+
+  const edited = await request(app, {
+    method: "PUT",
+    path: `/api/admin/announcements/${created.json.id}`,
+    body: { titleVi: "Nhắc buổi học 2", targetType: "session", sessionId: "s1", priority: "normal" },
+  });
+  assert.equal(edited.status, 200);
+  const updated = store.snap.announcements.find((item) => item.id === created.json.id);
+  assert.equal(updated.title_vi, "Nhắc buổi học 2");
+  assert.equal(updated.priority, "normal");
+
+  const deleted = await request(app, { method: "DELETE", path: `/api/admin/announcements/${created.json.id}` });
+  assert.equal(deleted.status, 200);
+  assert.equal(store.snap.announcements.some((item) => item.id === created.json.id), false);
+  const missing = await request(app, { method: "DELETE", path: `/api/admin/announcements/${created.json.id}` });
+  assert.equal(missing.status, 404);
+});
+
+test("admin UI exposes announcement add, edit, and delete controls", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /\+ Thông báo/);
+  assert.match(ui, /\["Tiêu đề", "Đối tượng", "Mức ưu tiên", "Thao tác"\]/);
+  assert.match(ui, /data-ann-delete/);
+  assert.match(ui, /id="ann-del"/);
+  assert.match(ui, /confirmAction\("Xóa thông báo này\?"\)/);
+});
+
+test("admin can create, edit, and delete certificate templates", async () => {
+  const admin = { role: "ADMIN", instructor_id: null, email: "admin@vsc.academy" };
+  const { app, store } = harnessFor(admin, {
+    allowWrite: true,
+    sessionUser: { role: "ADMIN", instructorId: null, email: "admin@vsc.academy" },
+  });
+
+  const listed = await request(app, { path: "/api/admin/certificate-templates" });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.json.items.some((row) => row.id === "tpl-vsc-default"), true);
+  const blockedDefault = await request(app, { method: "DELETE", path: "/api/admin/certificate-templates/tpl-vsc-default" });
+  assert.equal(blockedDefault.status, 409);
+
+  const created = await request(app, {
+    method: "POST",
+    path: "/api/admin/certificate-templates",
+    body: { name: "Mẫu offline", language: "vi", status: "draft" },
+  });
+  assert.equal(created.status, 200);
+  const row = store.snap.certificate_templates.find((item) => item.id === created.json.id);
+  assert.equal(row.name, "Mẫu offline");
+  assert.equal(row.status, "draft");
+
+  const edited = await request(app, {
+    method: "PUT",
+    path: `/api/admin/certificate-templates/${created.json.id}`,
+    body: { name: "Mẫu offline 2", language: "en", status: "published" },
+  });
+  assert.equal(edited.status, 200);
+  const updated = store.snap.certificate_templates.find((item) => item.id === created.json.id);
+  assert.equal(updated.name, "Mẫu offline 2");
+  assert.equal(updated.language, "en");
+
+  store.snap.certificates.push({ id: "c-used", template_id: created.json.id, status: "issued" });
+  const inUse = await request(app, { method: "DELETE", path: `/api/admin/certificate-templates/${created.json.id}` });
+  assert.equal(inUse.status, 409);
+  store.snap.certificates = [];
+
+  const deleted = await request(app, { method: "DELETE", path: `/api/admin/certificate-templates/${created.json.id}` });
+  assert.equal(deleted.status, 200);
+  assert.equal(store.snap.certificate_templates.some((item) => item.id === created.json.id), false);
+  const missing = await request(app, { method: "DELETE", path: `/api/admin/certificate-templates/${created.json.id}` });
+  assert.equal(missing.status, 404);
+
+  const editor = appFor({ role: "EDITOR", instructor_id: null }, { sessionUser: { role: "EDITOR", instructorId: null } });
+  const forbidden = await request(editor, { method: "POST", path: "/api/admin/certificate-templates", body: { name: "x" } });
+  assert.equal(forbidden.status, 403);
+});
+
+test("admin UI exposes certificate template add, edit, and delete controls", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /\+ Mẫu mới/);
+  assert.match(ui, /\["Tên", "Ngôn ngữ", "Trạng thái", "Phiên bản", "Thao tác"\]/);
+  assert.match(ui, /data-tpl-delete/);
+  assert.match(ui, /id="tpl-del"/);
+  assert.match(ui, /confirmAction\("Xóa mẫu chứng nhận này\?"\)/);
+});
+
+test("admin UI exposes enrollment add, edit, and delete controls", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /\+ Ghi danh/);
+  assert.match(ui, /\["Học viên", "Khóa", "Lớp", "Trạng thái", "Thanh toán", "Tiến độ", "Chứng nhận", "Thao tác"\]/);
+  assert.match(ui, /data-enroll-delete/);
+  assert.match(ui, /id="enr-delete"/);
+  assert.match(ui, /confirmAction\("Xóa ghi danh này\?/);
+  assert.match(ui, /canManageStaff\(\) \? `<a class="btn btn-primary" href="\$\{href\("\/enrollments\/new"\)\}"/);
+});
+
+test("unmatched admin API returns JSON instead of an HTML error page", async () => {
+  const { app } = harnessFor({ role: "ADMIN", instructor_id: null }, {
+    allowWrite: true,
+    sessionUser: { role: "ADMIN", instructorId: null, email: "admin@vsc.academy" },
+  });
+  const res = await request(app, { method: "DELETE", path: "/api/admin/does-not-exist" });
+  assert.equal(res.status, 404);
+  assert.equal(res.json.error, "Not found");
 });
 
 test("admin UI exposes registration add, edit, delete, and core fields", () => {
