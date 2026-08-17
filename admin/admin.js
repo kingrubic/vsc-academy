@@ -86,6 +86,42 @@
     setTimeout(() => toastEl.classList.remove("show"), 2800);
   }
 
+  function showLearnerCredentials({ email, temporaryPassword, studentId }) {
+    const back = document.createElement("div");
+    back.className = "modal-back";
+    back.innerHTML = `
+      <div class="modal" role="dialog" aria-labelledby="cred-title">
+        <h2 id="cred-title">Đã tạo tài khoản học viên</h2>
+        <p class="muted">Chưa gửi email kích hoạt. Sao chép thông tin này và gửi thủ công cho học viên. Mật khẩu tạm chỉ hiện một lần.</p>
+        <p><strong>Email</strong></p>
+        <div class="cred-row"><code>${esc(email)}</code><button type="button" class="btn" data-copy="${esc(email)}">Sao chép</button></div>
+        <p><strong>Mật khẩu tạm</strong></p>
+        <div class="cred-row"><code>${esc(temporaryPassword)}</code><button type="button" class="btn" data-copy="${esc(temporaryPassword)}">Sao chép</button></div>
+        <div class="toolbar" style="margin-top:16px">
+          ${studentId ? `<button type="button" class="btn btn-primary" id="cred-open">Mở Học viên</button>` : ""}
+          <button type="button" class="btn" id="cred-close">Đóng</button>
+        </div>
+      </div>`;
+    document.body.appendChild(back);
+    back.addEventListener("click", async (e) => {
+      if (!e.target.dataset.copy) return;
+      try {
+        await navigator.clipboard.writeText(e.target.dataset.copy);
+        toast("Đã sao chép");
+      } catch {
+        toast("Không sao chép được", true);
+      }
+    });
+    const open = $("#cred-open", back);
+    if (open) {
+      open.onclick = () => {
+        back.remove();
+        go(href(`/students/${studentId}`));
+      };
+    }
+    $("#cred-close", back).onclick = () => back.remove();
+  }
+
   async function api(path, opts = {}) {
     const res = await fetch(`/api/admin${path}`, {
       credentials: "include",
@@ -1247,8 +1283,22 @@
             consentMarketing: e.target.elements.consentMarketing.checked, note: isNew ? "" : val(e.target, "note"),
           },
         });
-        toast(data.emailed ? `Đã xác nhận và gửi email kích hoạt tới ${data.to}` : isNew ? "Đã thêm đăng ký" : "Đã cập nhật đăng ký");
-        go(href(isNew ? `/registrations/${data.id}` : "/registrations"));
+        if (data.temporaryPassword) {
+          toast("Đã xác nhận và tạo tài khoản học viên. Gửi thông tin đăng nhập thủ công.");
+          showLearnerCredentials({
+            email: data.to,
+            temporaryPassword: data.temporaryPassword,
+            studentId: data.studentId,
+          });
+          go(href(data.studentId ? `/students/${data.studentId}` : "/students"));
+        } else {
+          toast(
+            data.studentCreated === false && val(e.target, "status") === "confirmed"
+              ? "Đã xác nhận và ghi danh học viên hiện có"
+              : isNew ? "Đã thêm đăng ký" : "Đã cập nhật đăng ký",
+          );
+          go(href(isNew ? `/registrations/${data.id}` : "/registrations"));
+        }
       } catch (err) {
         e.target.querySelector('[type="submit"]').disabled = false;
         toast(err.message, true);

@@ -272,9 +272,7 @@ Mở dòng → sửa thông tin nếu cần → đổi **Trạng thái**:
 | **Đã hủy** | Không học |
 | **Đã hoàn thành** | Đăng ký đã khép (thường dùng sau khóa) |
 
-> **Quan trọng:** Chỉ khi chuyển sang **Đã xác nhận**, học viên mới có tài khoản cổng học và được ghi danh. Nếu email chưa từng học, hệ thống gửi **email kích hoạt**. Học viên mở link trong email, đặt mật khẩu (tối thiểu 8 ký tự), rồi vào cổng học viên.
-
-Nếu gửi email thất bại, trạng thái xác nhận sẽ không hoàn tất — kiểm tra lại rồi thử lần nữa, đừng bỏ học viên ở trạng thái “đã mời” dở.
+> **Quan trọng:** Chỉ khi chuyển sang **Đã xác nhận**, học viên mới có tài khoản cổng học và được ghi danh. Nếu email chưa từng học, hệ thống tạo tài khoản ngay và hiện **email + mật khẩu tạm** một lần cho admin. **Chưa gửi email kích hoạt tự động** — admin gửi thông tin đăng nhập thủ công. Học viên đăng nhập rồi bắt buộc đổi mật khẩu (tối thiểu 8 ký tự).
 
 Có thể ghi chú, đổi lớp, sửa số tiền ngay trên form. Bấm **Lưu thay đổi**.
 
@@ -543,7 +541,7 @@ Trang xác minh chứng nhận (`/verify/…`) là trang công khai: hiện tên
 ## 21. Tình huống thường gặp
 
 **Đăng ký rồi mà học viên chưa vào được cổng?**  
-Chưa chuyển sang **Đã xác nhận**, hoặc email kích hoạt chưa tới. Kiểm tra hộp thư (kể cả spam), gửi lại bằng **Reset mật khẩu** trên hồ sơ học viên.
+Chưa chuyển sang **Đã xác nhận**, hoặc chưa gửi mật khẩu tạm cho học viên. Mở menu **Học viên** để kiểm tra tài khoản; nếu vừa xác nhận thì mật khẩu tạm chỉ hiện một lần trên màn hình xác nhận.
 
 **Đổi tên khóa trên website, chứng nhận vẫn tên cũ?**  
 File PDF đã cấp không tự đổi. Mở chứng nhận đang **Đã cấp** → **Cấp lại**. Chọn mẫu **Chứng nhận hoàn thành khóa học (VI + EN)** nếu đang cấp từ tab lớp.

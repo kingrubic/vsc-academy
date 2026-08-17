@@ -19,9 +19,9 @@ Học viên **không** tự có tài khoản khi nộp form `/dang-ky`.
 
 1. Mở **Đăng ký**.
 2. Đổi trạng thái **Đã xác nhận**.
-3. CMS tạo học viên (nếu email chưa có) + ghi danh.
-4. CMS gửi email kích hoạt tuyệt đối (`https://vscacademy.edu.vn/hoc-vien/kich-hoat?token=…`). Admin không thấy raw token. Thiếu SMTP/`PUBLIC_SITE_URL` thì xác nhận thất bại, không để học viên invited dở.
-5. Học viên mở link trong email, đặt mật khẩu (≥ 8 ký tự), vào portal.
+3. CMS tạo học viên (nếu email chưa có) + ghi danh. Học viên xuất hiện ngay trong menu **Học viên**.
+4. CMS **không** gửi email kích hoạt. Admin nhận email + mật khẩu tạm một lần trên màn hình, rồi gửi thủ công cho học viên.
+5. Học viên đăng nhập cổng học bằng email và mật khẩu tạm, rồi bắt buộc đổi mật khẩu (≥ 8 ký tự).
 
 Tạo tay: **Học viên → + Học viên** → ghi danh vào lớp.
 

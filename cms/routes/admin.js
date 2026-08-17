@@ -889,7 +889,15 @@ function createAdminRouter(store) {
       } else if (isNew && newCounted) {
         await adjustRegistrationCount(snap, updated.session_id, 1, ts);
       }
-      res.status(isNew ? 201 : 200).json({ ok: true, id: updated.id, emailed: !!activation?.emailed, to: activation?.to });
+      res.status(isNew ? 201 : 200).json({
+        ok: true,
+        id: updated.id,
+        emailed: false,
+        studentCreated: !!activation?.studentCreated,
+        studentId: activation?.student?.id,
+        to: activation?.to,
+        temporaryPassword: activation?.temporaryPassword,
+      });
     } catch (err) {
       sendErr(res, err);
     }

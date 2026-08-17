@@ -464,6 +464,9 @@ test("admin UI exposes registration add, edit, delete, and core fields", () => {
     assert.match(ui, new RegExp(`name=\\"${field}\\"`), `missing registration field ${field}`);
   }
   assert.match(ui, /confirmAction\("Xóa đăng ký này\?"\)/);
+  assert.match(ui, /showLearnerCredentials/);
+  assert.match(ui, /Gửi thông tin đăng nhập thủ công/);
+  assert.doesNotMatch(ui, /Đã xác nhận và gửi email kích hoạt/);
   assert.match(ui, /canManageStaff\(\) \? `<a class="btn btn-primary" href="\$\{href\("\/registrations\/new"\)\}"/);
   assert.match(ui, /canManageStaff\(\) \? `<a class="btn" href="\$\{href\(`\/registrations\/\$\{r\.id\}`\)\}">Sửa/);
   assert.match(ui, /if \(isNew && !canManageStaff\(\)\)/);
