@@ -237,7 +237,7 @@ Kéo xuống dưới form lớp:
 
 ### Thêm buổi học
 
-Tab **Buổi học** → điền tiêu đề, ngày, giờ, hình thức, link họp (nếu có) → **Thêm buổi**.
+Tab **Buổi học** → hệ thống tự tạo buổi từ ngày/giờ của lớp nếu chưa có. Có thể thêm buổi, sửa giờ, hoặc dán link họp.
 
 Học viên chỉ thấy nút vào lớp khoảng **30 phút trước giờ học** (có thể đổi trên khóa học). Link họp không hiện sẵn trên trang công khai.
 
@@ -274,23 +274,27 @@ Có thể ghi chú, đổi lớp, sửa số tiền ngay trên form. Bấm **Lư
 
 ## 8. Học viên
 
-Hồ sơ người đã (hoặc sắp) học. Khác với **Đăng ký**: đăng ký là form bán hàng; học viên là tài khoản học tập.
+Hồ sơ người đã (hoặc sắp) học. Khác với **Đăng ký**: đăng ký là form bán hàng; học viên là tài khoản học tập. Chỗ trong lớp (ghi danh) nằm ngay trên hồ sơ này — không còn menu Ghi danh riêng.
+
+Danh sách: tên, email, SĐT, **lớp đang học**, trạng thái tài khoản. Lọc theo lớp nếu cần xem một lớp. Roster theo lớp vẫn ở **Lớp học → tab Học viên**.
 
 ### Tạo học viên tay
 
 **Học viên** → **+ Học viên**:
 
 1. Họ tên, email đăng nhập, mật khẩu tạm, điện thoại.
-2. Bấm **Tạo**.
-3. Nhắn mật khẩu tạm cho học viên. Lần đăng nhập đầu, học viên **bắt buộc đổi mật khẩu**.
-4. Vào chi tiết học viên → tab **Ghi danh** để cho vào lớp.
+2. Chọn **Lớp** nếu đã biết lớp (không bắt buộc).
+3. Bấm **Tạo**.
+4. Nhắn mật khẩu tạm cho học viên. Lần đăng nhập đầu, học viên **bắt buộc đổi mật khẩu**.
+
+Nếu chưa chọn lớp lúc tạo: vào chi tiết → tab **Ghi danh** → chọn lớp → **Ghi danh**.
 
 ### Tab chi tiết học viên
 
 | Tab | Việc làm |
 |---|---|
 | **Hồ sơ** | Tên, điện thoại, trạng thái tài khoản. **Reset mật khẩu** gửi link vào email. **Xóa** vô hiệu tài khoản và hủy các lớp đang học |
-| **Ghi danh** | Cho vào lớp, đổi trạng thái học, đổi thanh toán, **chuyển lớp** |
+| **Ghi danh** | Cho vào lớp, đổi trạng thái học, đổi thanh toán, **chuyển lớp**, **gỡ khỏi lớp**. Tiến độ và chứng nhận hiện trên từng hàng |
 | **Điểm danh** | Xem / sửa điểm danh từng buổi |
 | **Ghi chú** | Ghi chú nội bộ (học viên không thấy) |
 | **Chứng nhận** | Xem PDF, **Cấp lại**, **Thu hồi** |
@@ -320,13 +324,12 @@ Hồ sơ người đã (hoặc sắp) học. Khác với **Đăng ký**: đăng 
 
 ## 9. Ghi danh
 
-Menu **Ghi danh** xem **toàn bộ** chỗ học: học viên nào — khóa nào — lớp nào — đã trả tiền chưa — tiến độ — chứng nhận.
+Không còn menu riêng. Một người có thể học nhiều khóa / nhiều lớp:
 
-- **+ Ghi danh:** chọn học viên + lớp.
-- **Sửa:** đổi lớp, trạng thái học, thanh toán, ghi chú.
-- **Xóa:** gỡ học viên khỏi lớp (cẩn thận nếu đã có chứng nhận).
+- Theo người: menu **Học viên** → cột Lớp, hoặc chi tiết → tab **Ghi danh**.
+- Theo lớp: **Lớp học** → tab **Học viên** (thanh toán, tiến độ, đề xuất hoàn thành, chứng nhận).
 
-Một người có thể học nhiều khóa / nhiều lớp.
+URL cũ `/admin/enrollments` chuyển về **Học viên**.
 
 ---
 
