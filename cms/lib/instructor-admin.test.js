@@ -612,6 +612,14 @@ test("class student tab reloads after recommending completion", () => {
   assert.match(ui, /e\.status === "completed" \|\| e\.status === "cancelled"/);
 });
 
+test("class roster payment badge uses PAY_LABEL so paid is not Chờ thanh toán", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /paid: "Chờ thanh toán"/);
+  assert.match(ui, /paid: "Đã thanh toán"/);
+  assert.match(ui, /badge\(e\.payment_status, PAY_LABEL\)/);
+  assert.doesNotMatch(ui, /badge\(e\.payment_status\)/);
+});
+
 test("admin class status options are open, full, completed, and cancelled", () => {
   const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
   assert.match(ui, /SESSION_STATUS_OPTIONS = \["open", "full", "completed", "cancelled"\]/);

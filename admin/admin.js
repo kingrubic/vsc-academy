@@ -303,8 +303,9 @@
     TYPE_LABEL,
     LEVEL_LABEL,
   );
-  function badge(status) {
-    return `<span class="badge ${status || ""}">${esc(statusText(status))}</span>`;
+  function badge(status, labels) {
+    const text = labels && status != null && labels[status] != null ? labels[status] : statusText(status);
+    return `<span class="badge ${status || ""}">${esc(text)}</span>`;
   }
   function langDot(status) {
     return `<span class="dot ${status === "published" ? "on" : "off"}"></span>${LANG_LABEL[status] || statusText(status)}`;
@@ -1087,7 +1088,7 @@
                 e.status === "completed" || e.status === "cancelled"
                   ? ""
                   : `<button type="button" class="btn" data-recommend="${esc(e.id)}">Đề xuất hoàn thành</button>`;
-              return `<tr><td><a href="${href(`/students/${e.student_id}`)}">${esc(e.student_name)}</a></td><td>${badge(e.status)}</td><td>${badge(e.payment_status)}</td><td>${e.progress.percent}%</td><td>${badge(e.certificate.status)}</td><td>${action}</td></tr>`;
+              return `<tr><td><a href="${href(`/students/${e.student_id}`)}">${esc(e.student_name)}</a></td><td>${badge(e.status, ENROLL_LABEL)}</td><td>${badge(e.payment_status, PAY_LABEL)}</td><td>${e.progress.percent}%</td><td>${badge(e.certificate.status, CERT_LABEL)}</td><td>${action}</td></tr>`;
             }),
           );
           const stayOnStudents = () => {
@@ -1240,8 +1241,8 @@
                   <td>${esc(e.student_name)}</td>
                   <td>${e.attendance.percent}%</td>
                   <td>${esc(statusText(e.completion_status || e.status))}</td>
-                  <td>${badge(e.payment_status)}</td>
-                  <td>${badge(e.certificate.status)}</td>
+                  <td>${badge(e.payment_status, PAY_LABEL)}</td>
+                  <td>${badge(e.certificate.status, CERT_LABEL)}</td>
                 </tr>`,
               ),
             )}`;
@@ -1263,8 +1264,8 @@
                   <td>${esc(e.student_name)}</td>
                   <td>${e.attendance.percent}%</td>
                   <td>${esc(statusText(e.completion_status || e.status))}</td>
-                  <td>${badge(e.payment_status)}</td>
-                  <td>${badge(e.certificate.status)}</td>
+                  <td>${badge(e.payment_status, PAY_LABEL)}</td>
+                  <td>${badge(e.certificate.status, CERT_LABEL)}</td>
                   <td><label><input type="checkbox" data-bulk="${e.id}" data-eligible="${e.eligibility.eligible ? "1" : "0"}" ${blocked ? "disabled" : ""} /> Cấp</label>${!e.eligibility.eligible && !issued ? `<small style="display:block;color:#6b7c94">${esc(reasons.join(", ") || "chưa đủ điều kiện")}</small>` : ""}</td>
                 </tr>`;
               }),
