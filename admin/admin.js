@@ -943,7 +943,7 @@
           </div>
           <div class="field"><label>Tên lớp</label><input name="sessionName" value="${esc(s.session_name || "")}" /></div>
           <div class="field"><label>Giảng viên</label>
-            <select name="instructorId">
+            <select id="session-instructor" name="instructorId">
               <option value="">Theo khóa</option>
               ${(instructors.items || []).map((ins) => `<option value="${esc(ins.id)}" ${s.instructor_id === ins.id ? "selected" : ""}>${esc(ins.name)}</option>`).join("")}
             </select>
@@ -1002,7 +1002,7 @@
         programId: val(form, "programId"),
         slug: slugify(val(form, "slug")),
         sessionName: val(form, "sessionName"),
-        instructorId: val(form, "instructorId") || null,
+        instructorId: $("#session-instructor")?.value || val(form, "instructorId") || null,
         type: val(form, "type"),
         startDate: val(form, "startDate"),
         endDate: val(form, "endDate") || val(form, "startDate"),

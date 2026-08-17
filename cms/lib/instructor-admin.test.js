@@ -531,6 +531,44 @@ test("admin shell uses Vietnamese navigation and versioned assets", () => {
   assert.match(html, /Hiện mật khẩu/);
 });
 
+test("admin can save a class instructor from the faculty catalog", async () => {
+  const admin = { role: "ADMIN", instructor_id: null, email: "admin@vsc.academy" };
+  const { app, store } = harnessFor(admin, {
+    allowWrite: true,
+    sessionUser: { role: "ADMIN", instructorId: null, email: "admin@vsc.academy" },
+  });
+  store.snap.instructors.push({ id: "i2", name: "GV 2" });
+  store.snap.sessions[0] = {
+    ...store.snap.sessions[0],
+    slug: "lop-1",
+    start_date: "2026-08-24",
+    start_time: "19:00",
+    end_time: "21:00",
+    status: "open",
+  };
+  const saved = await request(app, {
+    method: "PUT",
+    path: "/api/admin/sessions/s1",
+    body: {
+      programId: "p1",
+      slug: "lop-1",
+      sessionName: "Lớp 1",
+      instructorId: "i2",
+      startDate: "2026-08-24",
+      startTime: "19:00",
+      endTime: "21:00",
+      status: "open",
+    },
+  });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.json.instructorId, "i2");
+  assert.equal(store.snap.sessions[0].instructor_id, "i2");
+  const listed = await request(app, { path: "/api/admin/sessions" });
+  assert.equal(listed.json.items[0].instructorName, "GV 2");
+  const detail = await request(app, { path: "/api/admin/sessions/s1" });
+  assert.equal(detail.json.instructor_id, "i2");
+});
+
 test("admin class list stacks end date under start date", () => {
   const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
   assert.match(ui, /function fmtSessionDates\(s\)/);
@@ -538,6 +576,7 @@ test("admin class list stacks end date under start date", () => {
   assert.match(ui, /<td>\$\{fmtSessionDates\(s\)\}<\/td>/);
   assert.match(ui, /\["Lớp", "Khóa", "Giảng viên", "Ngày", "Giờ", "Đăng ký", "Trạng thái"/);
   assert.match(ui, /name="instructorId"/);
+  assert.match(ui, /id="session-instructor"/);
   assert.match(ui, /s\.instructorName/);
 });
 

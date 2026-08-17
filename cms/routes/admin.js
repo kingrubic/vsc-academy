@@ -432,7 +432,7 @@ function createAdminRouter(store) {
   router.get("/sessions", async (req, res) => {
     const programId = req.query.programId || null;
     const status = req.query.status || null;
-    const snap = await store.dump();
+    const snap = await store.dump(true);
     const rows = alive(snap.sessions)
       .filter((s) => !programId || s.program_id === programId)
       .filter((s) => !status || s.status === status)
@@ -451,11 +451,15 @@ function createAdminRouter(store) {
   });
 
   router.get("/sessions/:id", async (req, res) => {
-    const snap = await store.dump();
+    const snap = await store.dump(true);
     const row = aliveById(snap.sessions, req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
     if (!Security.instructorOwnsSession(req.lmsScope, row.id)) return res.status(403).json({ error: "Forbidden" });
-    res.json(row);
+    const program = aliveById(snap.programs, row.program_id);
+    res.json({
+      ...row,
+      instructorName: sessionInstructorName(snap, row, program),
+    });
   });
 
   async function saveSession(req, res) {
@@ -528,7 +532,7 @@ function createAdminRouter(store) {
       };
       await store.upsert("sessions", saved);
       await Meetings.ensureSessionMeetings(store, snap, saved);
-      res.json({ ok: true, id });
+      res.json({ ok: true, id, instructorId: saved.instructor_id });
     } catch (err) {
       sendErr(res, err);
     }
