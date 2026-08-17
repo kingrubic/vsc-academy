@@ -23,7 +23,7 @@ Học viên **không** tự có tài khoản khi nộp form `/dang-ky`.
 4. CMS **không** gửi email kích hoạt. Admin nhận email + mật khẩu tạm một lần trên màn hình, rồi gửi thủ công cho học viên.
 5. Học viên đăng nhập cổng học bằng email và mật khẩu tạm, rồi bắt buộc đổi mật khẩu (≥ 8 ký tự).
 
-Tạo tay: **Học viên → + Học viên** → ghi danh vào lớp.
+Tạo tay: **Học viên → + Học viên** (có thể chọn lớp ngay). Nếu chưa chọn lớp: chi tiết học viên → tab **Ghi danh**.
 
 Trạng thái học viên: Đã mời / Đang học / Ngưng / Tạm khóa.
 
@@ -32,8 +32,8 @@ Trạng thái học viên: Đã mời / Đang học / Ngưng / Tạm khóa.
 - Từ **Học viên → chi tiết → Ghi danh**: chọn lớp → Ghi danh.
 - Hoặc xác nhận đăng ký (tự ghi danh).
 - Một học viên có thể học nhiều khóa / nhiều lớp.
-- Chuyển lớp: đổi lớp trên bản ghi danh.
-- **Ghi danh** (`/admin/enrollments`) xem toàn bộ: học viên, khóa, lớp, thanh toán, tiến độ, chứng nhận.
+- Chuyển lớp / gỡ khỏi lớp: trên tab Ghi danh của học viên.
+- Roster cả lớp: **Lớp học → tab Học viên** (thanh toán, tiến độ, chứng nhận). Không còn menu `/admin/enrollments`.
 
 ## 3. Tạo buổi học
 
