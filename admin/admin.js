@@ -663,11 +663,13 @@
           <div class="faculty-list">
           ${(instructors.items || []).map((ins) => {
             const linked = (p.instructors || []).find((x) => x.instructor_id === ins.id);
+            const role = linked?.role || "";
             return `<label class="faculty-row">
               <input type="checkbox" name="ins-${ins.id}" ${linked ? "checked" : ""} />
               <span class="faculty-name">${esc(ins.name)}</span>
               <select name="insrole-${ins.id}">
-                ${opts(FACULTY_ROLE, linked?.role || "instructor")}
+                <option value="" ${role ? "" : "selected"}>Chưa chọn</option>
+                ${opts(FACULTY_ROLE, role)}
               </select>
             </label>`;
           }).join("")}
