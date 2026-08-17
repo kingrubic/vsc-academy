@@ -9,15 +9,16 @@
     cancelled: "Đã hủy",
   };
   const REG_LABEL = {
-    new: "Mới",
-    contacted: "Đã liên hệ",
     pending_payment: "Chờ thanh toán",
-    paid: "Đã thanh toán",
     confirmed: "Đã xác nhận",
-    waitlist: "Danh sách chờ",
     cancelled: "Đã hủy",
-    completed: "Đã hoàn thành",
+    new: "Chờ thanh toán",
+    contacted: "Chờ thanh toán",
+    paid: "Chờ thanh toán",
+    waitlist: "Chờ thanh toán",
+    completed: "Đã xác nhận",
   };
+  const REG_STATUS_OPTIONS = ["pending_payment", "confirmed", "cancelled"];
   const LANG_LABEL = {
     not_created: "Chưa tạo",
     ai_draft: "Nháp AI",
@@ -79,11 +80,53 @@
   const app = $("#app");
   const toastEl = $("#toast");
 
+  function adminRegStatus(status) {
+    if (status === "confirmed" || status === "completed") return "confirmed";
+    if (status === "cancelled") return "cancelled";
+    return "pending_payment";
+  }
+
   function toast(msg, error) {
     toastEl.textContent = msg;
     toastEl.classList.toggle("error", !!error);
     toastEl.classList.add("show");
     setTimeout(() => toastEl.classList.remove("show"), 2800);
+  }
+
+  function showLearnerCredentials({ email, temporaryPassword, studentId }) {
+    const back = document.createElement("div");
+    back.className = "modal-back";
+    back.innerHTML = `
+      <div class="modal" role="dialog" aria-labelledby="cred-title">
+        <h2 id="cred-title">Đã tạo tài khoản học viên</h2>
+        <p class="muted">Chưa gửi email kích hoạt. Sao chép thông tin này và gửi thủ công cho học viên. Mật khẩu tạm chỉ hiện một lần.</p>
+        <p><strong>Email</strong></p>
+        <div class="cred-row"><code>${esc(email)}</code><button type="button" class="btn" data-copy="${esc(email)}">Sao chép</button></div>
+        <p><strong>Mật khẩu tạm</strong></p>
+        <div class="cred-row"><code>${esc(temporaryPassword)}</code><button type="button" class="btn" data-copy="${esc(temporaryPassword)}">Sao chép</button></div>
+        <div class="toolbar" style="margin-top:16px">
+          ${studentId ? `<button type="button" class="btn btn-primary" id="cred-open">Mở Học viên</button>` : ""}
+          <button type="button" class="btn" id="cred-close">Đóng</button>
+        </div>
+      </div>`;
+    document.body.appendChild(back);
+    back.addEventListener("click", async (e) => {
+      if (!e.target.dataset.copy) return;
+      try {
+        await navigator.clipboard.writeText(e.target.dataset.copy);
+        toast("Đã sao chép");
+      } catch {
+        toast("Không sao chép được", true);
+      }
+    });
+    const open = $("#cred-open", back);
+    if (open) {
+      open.onclick = () => {
+        back.remove();
+        go(href(`/students/${studentId}`));
+      };
+    }
+    $("#cred-close", back).onclick = () => back.remove();
   }
 
   async function api(path, opts = {}) {
@@ -836,14 +879,13 @@
         ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/sessions/new")}">+ Lớp mới</a>` : ""}
       </div>
       ${table(
-        ["Lớp", "Khóa", "Ngày", "Giờ", "Chỗ", "Đăng ký", "Trạng thái", ""],
+        ["Lớp", "Khóa", "Ngày", "Giờ", "Đăng ký", "Trạng thái", ""],
         filtered.map(
           (s) => `<tr>
             <td><a href="${href(`/sessions/${s.id}`)}">${esc(s.session_name || s.slug)}</a></td>
             <td>${esc(s.programName || "")}</td>
             <td>${fmtDate(s.start_date)}</td>
             <td>${esc(s.start_time)}–${esc(s.end_time)}</td>
-            <td>${s.capacity ?? "—"}</td>
             <td>${s.registered_count}</td>
             <td>${badge(s.status)}</td>
             <td><a href="${href(`/sessions/${s.id}`)}">Sửa</a></td>
@@ -891,8 +933,6 @@
           <div class="field"><label>Nền tảng trực tuyến</label><input name="onlinePlatform" value="${esc(s.online_platform || "")}" /></div>
           <div class="field"><label>Link họp trực tuyến</label><input name="meetingUrl" value="${esc(s.meeting_url || "")}" /></div>
           <div class="field"><label>Mở link vào lớp (phút trước giờ học)</label><input type="number" name="joinLinkOpenMinutesBefore" value="${s.join_link_open_minutes_before ?? ""}" placeholder="Theo khóa" /></div>
-          <div class="field"><label>Giá riêng (VND)</label><input type="number" name="priceOverride" value="${s.price_override ?? ""}" /></div>
-          <div class="field"><label>Sĩ số</label><input type="number" name="capacity" value="${s.capacity ?? ""}" /></div>
           <div class="field"><label>Đã đăng ký</label><input value="${s.registered_count || 0}" disabled /></div>
           <div class="field"><label>Trạng thái</label>
             <select name="status">${Object.keys(SESSION_LABEL).map((k) => `<option value="${k}" ${(s.status || (isNew ? "open" : "")) === k ? "selected" : ""}>${SESSION_LABEL[k]}</option>`).join("")}</select>
@@ -945,8 +985,6 @@
         onlinePlatform: val(form, "onlinePlatform"),
         meetingUrl: val(form, "meetingUrl"),
         joinLinkOpenMinutesBefore: val(form, "joinLinkOpenMinutesBefore") === "" ? null : Number(val(form, "joinLinkOpenMinutesBefore")),
-        priceOverride: val(form, "priceOverride") === "" ? null : Number(val(form, "priceOverride")),
-        capacity: val(form, "capacity") === "" ? null : Number(val(form, "capacity")),
         status: val(form, "status"),
         registrationOpenDate: val(form, "registrationOpenDate") || null,
         registrationCloseDate: val(form, "registrationCloseDate") || null,
@@ -1159,7 +1197,7 @@
         <input id="q" placeholder="Tên, email, SĐT, mã" value="${esc(qs.get("q") || "")}" />
         <select id="programId"><option value="">Khóa</option>${programs.items.map((p) => `<option value="${p.id}" ${qs.get("programId") === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
         <select id="sessionId"><option value="">Lớp</option>${sessions.items.map((s) => `<option value="${s.id}" ${qs.get("sessionId") === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}</select>
-        <select id="status"><option value="">Trạng thái</option>${Object.keys(REG_LABEL).map((k) => `<option value="${k}" ${qs.get("status") === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select>
+        <select id="status"><option value="">Trạng thái</option>${REG_STATUS_OPTIONS.map((k) => `<option value="${k}" ${qs.get("status") === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select>
         <a class="btn" href="/api/admin/registrations/export.csv">Tải CSV</a>
         ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/registrations/new")}">+ Thêm đăng ký</a>` : ""}
       </div>
@@ -1211,7 +1249,7 @@
       return;
     }
     $("#page-title").textContent = isNew ? "Thêm đăng ký" : "Sửa đăng ký";
-    const [r, sessions] = await Promise.all([isNew ? Promise.resolve({ status: "new", amount: 0 }) : api(`/registrations/${id}`), api("/sessions")]);
+    const [r, sessions] = await Promise.all([isNew ? Promise.resolve({ status: "pending_payment", amount: 0 }) : api(`/registrations/${id}`), api("/sessions")]);
     app.innerHTML = `
       <form class="card" style="padding:18px" id="reg-form">
         ${isNew ? "" : `<p><strong>ID:</strong> ${esc(r.id)} · <strong>Ngày tạo:</strong> ${fmtDate(r.created_at)}</p>`}
@@ -1221,7 +1259,7 @@
           <div class="field"><label>Email</label><input name="email" type="email" required ${canManageStaff() ? "" : "disabled"} value="${esc(r.email || "")}" /></div>
           <div class="field"><label>Lớp học</label><select name="sessionId" required ${canManageStaff() ? "" : "disabled"}><option value="">Chọn lớp</option>${sessions.items.map((s) => `<option value="${s.id}" ${r.session_id === s.id ? "selected" : ""}>${esc(s.session_name)} · ${fmtDate(s.start_date)}</option>`).join("")}</select></div>
           <div class="field"><label>Số tiền (VND)</label><input name="amount" type="number" min="0" step="1" required ${canManageStaff() ? "" : "disabled"} value="${esc(r.amount ?? 0)}" /></div>
-          <div class="field"><label>Trạng thái</label><select name="status" ${canManageStaff() ? "" : "disabled"}>${Object.keys(REG_LABEL).map((k) => `<option value="${k}" ${r.status === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select></div>
+          <div class="field"><label>Trạng thái</label><select name="status" ${canManageStaff() ? "" : "disabled"}>${REG_STATUS_OPTIONS.map((k) => `<option value="${k}" ${adminRegStatus(r.status) === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select></div>
           <div class="field"><label>Vai trò công việc</label><input name="jobRole" ${canManageStaff() ? "" : "disabled"} value="${esc(r.job_role || "")}" /></div>
           <div class="field"><label>Tổ chức</label><input name="organization" ${canManageStaff() ? "" : "disabled"} value="${esc(r.organization || "")}" /></div>
           <div class="field full"><label>Mục tiêu</label><textarea name="goal" ${canManageStaff() ? "" : "disabled"}>${esc(r.goal || "")}</textarea></div>
@@ -1247,8 +1285,22 @@
             consentMarketing: e.target.elements.consentMarketing.checked, note: isNew ? "" : val(e.target, "note"),
           },
         });
-        toast(data.emailed ? `Đã xác nhận và gửi email kích hoạt tới ${data.to}` : isNew ? "Đã thêm đăng ký" : "Đã cập nhật đăng ký");
-        go(href(isNew ? `/registrations/${data.id}` : "/registrations"));
+        if (data.temporaryPassword) {
+          toast("Đã xác nhận và tạo tài khoản học viên. Gửi thông tin đăng nhập thủ công.");
+          showLearnerCredentials({
+            email: data.to,
+            temporaryPassword: data.temporaryPassword,
+            studentId: data.studentId,
+          });
+          go(href(data.studentId ? `/students/${data.studentId}` : "/students"));
+        } else {
+          toast(
+            data.studentCreated === false && val(e.target, "status") === "confirmed"
+              ? "Đã xác nhận và ghi danh học viên hiện có"
+              : isNew ? "Đã thêm đăng ký" : "Đã cập nhật đăng ký",
+          );
+          go(href(isNew ? `/registrations/${data.id}` : "/registrations"));
+        }
       } catch (err) {
         e.target.querySelector('[type="submit"]').disabled = false;
         toast(err.message, true);

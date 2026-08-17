@@ -312,7 +312,7 @@
           invoiceEmail: f.invoiceEmail,
           companyAddress: f.companyAddress,
         },
-        status: selected.remainingSeats === 0 ? "waitlist" : "new",
+        status: "pending_payment",
         paymentStatus: "unpaid",
         consentPrivacy: !!f.consentPrivacy,
         consentMarketing: !!f.consentMarketing,

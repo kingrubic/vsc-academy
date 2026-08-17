@@ -211,7 +211,7 @@ test("registration CRUD enforces roles, validation, persistence, and protected s
   assert.equal(invalid.status, 400);
   const created = await request(app, {
     method: "POST", path: "/api/admin/registrations",
-    body: { fullName: "Nguyễn An", phone: "0901234567", email: "AN@example.com", sessionId: "s1", amount: 1200000, status: "new", consentPrivacy: true },
+    body: { fullName: "Nguyễn An", phone: "0901234567", email: "AN@example.com", sessionId: "s1", amount: 1200000, status: "pending_payment", consentPrivacy: true },
   });
   assert.equal(created.status, 201);
   assert.match(created.json.id, /^VSC-\d{4}-000001$/);
@@ -464,6 +464,15 @@ test("admin UI exposes registration add, edit, delete, and core fields", () => {
     assert.match(ui, new RegExp(`name=\\"${field}\\"`), `missing registration field ${field}`);
   }
   assert.match(ui, /confirmAction\("Xóa đăng ký này\?"\)/);
+  assert.match(ui, /showLearnerCredentials/);
+  assert.match(ui, /Gửi thông tin đăng nhập thủ công/);
+  assert.doesNotMatch(ui, /Đã xác nhận và gửi email kích hoạt/);
+  assert.match(ui, /REG_STATUS_OPTIONS/);
+  assert.doesNotMatch(ui, /Danh sách chờ/);
+  assert.doesNotMatch(ui, /Đã liên hệ/);
+  assert.doesNotMatch(ui, /Giá riêng/);
+  assert.doesNotMatch(ui, /name="priceOverride"/);
+  assert.doesNotMatch(ui, /<label>Sĩ số<\/label>/);
   assert.match(ui, /canManageStaff\(\) \? `<a class="btn btn-primary" href="\$\{href\("\/registrations\/new"\)\}"/);
   assert.match(ui, /canManageStaff\(\) \? `<a class="btn" href="\$\{href\(`\/registrations\/\$\{r\.id\}`\)\}">Sửa/);
   assert.match(ui, /if \(isNew && !canManageStaff\(\)\)/);
