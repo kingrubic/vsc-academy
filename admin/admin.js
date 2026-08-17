@@ -352,6 +352,9 @@
   function confirmAction(message) {
     return window.confirm(message);
   }
+  function submitButton(form) {
+    return form.querySelector('button[type="submit"], input[type="submit"], button.btn-primary:not([type]), button:not([type])');
+  }
   function esc(s) {
     return String(s ?? "")
       .replace(/&/g, "&amp;")
@@ -1352,8 +1355,8 @@
     if (canManageStaff()) $("#reg-form").onsubmit = async (e) => {
       e.preventDefault();
       try {
-        const button = e.target.querySelector('[type="submit"]');
-        button.disabled = true;
+        const button = submitButton(e.target);
+        if (button) button.disabled = true;
         const data = await api(isNew ? "/registrations" : `/registrations/${id}`, {
           method: isNew ? "POST" : "PUT",
           body: {
@@ -1381,7 +1384,8 @@
           go(href(isNew ? `/registrations/${data.id}` : "/registrations"));
         }
       } catch (err) {
-        e.target.querySelector('[type="submit"]').disabled = false;
+        const retry = submitButton(e.target);
+        if (retry) retry.disabled = false;
         toast(err.message, true);
       }
     };
@@ -1742,19 +1746,19 @@
           </select>
         </div>
         <p class="muted">Chọn lớp để học viên thấy khóa trên cổng ngay. Có thể xếp sau ở tab Ghi danh.</p>
-        <button class="btn btn-primary">Tạo</button>
+        <button class="btn btn-primary" type="submit">Tạo</button>
       </form>`;
       $("#stu-new").onsubmit = async (e) => {
         e.preventDefault();
-        const button = e.target.querySelector('[type="submit"]');
-        button.disabled = true;
+        const button = submitButton(e.target);
+        if (button) button.disabled = true;
         try {
           const body = Object.fromEntries(new FormData(e.target).entries());
           const r = await api("/students", { method: "POST", body });
           toast("Đã thêm học viên");
           go(href(`/students/${r.id}`));
         } catch (err) {
-          button.disabled = false;
+          if (button) button.disabled = false;
           toast(err.message, true);
         }
       };
@@ -1786,7 +1790,7 @@
               ${canManageStaff() ? `<select name="status">${opts(STUDENT_LABEL, s.status)}</select>` : `<input value="${esc(STUDENT_LABEL[s.status] || s.status)}" disabled />`}
             </div>
           </div>
-          <div class="toolbar">${canManageStaff() ? `<button class="btn btn-primary">Lưu</button>
+          <div class="toolbar">${canManageStaff() ? `<button class="btn btn-primary" type="submit">Lưu</button>
             <button type="button" class="btn" id="student-reset-password">Reset mật khẩu</button>
             <button type="button" class="btn-danger" id="student-delete">Xóa</button>` : ""}</div>
         </form>
@@ -1882,7 +1886,7 @@
     $("#stu-form").onsubmit = async (e) => {
       e.preventDefault();
       if (!canManageStaff()) return;
-      const button = e.target.querySelector('[type="submit"]');
+      const button = submitButton(e.target);
       if (button) button.disabled = true;
       try {
         await api(`/students/${id}`, { method: "PUT", body: Object.fromEntries(new FormData(e.target).entries()) });
@@ -2095,12 +2099,12 @@
         <div class="field"><label>Lớp học</label><select name="sessionId"><option value="">—</option>${sessions.items.map((s) => `<option value="${s.id}" ${item.session_id === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}</select></div>
         <div class="field"><label>Mã học viên (nếu gửi cho một người)</label><input name="studentId" value="${esc(item.student_id || "")}" /></div>
       </div>
-      <div class="toolbar"><button class="btn btn-primary">Đăng</button>
+      <div class="toolbar"><button class="btn btn-primary" type="submit">Đăng</button>
       ${editing !== "new" && canManageStaff() ? `<button type="button" class="btn-danger" id="ann-del">Xóa</button>` : ""}</div>
     </form>`;
     $("#ann-form").onsubmit = async (e) => {
       e.preventDefault();
-      const button = e.target.querySelector('[type="submit"]');
+      const button = submitButton(e.target);
       if (button) button.disabled = true;
       const body = Object.fromEntries(new FormData(e.target).entries());
       try {
@@ -2250,7 +2254,7 @@
     if (!canManageStaff()) return;
     $("#tpl-form").onsubmit = async (e) => {
       e.preventDefault();
-      const button = e.target.querySelector('[type="submit"]');
+      const button = submitButton(e.target);
       if (button) button.disabled = true;
       const body = Object.fromEntries(new FormData(e.target).entries());
       try {
