@@ -526,6 +526,13 @@ test("admin shell uses Vietnamese navigation and versioned assets", () => {
   assert.match(html, /\/admin\/admin\.js\?v=[0-9-]+/);
 });
 
+test("admin class list stacks end date under start date", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /function fmtSessionDates\(s\)/);
+  assert.match(ui, /fmtDate\(s\.end_date \|\| s\.start_date\)/);
+  assert.match(ui, /<td>\$\{fmtSessionDates\(s\)\}<\/td>/);
+});
+
 test("admin class status options are open, full, completed, and cancelled", () => {
   const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
   assert.match(ui, /SESSION_STATUS_OPTIONS = \["open", "full", "completed", "cancelled"\]/);
