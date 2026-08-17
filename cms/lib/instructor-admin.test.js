@@ -500,6 +500,8 @@ test("admin UI hides instructor-forbidden enrollment and delete controls", () =>
   assert.match(ui, /canManageStaff\(\) \? `<select data-pay=/);
   assert.match(ui, /canManageStaff\(\) \? `<button type="button" class="btn-danger" id="mat-del"/);
   assert.match(ui, /canManageStaff\(\) \? `<button type="button" class="btn-danger" id="ann-del"/);
+  assert.match(ui, /function canEditMeetings\(\)/);
+  assert.match(ui, /canEditMeetings\(\)/);
   assert.match(ui, /data-edit-mtg=/);
   assert.match(ui, /data-del-mtg=/);
   assert.match(ui, /\/meetings\/\$\{editingId\}/);

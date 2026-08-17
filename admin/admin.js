@@ -192,6 +192,9 @@
   function canManageStaff() {
     return ["OWNER", "ADMIN"].includes(state.user?.role);
   }
+  function canEditMeetings() {
+    return ["OWNER", "ADMIN", "INSTRUCTOR"].includes(state.user?.role);
+  }
   function homeFor(user) {
     return user?.role === "INSTRUCTOR" ? "/giang-vien" : "/admin";
   }
@@ -1069,14 +1072,17 @@
           pane.innerHTML = `${table(
             ["Buổi", "Ngày", "Giờ", "Trạng thái", ""],
             lms.meetings.map((m) => {
+              const edit = canEditMeetings()
+                ? `<button type="button" class="btn" data-edit-mtg="${esc(m.id)}">Sửa</button>`
+                : "";
               const del = canManageStaff()
                 ? ` <button type="button" class="btn-danger" data-del-mtg="${esc(m.id)}">Xóa</button>`
                 : "";
-              return `<tr><td>${esc(m.title_vi)}</td><td>${fmtDate(m.date)}</td><td>${esc(m.start_time)}–${esc(m.end_time)}</td><td>${badge(m.status)}</td><td><button type="button" class="btn" data-edit-mtg="${esc(m.id)}">Sửa</button>${del}</td></tr>`;
+              return `<tr><td>${esc(m.title_vi)}</td><td>${fmtDate(m.date)}</td><td>${esc(m.start_time)}–${esc(m.end_time)}</td><td>${badge(m.status)}</td><td>${edit}${del}</td></tr>`;
             }),
             "Chưa có buổi",
           )}
-          <form id="mtg-form" class="form-grid" style="margin-top:12px">
+          ${canEditMeetings() ? `<form id="mtg-form" class="form-grid" style="margin-top:12px">
             <p id="mtg-form-title" class="field full" style="margin:0;font-weight:600">Thêm buổi học</p>
             <div class="field"><label>Tiêu đề tiếng Việt</label><input name="titleVi" required /></div>
             <div class="field"><label>Tiêu đề tiếng Anh</label><input name="titleEn" /></div>
@@ -1091,62 +1097,70 @@
               <button class="btn btn-primary" id="mtg-submit" type="submit">Thêm buổi</button>
               <button class="btn hidden" id="mtg-cancel" type="button">Hủy sửa</button>
             </div>
-          </form>`;
+          </form>` : ""}`;
           const form = $("#mtg-form");
-          const fillMeeting = (m) => {
-            form.dataset.editing = m ? m.id : "";
-            form.titleVi.value = m?.title_vi || "";
-            form.titleEn.value = m?.title_en || "";
-            form.date.value = String(m?.date || "").slice(0, 10);
-            form.startTime.value = String(m?.start_time || "").slice(0, 5);
-            form.endTime.value = String(m?.end_time || "").slice(0, 5);
-            form.format.value = m?.format || "online";
-            form.status.value = MEETING_LABEL[m?.status] ? m.status : "scheduled";
-            form.meetingUrl.value = m?.meeting_url || "";
-            form.recordingUrl.value = m?.recording_url || "";
-            $("#mtg-form-title").textContent = m ? "Sửa buổi học" : "Thêm buổi học";
-            $("#mtg-submit").textContent = m ? "Lưu buổi" : "Thêm buổi";
-            $("#mtg-cancel").classList.toggle("hidden", !m);
+          const stayOnMeetings = () => {
+            const next = new URL(location.href);
+            next.searchParams.set("tab", "meetings");
+            history.replaceState({}, "", `${next.pathname}${next.search}`);
+            render();
           };
-          pane.querySelectorAll("[data-edit-mtg]").forEach((btn) =>
-            btn.addEventListener("click", () => {
-              const m = lms.meetings.find((row) => row.id === btn.dataset.editMtg);
-              if (!m) return;
-              fillMeeting(m);
-              form.scrollIntoView({ behavior: "smooth", block: "nearest" });
-            }),
-          );
+          if (form) {
+            const fillMeeting = (m) => {
+              form.dataset.editing = m ? m.id : "";
+              form.elements.titleVi.value = m?.title_vi || "";
+              form.elements.titleEn.value = m?.title_en || "";
+              form.elements.date.value = String(m?.date || "").slice(0, 10);
+              form.elements.startTime.value = String(m?.start_time || "").slice(0, 5);
+              form.elements.endTime.value = String(m?.end_time || "").slice(0, 5);
+              form.elements.format.value = m?.format || "online";
+              form.elements.status.value = MEETING_LABEL[m?.status] ? m.status : "scheduled";
+              form.elements.meetingUrl.value = m?.meeting_url || "";
+              form.elements.recordingUrl.value = m?.recording_url || "";
+              $("#mtg-form-title").textContent = m ? "Sửa buổi học" : "Thêm buổi học";
+              $("#mtg-submit").textContent = m ? "Lưu buổi" : "Thêm buổi";
+              $("#mtg-cancel").classList.toggle("hidden", !m);
+            };
+            pane.querySelectorAll("[data-edit-mtg]").forEach((btn) =>
+              btn.addEventListener("click", () => {
+                const m = lms.meetings.find((row) => row.id === btn.dataset.editMtg);
+                if (!m) return;
+                fillMeeting(m);
+                form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+              }),
+            );
+            $("#mtg-cancel").onclick = () => fillMeeting(null);
+            form.onsubmit = async (e) => {
+              e.preventDefault();
+              const body = Object.fromEntries(new FormData(e.target).entries());
+              body.sessionId = id;
+              const editingId = form.dataset.editing;
+              try {
+                if (editingId) {
+                  await api(`/meetings/${editingId}`, { method: "PUT", body });
+                  toast("Đã lưu buổi học");
+                } else {
+                  await api("/meetings", { method: "POST", body });
+                  toast("Đã thêm buổi học");
+                }
+                stayOnMeetings();
+              } catch (err) {
+                toast(err.message, true);
+              }
+            };
+          }
           pane.querySelectorAll("[data-del-mtg]").forEach((btn) =>
             btn.addEventListener("click", async () => {
               if (!confirmAction("Xóa buổi học này?")) return;
               try {
                 await api(`/meetings/${btn.dataset.delMtg}`, { method: "DELETE" });
                 toast("Đã xóa buổi học");
-                render();
+                stayOnMeetings();
               } catch (err) {
                 toast(err.message, true);
               }
             }),
           );
-          $("#mtg-cancel").onclick = () => fillMeeting(null);
-          form.onsubmit = async (e) => {
-            e.preventDefault();
-            const body = Object.fromEntries(new FormData(e.target).entries());
-            body.sessionId = id;
-            const editingId = form.dataset.editing;
-            try {
-              if (editingId) {
-                await api(`/meetings/${editingId}`, { method: "PUT", body });
-                toast("Đã lưu buổi học");
-              } else {
-                await api("/meetings", { method: "POST", body });
-                toast("Đã thêm buổi học");
-              }
-              render();
-            } catch (err) {
-              toast(err.message, true);
-            }
-          };
         } else if (k === "attendance") {
           const rows = [];
           lms.meetings.forEach((m) => {
