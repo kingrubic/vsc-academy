@@ -1,9 +1,14 @@
+const crypto = require("crypto");
 const { now, parseJson, alive, aliveById } = require("./convex-db");
 const { hashPassword, randomId } = require("./auth");
 const C = require("./lms-core");
 const Cert = require("./certificate");
 const { queueMail } = require("./notify");
 const PasswordReset = require("./password-reset");
+
+function newTemporaryPassword(length = 12) {
+  return crypto.randomBytes(Math.ceil(length / 2)).toString("hex").slice(0, length);
+}
 
 function publicStudent(row) {
   if (!row) return null;
@@ -283,20 +288,20 @@ async function ensureStudentAndEnrollment(store, snap, registration) {
     return { created: false };
   }
   const existing = alive(snap.students).find((row) => row.email === email);
-  if (!existing) PasswordReset.requireSecurityMail();
+  const temporaryPassword = existing ? null : newTemporaryPassword();
 
   const ts = now();
-  const activationToken = existing ? null : C.newSecretToken();
   const studentDraft = existing || {
     id: randomId("stu"),
     full_name: registration.full_name,
     email,
     phone: registration.phone || "",
     avatar: "",
-    password_hash: null,
-    activation_token: activationToken,
-    activation_expires_at: new Date(Date.now() + C.ACTIVATION_TTL_MS).toISOString(),
-    status: "invited",
+    password_hash: hashPassword(temporaryPassword),
+    activation_token: null,
+    activation_expires_at: null,
+    must_change_password: 1,
+    status: "active",
     language_preference: registration.locale || "vi",
     last_login_at: null,
     notes: "",
@@ -335,18 +340,15 @@ async function ensureStudentAndEnrollment(store, snap, registration) {
     throw Object.assign(new Error(provisioned?.error || "Không tạo được tài khoản học viên"), { status: 400 });
   }
   try {
-    let emailed = false;
-    if (provisioned.activationToken) {
-      await sendActivationEmail(store, provisioned.student, provisioned.activationToken);
-      emailed = true;
-    }
     await store.finalizeLearnerProvision({ operationId, ownership: provisioned.ownership });
     return {
       created: true,
+      studentCreated: !!provisioned.createdStudent,
       student: publicStudent(provisioned.student),
       enrollment: provisioned.enrollment,
-      emailed,
-      to: emailed ? provisioned.student.email : undefined,
+      emailed: false,
+      to: provisioned.createdStudent ? provisioned.student.email : undefined,
+      temporaryPassword: provisioned.createdStudent ? temporaryPassword : undefined,
     };
   } catch (err) {
     await store.abortLearnerProvision({
