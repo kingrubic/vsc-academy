@@ -18,21 +18,25 @@
       const [y, m, d] = e.date.split("-");
       return `${d}.${m}.${y}`;
     };
+  function sameKey(a, b) {
+    return String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+  }
   function pickSession() {
     const key = params.get("session");
     const programKey = params.get("program");
     selected =
-      sessions.find((e) => e.slug === key || e.id === key) ||
+      sessions.find((e) => sameKey(e.slug, key) || sameKey(e.id, key)) ||
       (programKey &&
         sessions.find(
           (e) =>
-            e.programId === programKey &&
+            sameKey(e.programId, programKey) &&
             e.remainingSeats !== 0 &&
             e.status !== "upcoming",
         )) ||
-      sessions.find((e) => e.programId === programKey) ||
+      sessions.find((e) => sameKey(e.programId, programKey)) ||
       sessions.find((e) => e.remainingSeats > 0 && e.status !== "upcoming") ||
-      sessions[0];
+      sessions[0] ||
+      null;
   }
   function summaryRender() {
     if (!selected) {
@@ -44,16 +48,29 @@
     summary.innerHTML = `<small>${I.locale === "en" ? "CLASS YOU ARE REGISTERING FOR" : "LỚP BẠN ĐANG ĐĂNG KÝ"}</small><h2>${selected.title}</h2><div class="summary-meta"><div><span>${I.locale === "en" ? "Date" : "Ngày học"}</span><b>${date(selected)}</b></div><div><span>${T.time || "Thời gian"}</span><b>${selected.startTime} – ${selected.endTime}</b></div><div><span>${T.format || "Hình thức"}</span><b>${selected.formatLabel || (selected.format === "online" ? (T.online || "Online") : (T.offline || "Offline"))}</b></div>${selected.durationLabel ? `<div><span>${T.duration || "Thời lượng"}</span><b>${selected.durationLabel} · ${selected.totalDuration}</b></div>` : ""}${selected.scheduleLabel ? `<div><span>${T.schedule || "Lịch chính"}</span><b>${selected.scheduleLabel}</b></div>` : ""}<div><span>${T.platform || "Nền tảng"}</span><b>${selected.location}</b></div>${selected.supportLabel ? `<div><span>${T.supportAfter || "Hỗ trợ sau khóa"}</span><b>${selected.supportLabel}</b></div>` : ""}</div><p class="summary-price">${(T.tuition || "Học phí").toUpperCase()}<strong>${selected.price}</strong></p><p class="summary-seats">${selected.classSizeLabel ? `${T.seats || "Sĩ số"} ${selected.classSizeLabel}` : selected.remainingSeats ? `${pad(selected.remainingSeats)} / ${selected.capacity} ${T.remaining || "chỗ còn lại"}` : (I.locale === "en" ? "Class is full · Join the waitlist" : "Lớp đã đầy · Đăng ký danh sách chờ")}</p><a class="summary-change" href="${scheduleHref}">${I.locale === "en" ? "← Choose another class" : "← Chọn lịch khác"}</a>`;
   }
   function selectors() {
+    const programSelect = $("#programSelect");
+    const sessionSelect = $("#sessionSelect");
+    if (!programSelect || !sessionSelect) return;
     const programs = [
       ...new Map(sessions.map((e) => [e.programId, e])).values(),
     ];
-    $("#programSelect").innerHTML = programs
+    if (!programs.length) {
+      const empty = I.locale === "en" ? "No classes available" : "Chưa có lớp khai giảng";
+      programSelect.innerHTML = `<option value="">${empty}</option>`;
+      sessionSelect.innerHTML = `<option value="">${empty}</option>`;
+      if ($("#formNext")) $("#formNext").disabled = true;
+      if ($("#formSubmit")) $("#formSubmit").disabled = true;
+      return;
+    }
+    programSelect.innerHTML = programs
       .map(
         (e) =>
           `<option value="${e.programId}">${(T.programNames && T.programNames[e.programId]) || e.title}</option>`,
       )
       .join("");
-    $("#programSelect").value = selected.programId;
+    if (!selected) selected = sessions.find((e) => e.programId === programs[0].programId) || sessions[0];
+    if (!selected) return;
+    programSelect.value = selected.programId;
     renderSessionOptions();
     if (params.has("session")) $("#sessionSelectors").hidden = true;
   }
@@ -67,9 +84,10 @@
           `<option value="${e.id}">${date(e)} · ${e.startTime} · ${e.formatLabel || (e.format === "online" ? "Online" : "Offline")}</option>`,
       )
       .join("");
-    if (list.some((e) => e.id === selected.id))
+    if (!selected) selected = list[0] || null;
+    else if (list.some((e) => e.id === selected.id))
       $("#sessionSelect").value = selected.id;
-    else selected = list[0];
+    else selected = list[0] || null;
     summaryRender();
   }
   function saveDraft() {
@@ -235,6 +253,17 @@
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     if (submitting || !validate()) return;
+    if (!selected) {
+      const submitError = $("#registrationSubmitError");
+      if (submitError) {
+        submitError.hidden = false;
+        submitError.textContent =
+          I.locale === "en"
+            ? "Please choose a class before submitting."
+            : "Vui lòng chọn một lớp trước khi gửi đăng ký.";
+      }
+      return;
+    }
     submitting = true;
     const btn = $("#formSubmit");
     const submitError = $("#registrationSubmitError");
