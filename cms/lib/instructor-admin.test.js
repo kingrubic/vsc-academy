@@ -446,6 +446,8 @@ test("admin UI exposes certificate template add, edit, and delete controls", () 
   assert.match(ui, /templateId/);
   assert.match(ui, /override: needsOverride/);
   assert.match(ui, /data-eligible/);
+  assert.match(ui, /data-select-all/);
+  assert.match(ui, /Chọn tất cả học viên/);
   assert.match(ui, /confirmAction\("Xóa mẫu chứng nhận này\?"\)/);
 });
 
