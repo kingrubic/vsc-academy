@@ -211,10 +211,7 @@ Bấm **Lưu lớp**. Website cập nhật lịch, trang khóa và form đăng k
 
 | Trạng thái | Website hiểu như thế nào |
 |---|---|
-| **Nháp** | Ẩn, chưa công bố |
-| **Sắp mở** | Sắp nhận đăng ký |
 | **Đang mở đăng ký** | Đang nhận học viên |
-| **Sắp hết chỗ** | Vẫn nhận, nhấn mạnh còn ít chỗ |
 | **Đã đầy** | Ngừng nhận đăng ký |
 | **Đã hoàn thành** | Lớp đã xong |
 | **Đã hủy** | Không mở lớp này |

@@ -3,15 +3,7 @@ const PHONE_RE = /^[0-9+\s().-]{8,20}$/;
 
 const PROGRAM_STATUS = ["draft", "published", "hidden"];
 const LANG_STATUS = ["not_created", "ai_draft", "review", "published"];
-const SESSION_STATUS = [
-  "draft",
-  "open",
-  "upcoming",
-  "limited",
-  "full",
-  "completed",
-  "cancelled",
-];
+const SESSION_STATUS = ["open", "full", "completed", "cancelled"];
 const REG_STATUS = ["pending_payment", "confirmed", "cancelled"];
 const REG_STATUS_ALIASES = {
   pending_payment: ["pending_payment", "new", "contacted", "paid", "waitlist"],
@@ -24,6 +16,13 @@ function normalizeRegStatus(status) {
   for (const [canonical, aliases] of Object.entries(REG_STATUS_ALIASES)) {
     if (aliases.includes(value)) return canonical;
   }
+  return "";
+}
+
+function normalizeSessionStatus(status) {
+  const value = String(status || "").trim();
+  if (["draft", "upcoming", "limited", "open"].includes(value)) return "open";
+  if (SESSION_STATUS.includes(value)) return value;
   return "";
 }
 
@@ -119,6 +118,7 @@ module.exports = {
   SESSION_STATUS,
   REG_STATUS,
   normalizeRegStatus,
+  normalizeSessionStatus,
   registrationStatusMatches,
   FORMATS,
   ROLES,

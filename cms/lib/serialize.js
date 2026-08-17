@@ -37,8 +37,8 @@ const COPY_KEYS = [
 
 const PUBLIC_SESSION_STATUS = {
   open: "open",
-  upcoming: "upcoming",
-  limited: "limited",
+  upcoming: "open",
+  limited: "open",
   full: "full",
   completed: "ended",
 };

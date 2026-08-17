@@ -1,13 +1,15 @@
 (() => {
+  const SESSION_STATUS_OPTIONS = ["open", "full", "completed", "cancelled"];
   const SESSION_LABEL = {
-    draft: "Nháp",
     open: "Đang mở đăng ký",
-    upcoming: "Sắp mở",
-    limited: "Sắp hết chỗ",
     full: "Đã đầy",
     completed: "Đã hoàn thành",
     cancelled: "Đã hủy",
   };
+  function sessionStatusKey(status) {
+    if (status === "full" || status === "completed" || status === "cancelled") return status;
+    return "open";
+  }
   const REG_LABEL = {
     pending_payment: "Chờ thanh toán",
     confirmed: "Đã xác nhận",
@@ -460,7 +462,7 @@
             ["Lớp", "Ngày", "Chỗ", "Đăng ký", "Trạng thái"],
             d.upcoming.map(
               (x) =>
-                `<tr><td><a href="${href(`/sessions/${x.id}`)}">${esc(x.programName)}</a></td><td>${fmtDate(x.start_date)}</td><td>${x.capacity ?? "—"}</td><td>${x.registered_count}</td><td>${badge(x.status)}</td></tr>`,
+                `<tr><td><a href="${href(`/sessions/${x.id}`)}">${esc(x.programName)}</a></td><td>${fmtDate(x.start_date)}</td><td>${x.capacity ?? "—"}</td><td>${x.registered_count}</td><td>${badge(sessionStatusKey(x.status))}</td></tr>`,
             ),
           )}
         </div>
@@ -747,7 +749,7 @@
           ${table(
             ["Lớp", "Ngày", "Trạng thái", ""],
             (p.sessions || []).map(
-              (s) => `<tr><td>${esc(s.session_name)}</td><td>${fmtDate(s.start_date)}</td><td>${badge(s.status)}</td><td><a href="${href(`/sessions/${s.id}`)}">Mở</a></td></tr>`,
+              (s) => `<tr><td>${esc(s.session_name)}</td><td>${fmtDate(s.start_date)}</td><td>${badge(sessionStatusKey(s.status))}</td><td><a href="${href(`/sessions/${s.id}`)}">Mở</a></td></tr>`,
             ),
             "Chưa có lớp",
           )}
@@ -880,12 +882,12 @@
     const programId = new URLSearchParams(location.search).get("programId") || "";
     const status = new URLSearchParams(location.search).get("status") || "";
     const filtered = data.items.filter(
-      (s) => (!programId || s.program_id === programId) && (!status || s.status === status),
+      (s) => (!programId || s.program_id === programId) && (!status || sessionStatusKey(s.status) === status),
     );
     app.innerHTML = `
       <div class="toolbar">
         <select id="f-program"><option value="">Tất cả khóa</option>${programs.items.map((p) => `<option value="${p.id}" ${p.id === programId ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
-        <select id="f-status"><option value="">Tất cả trạng thái</option>${Object.keys(SESSION_LABEL).map((k) => `<option value="${k}" ${k === status ? "selected" : ""}>${SESSION_LABEL[k]}</option>`).join("")}</select>
+        <select id="f-status"><option value="">Tất cả trạng thái</option>${SESSION_STATUS_OPTIONS.map((k) => `<option value="${k}" ${k === status ? "selected" : ""}>${SESSION_LABEL[k]}</option>`).join("")}</select>
         ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/sessions/new")}">+ Lớp mới</a>` : ""}
       </div>
       ${table(
@@ -897,7 +899,7 @@
             <td>${fmtDate(s.start_date)}</td>
             <td>${esc(s.start_time)}–${esc(s.end_time)}</td>
             <td>${s.registered_count}</td>
-            <td>${badge(s.status)}</td>
+            <td>${badge(sessionStatusKey(s.status))}</td>
             <td><a href="${href(`/sessions/${s.id}`)}">Sửa</a></td>
           </tr>`,
         ),
@@ -945,7 +947,7 @@
           <div class="field"><label>Mở link vào lớp (phút trước giờ học)</label><input type="number" name="joinLinkOpenMinutesBefore" value="${s.join_link_open_minutes_before ?? ""}" placeholder="Theo khóa" /></div>
           <div class="field"><label>Đã đăng ký</label><input value="${s.registered_count || 0}" disabled /></div>
           <div class="field"><label>Trạng thái</label>
-            <select name="status">${Object.keys(SESSION_LABEL).map((k) => `<option value="${k}" ${(s.status || (isNew ? "open" : "")) === k ? "selected" : ""}>${SESSION_LABEL[k]}</option>`).join("")}</select>
+            <select name="status">${SESSION_STATUS_OPTIONS.map((k) => `<option value="${k}" ${sessionStatusKey(s.status || (isNew ? "open" : "")) === k ? "selected" : ""}>${SESSION_LABEL[k]}</option>`).join("")}</select>
           </div>
           <div class="field"><label>Mở đăng ký</label><input type="date" name="registrationOpenDate" value="${esc((s.registration_open_date || "").slice(0, 10))}" /></div>
           <div class="field"><label>Đóng đăng ký</label><input type="date" name="registrationCloseDate" value="${esc((s.registration_close_date || "").slice(0, 10))}" /></div>

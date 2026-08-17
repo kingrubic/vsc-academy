@@ -43,3 +43,15 @@ test("normalizeRegStatus maps legacy registration statuses to the three admin st
   assert.equal(V.registrationStatusMatches("pending_payment", "new"), true);
   assert.equal(V.registrationStatusMatches("confirmed", "new"), false);
 });
+
+test("normalizeSessionStatus maps class statuses to the four admin states", () => {
+  assert.equal(V.normalizeSessionStatus("draft"), "open");
+  assert.equal(V.normalizeSessionStatus("upcoming"), "open");
+  assert.equal(V.normalizeSessionStatus("limited"), "open");
+  assert.equal(V.normalizeSessionStatus("open"), "open");
+  assert.equal(V.normalizeSessionStatus("full"), "full");
+  assert.equal(V.normalizeSessionStatus("completed"), "completed");
+  assert.equal(V.normalizeSessionStatus("cancelled"), "cancelled");
+  assert.equal(V.normalizeSessionStatus("nope"), "");
+  assert.deepEqual(V.SESSION_STATUS, ["open", "full", "completed", "cancelled"]);
+});
