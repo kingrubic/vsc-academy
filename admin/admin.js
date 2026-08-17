@@ -303,6 +303,21 @@
     if (el.type === "checkbox") return el.checked;
     return el.value;
   }
+  function slugify(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/gi, "d")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+  function suggestedSessionSlug(programId, startDate) {
+    if (!programId) return "";
+    const month = startDate ? Number(String(startDate).slice(5, 7)) : 0;
+    return month ? `${programId}-thang-${month}` : programId;
+  }
   function go(href) {
     history.pushState({}, "", href);
     render();
@@ -858,7 +873,10 @@
           <div class="field"><label>Khóa học</label>
             <select name="programId" required>${programs.items.map((p) => `<option value="${p.id}" ${s.program_id === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
           </div>
-          <div class="field"><label>Mã lớp (đường dẫn)</label><input name="slug" value="${esc(s.slug || "")}" required /></div>
+          <div class="field"><label>Mã lớp (đường dẫn)</label>
+            <input name="slug" value="${esc(s.slug || suggestedSessionSlug(s.program_id, s.start_date))}" required placeholder="ai-starter-thang-10" />
+            <small style="display:block;margin-top:6px;color:#6b7c94">Chữ thường không dấu, số và gạch ngang. Ví dụ: ai-starter-thang-10</small>
+          </div>
           <div class="field"><label>Tên lớp</label><input name="sessionName" value="${esc(s.session_name || "")}" /></div>
           <div class="field"><label>Loại</label><select name="type">${opts(TYPE_LABEL, s.type || "course")}</select></div>
           <div class="field"><label>Ngày bắt đầu</label><input type="date" name="startDate" value="${esc((s.start_date || "").slice(0, 10))}" required /></div>
@@ -877,7 +895,7 @@
           <div class="field"><label>Sĩ số</label><input type="number" name="capacity" value="${s.capacity ?? ""}" /></div>
           <div class="field"><label>Đã đăng ký</label><input value="${s.registered_count || 0}" disabled /></div>
           <div class="field"><label>Trạng thái</label>
-            <select name="status">${Object.keys(SESSION_LABEL).map((k) => `<option value="${k}" ${s.status === k ? "selected" : ""}>${SESSION_LABEL[k]}</option>`).join("")}</select>
+            <select name="status">${Object.keys(SESSION_LABEL).map((k) => `<option value="${k}" ${(s.status || (isNew ? "open" : "")) === k ? "selected" : ""}>${SESSION_LABEL[k]}</option>`).join("")}</select>
           </div>
           <div class="field"><label>Mở đăng ký</label><input type="date" name="registrationOpenDate" value="${esc((s.registration_open_date || "").slice(0, 10))}" /></div>
           <div class="field"><label>Đóng đăng ký</label><input type="date" name="registrationCloseDate" value="${esc((s.registration_close_date || "").slice(0, 10))}" /></div>
@@ -895,12 +913,26 @@
         el.disabled = true;
       });
     }
+    const form = $("#session-form");
+    const slugInput = form?.elements.slug;
+    const programInput = form?.elements.programId;
+    const dateInput = form?.elements.startDate;
+    let slugTouched = Boolean(s.slug);
+    slugInput?.addEventListener("input", () => {
+      slugTouched = true;
+    });
+    const syncSlug = () => {
+      if (!isNew || slugTouched || !slugInput) return;
+      slugInput.value = suggestedSessionSlug(programInput?.value, dateInput?.value);
+    };
+    programInput?.addEventListener("change", syncSlug);
+    dateInput?.addEventListener("change", syncSlug);
     $("#session-form").onsubmit = async (e) => {
       e.preventDefault();
       const form = e.target;
       const payload = {
         programId: val(form, "programId"),
-        slug: val(form, "slug"),
+        slug: slugify(val(form, "slug")),
         sessionName: val(form, "sessionName"),
         type: val(form, "type"),
         startDate: val(form, "startDate"),
