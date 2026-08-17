@@ -91,6 +91,7 @@ h1, h2, h3 { font-family: var(--display); letter-spacing: -0.02em; margin: 0; }
 .auth-links a { color: var(--blue); cursor: pointer; }
 .check { display: flex; align-items: center; gap: 8px; margin: 4px 0 16px; color: var(--muted); font-size: 13px; }
 .check input { width: auto; margin: 0; }
+.check + .check { margin-top: -8px; }
 .sidebar-user {
   margin-top: auto;
   display: flex;

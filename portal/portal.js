@@ -10,6 +10,7 @@
         password: "PASSWORD",
         submit: "SIGN IN →",
         remember: "Remember me",
+        showPassword: "Show password",
         forgot: "Forgot password?",
         needHelp: "Need login help?",
         activateCta: "ACTIVATE ACCOUNT",
@@ -122,6 +123,7 @@
         password: "MẬT KHẨU",
         submit: "ĐĂNG NHẬP →",
         remember: "Ghi nhớ đăng nhập",
+        showPassword: "Hiện mật khẩu",
         forgot: "Quên mật khẩu?",
         needHelp: "Cần hỗ trợ đăng nhập?",
         activateCta: "KÍCH HOẠT TÀI KHOẢN",
@@ -497,6 +499,7 @@
         <input name="email" type="email" autocomplete="username" required />
         <label>${t.password}</label>
         <input name="password" type="password" autocomplete="current-password" required />
+        <label class="check"><input type="checkbox" data-show-password /> ${t.showPassword}</label>
         <label class="check"><input type="checkbox" name="remember" /> ${t.remember}</label>
         <p class="auth-error" id="auth-error"></p>
         <button type="submit">${t.submit}</button>
@@ -515,6 +518,10 @@
         else if (m === "activate") go(EN ? "/activate" : "/kich-hoat");
         else go(EN ? "/login" : "/dang-nhap");
       });
+    });
+    auth.querySelector("[data-show-password]")?.addEventListener("change", (e) => {
+      const input = $("#login-form")?.elements.password;
+      if (input) input.type = e.target.checked ? "text" : "password";
     });
     $("#login-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
