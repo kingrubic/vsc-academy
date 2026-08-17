@@ -270,6 +270,11 @@
     if (!d) return "—";
     return String(d).slice(0, 10).split("-").reverse().join("/");
   }
+  function fmtSessionDates(s) {
+    const start = fmtDate(s.start_date);
+    const end = fmtDate(s.end_date || s.start_date);
+    return `${start}<span class="date-end">${end}</span>`;
+  }
   function labelOf(...maps) {
     return (key) => {
       for (const map of maps) {
@@ -896,7 +901,7 @@
           (s) => `<tr>
             <td><a href="${href(`/sessions/${s.id}`)}">${esc(s.session_name || s.slug)}</a></td>
             <td>${esc(s.programName || "")}</td>
-            <td>${fmtDate(s.start_date)}</td>
+            <td>${fmtSessionDates(s)}</td>
             <td>${esc(s.start_time)}–${esc(s.end_time)}</td>
             <td>${s.registered_count}</td>
             <td>${badge(sessionStatusKey(s.status))}</td>
