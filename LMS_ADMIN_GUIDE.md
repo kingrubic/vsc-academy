@@ -35,12 +35,13 @@ Trạng thái học viên: Đã mời / Đang học / Ngưng / Tạm khóa.
 - Chuyển lớp: đổi lớp trên bản ghi danh.
 - **Ghi danh** (`/admin/enrollments`) xem toàn bộ: học viên, khóa, lớp, thanh toán, tiến độ, chứng nhận.
 
-## 3. Tạo buổi học
+## 3. Tạo / sửa buổi học
 
-Mở **Sessions → chi tiết lớp → tab MEETINGS**.
+Mở **Lớp học → chi tiết lớp → tab Buổi học**.
 
-- Title VI/EN, ngày, giờ bắt đầu/kết thúc, format (online/offline), Google Meet URL, recording URL.
-- Có thể reschedule (đổi ngày/giờ) hoặc cancel. Học viên thuộc lớp nhận thông báo in-app.
+- Title VI/EN, ngày, giờ bắt đầu/kết thúc, format (online/offline/hybrid), Google Meet URL, recording URL, trạng thái.
+- **Sửa** trên dòng buổi để đổi lịch, link họp, bản ghi hoặc trạng thái (`rescheduled` / `cancelled`). Học viên thuộc lớp nhận thông báo in-app.
+- Admin / owner có thể **Xóa** buổi. Giảng viên sửa được buổi của lớp mình, không xóa được.
 
 ## 4. Thêm Google Meet
 
@@ -52,7 +53,7 @@ Lớp offline: không dùng Meet. Học viên thấy venue + địa chỉ + **XE
 
 ## 5. Đổi lịch
 
-Tab MEETINGS → sửa ngày/giờ/status (`rescheduled` / `cancelled`). Portal lịch học cập nhật ngay. Thông báo “Thay đổi lịch học” gửi tới học viên của session.
+Tab **Buổi học** → **Sửa** → đổi ngày/giờ/status (`rescheduled` / `cancelled`). Portal lịch học cập nhật ngay. Thông báo “Thay đổi lịch học” gửi tới học viên của lớp.
 
 ## 6. Upload tài liệu
 

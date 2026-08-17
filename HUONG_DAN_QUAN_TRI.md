@@ -229,15 +229,17 @@ Kéo xuống dưới form lớp:
 |---|---|
 | **Tổng quan** | Số học viên, bao nhiêu người đủ điều kiện chứng nhận |
 | **Học viên** | Danh sách trong lớp, thanh toán, tiến độ. **Đề xuất hoàn thành** khi giảng viên thấy học viên đã xong |
-| **Buổi học** | Từng buổi: tiêu đề, ngày, giờ, link họp, link bản ghi |
+| **Buổi học** | Từng buổi: tiêu đề, ngày, giờ, link họp, link bản ghi. **Sửa** / **Xóa** trên từng dòng |
 | **Điểm danh** | Có mặt / Vắng / Có phép / Chưa ghi |
 | **Tài liệu** | Tài liệu gắn lớp này |
 | **Thông báo** | Thông báo gửi học viên lớp |
 | **Chứng nhận** | Chọn học viên và cấp chứng nhận |
 
-### Thêm buổi học
+### Thêm / sửa buổi học
 
 Tab **Buổi học** → điền tiêu đề, ngày, giờ, hình thức, link họp (nếu có) → **Thêm buổi**.
+
+Muốn sửa buổi đã tạo: bấm **Sửa** trên dòng đó, form bên dưới đổi thành **Sửa buổi học**, chỉnh rồi **Lưu buổi**. Đổi ngày/giờ hoặc chuyển trạng thái **Đổi lịch** / **Đã hủy** sẽ gửi thông báo in-app cho học viên của lớp. Admin / chủ sở hữu có thể **Xóa** buổi.
 
 Học viên chỉ thấy nút vào lớp khoảng **30 phút trước giờ học** (có thể đổi trên khóa học). Link họp không hiện sẵn trên trang công khai.
 
