@@ -64,12 +64,31 @@ function slugify(value) {
     .replace(/^-+|-+$/g, "");
 }
 
+function sessionSlugify(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .trim()
+    .replace(/[^A-Za-z0-9_-]+/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
+}
+
 function slug(value, field = "slug") {
   const normalized = slugify(value);
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized)) {
     throw fail(
       `${field === "slug" ? "Mã lớp" : field} không hợp lệ. Dùng chữ thường không dấu, số và gạch ngang, ví dụ ai-starter-thang-10`,
     );
+  }
+  return normalized;
+}
+
+function sessionSlug(value) {
+  const normalized = sessionSlugify(value);
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(normalized)) {
+    throw fail("Mã lớp không hợp lệ. Dùng A-Z, a-z, 0-9, gạch dưới _ hoặc gạch ngang -");
   }
   return normalized;
 }
@@ -95,6 +114,8 @@ module.exports = {
   phone,
   oneOf,
   slugify,
+  sessionSlugify,
   slug,
+  sessionSlug,
   nonNegInt,
 };

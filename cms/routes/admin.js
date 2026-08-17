@@ -471,7 +471,7 @@ function createAdminRouter(store) {
       if (!isNew && !existing) return res.status(404).json({ error: "Not found" });
       const programId = body.programId || existing.program_id;
       if (!aliveById(snap.programs, programId)) throw V.fail("Program not found");
-      const slug = V.slug(body.slug || existing?.slug);
+      const slug = V.sessionSlug(body.slug || existing?.slug);
       const clash = alive(snap.sessions).find((s) => s.slug === slug && s.id !== id);
       if (clash) throw V.fail("Session slug already in use");
       const registered = existing?.registered_count || 0;

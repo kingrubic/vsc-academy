@@ -307,11 +307,11 @@
     return String(value || "")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
-      .replace(/đ/gi, "d")
-      .toLowerCase()
+      .replace(/đ/g, "d")
+      .replace(/Đ/g, "D")
       .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
+      .replace(/[^A-Za-z0-9_-]+/g, "-")
+      .replace(/^[-_]+|[-_]+$/g, "");
   }
   function suggestedSessionSlug(programId, startDate) {
     if (!programId) return "";
@@ -874,8 +874,8 @@
             <select name="programId" required>${programs.items.map((p) => `<option value="${p.id}" ${s.program_id === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
           </div>
           <div class="field"><label>Mã lớp (đường dẫn)</label>
-            <input name="slug" value="${esc(s.slug || suggestedSessionSlug(s.program_id, s.start_date))}" required placeholder="ai-starter-thang-10" />
-            <small style="display:block;margin-top:6px;color:#6b7c94">Chữ thường không dấu, số và gạch ngang. Ví dụ: ai-starter-thang-10</small>
+            <input name="slug" value="${esc(s.slug || suggestedSessionSlug(s.program_id, s.start_date))}" required placeholder="AIS-T10" />
+            <small style="display:block;margin-top:6px;color:#6b7c94">A–Z, a–z, 0–9, gạch dưới _ và gạch ngang -. Ví dụ: AIS-T10 hoặc AI_STARTER_10</small>
           </div>
           <div class="field"><label>Tên lớp</label><input name="sessionName" value="${esc(s.session_name || "")}" /></div>
           <div class="field"><label>Loại</label><select name="type">${opts(TYPE_LABEL, s.type || "course")}</select></div>
