@@ -1082,14 +1082,31 @@
         } else if (k === "students") {
           pane.innerHTML = table(
             ["Học viên", "Trạng thái", "Thanh toán", "Tiến độ", "Chứng nhận", ""],
-            lms.enrollments.map(
-              (e) => `<tr><td><a href="${href(`/students/${e.student_id}`)}">${esc(e.student_name)}</a></td><td>${badge(e.status)}</td><td>${badge(e.payment_status)}</td><td>${e.progress.percent}%</td><td>${badge(e.certificate.status)}</td><td><button class="btn" data-recommend="${e.id}">Đề xuất hoàn thành</button></td></tr>`,
-            ),
+            lms.enrollments.map((e) => {
+              const action =
+                e.status === "completed" || e.status === "cancelled"
+                  ? ""
+                  : `<button type="button" class="btn" data-recommend="${esc(e.id)}">Đề xuất hoàn thành</button>`;
+              return `<tr><td><a href="${href(`/students/${e.student_id}`)}">${esc(e.student_name)}</a></td><td>${badge(e.status)}</td><td>${badge(e.payment_status)}</td><td>${e.progress.percent}%</td><td>${badge(e.certificate.status)}</td><td>${action}</td></tr>`;
+            }),
           );
+          const stayOnStudents = () => {
+            const next = new URL(location.href);
+            next.searchParams.set("tab", "students");
+            history.replaceState({}, "", `${next.pathname}${next.search}`);
+            render();
+          };
           pane.querySelectorAll("[data-recommend]").forEach((b) =>
             b.addEventListener("click", async () => {
-              await api(`/enrollments/${b.dataset.recommend}/recommend-completion`, { method: "POST", body: {} });
-              toast("Đã đề xuất hoàn thành");
+              b.disabled = true;
+              try {
+                await api(`/enrollments/${b.dataset.recommend}/recommend-completion`, { method: "POST", body: {} });
+                toast("Đã đánh dấu hoàn thành");
+                stayOnStudents();
+              } catch (err) {
+                b.disabled = false;
+                toast(err.message, true);
+              }
             }),
           );
         } else if (k === "meetings") {

@@ -581,6 +581,37 @@ test("admin class list stacks end date under start date", () => {
   assert.match(ui, /s\.instructorName/);
 });
 
+test("recommend completion marks the enrollment completed", async () => {
+  const { app, store } = harnessFor(undefined, { allowWrite: true });
+  const res = await request(app, {
+    method: "POST",
+    path: "/api/admin/enrollments/e1/recommend-completion",
+    body: {},
+  });
+  assert.equal(res.status, 200);
+  const enrollment = store.snap.enrollments.find((row) => row.id === "e1");
+  assert.equal(enrollment.status, "completed");
+  assert.equal(enrollment.completion_status, "completed");
+  assert.ok(enrollment.completed_at);
+  assert.ok(enrollment.completion_recommended_at);
+
+  store.snap.enrollments[0] = { ...enrollment, status: "cancelled", completion_status: "incomplete" };
+  const cancelled = await request(app, {
+    method: "POST",
+    path: "/api/admin/enrollments/e1/recommend-completion",
+    body: {},
+  });
+  assert.equal(cancelled.status, 409);
+  assert.equal(store.snap.enrollments[0].status, "cancelled");
+});
+
+test("class student tab reloads after recommending completion", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /searchParams\.set\("tab", "students"\)/);
+  assert.match(ui, /Đã đánh dấu hoàn thành/);
+  assert.match(ui, /e\.status === "completed" \|\| e\.status === "cancelled"/);
+});
+
 test("admin class status options are open, full, completed, and cancelled", () => {
   const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
   assert.match(ui, /SESSION_STATUS_OPTIONS = \["open", "full", "completed", "cancelled"\]/);

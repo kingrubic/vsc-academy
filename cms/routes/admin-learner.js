@@ -445,26 +445,35 @@ function attachLearnerAdmin(router, store) {
   });
 
   router.post("/enrollments/:id/recommend-completion", requireRole("OWNER", "ADMIN", "INSTRUCTOR"), async (req, res) => {
-    const snap = await store.dump(true);
-    const row = (snap.enrollments || []).find((e) => e.id === req.params.id);
-    if (!row) return res.status(404).json({ error: "Not found" });
-    if (req.lmsScope?.type === "instructor" && !req.lmsScope.sessionIds.has(row.session_id)) {
-      return res.status(403).json({ error: "Forbidden" });
+    try {
+      const snap = await store.dump(true);
+      const row = (snap.enrollments || []).find((e) => e.id === req.params.id && !e.deleted_at);
+      if (!row) return res.status(404).json({ error: "Not found" });
+      if (req.lmsScope?.type === "instructor" && !req.lmsScope.sessionIds.has(row.session_id)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      if (row.status === "cancelled") {
+        return res.status(409).json({ error: "Không hoàn thành được ghi danh đã hủy" });
+      }
+      const ts = now();
+      await store.upsert("enrollments", {
+        ...row,
+        status: "completed",
+        completion_status: "completed",
+        completion_recommended_at: ts,
+        completion_recommended_by: req.session.user.id,
+        completed_at: row.completed_at || ts,
+        updated_at: ts,
+        updated_by: req.session.user.id,
+      });
+      await Cert.writeAudit(store, "enrollment.recommend_completion", req.session.user, {
+        type: "enrollment",
+        id: row.id,
+      });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(err.status || 500).json({ error: err.message || "Không đánh dấu hoàn thành được" });
     }
-    const ts = now();
-    await store.upsert("enrollments", {
-      ...row,
-      completion_status: row.completion_status === "completed" ? row.completion_status : "eligible",
-      completion_recommended_at: ts,
-      completion_recommended_by: req.session.user.id,
-      updated_at: ts,
-      updated_by: req.session.user.id,
-    });
-    await Cert.writeAudit(store, "enrollment.recommend_completion", req.session.user, {
-      type: "enrollment",
-      id: row.id,
-    });
-    res.json({ ok: true });
   });
 
   router.put("/attendance", requireRole("OWNER", "ADMIN", "INSTRUCTOR"), async (req, res) => {
