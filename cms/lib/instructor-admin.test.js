@@ -577,6 +577,7 @@ test("admin class list stacks end date under start date", () => {
   assert.match(ui, /\["Lớp", "Khóa", "Giảng viên", "Ngày", "Giờ", "Đăng ký", "Trạng thái"/);
   assert.match(ui, /name="instructorId"/);
   assert.match(ui, /id="session-instructor"/);
+  assert.match(ui, /class="field-help"/);
   assert.match(ui, /s\.instructorName/);
 });
 

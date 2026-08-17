@@ -937,9 +937,14 @@
           <div class="field"><label>Khóa học</label>
             <select name="programId" required>${programs.items.map((p) => `<option value="${p.id}" ${s.program_id === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
           </div>
-          <div class="field"><label>Mã lớp (đường dẫn)</label>
-            <input name="slug" value="${esc(s.slug || suggestedSessionSlug(s.program_id, s.start_date))}" required placeholder="AIS-T10" />
-            <small style="display:block;margin-top:6px;color:#6b7c94">A–Z, a–z, 0–9, gạch dưới _ và gạch ngang -. Ví dụ: AIS-T10 hoặc AI_STARTER_10</small>
+          <div class="field">
+            <div class="field-head">
+              <label for="session-slug">Mã lớp (đường dẫn)</label>
+              <button type="button" class="field-help" aria-label="Quy tắc mã lớp" aria-describedby="session-slug-help">?
+                <span class="field-help-tip" id="session-slug-help" role="tooltip">A–Z, a–z, 0–9, gạch dưới _ và gạch ngang -. Ví dụ: AIS-T10 hoặc AI_STARTER_10</span>
+              </button>
+            </div>
+            <input id="session-slug" name="slug" value="${esc(s.slug || suggestedSessionSlug(s.program_id, s.start_date))}" required placeholder="AIS-T10" />
           </div>
           <div class="field"><label>Tên lớp</label><input name="sessionName" value="${esc(s.session_name || "")}" /></div>
           <div class="field"><label>Giảng viên</label>
