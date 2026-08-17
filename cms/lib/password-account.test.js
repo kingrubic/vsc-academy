@@ -229,6 +229,42 @@ test("creating a student stores a temporary password and requires a change on fi
   assert.equal(me.json.student.mustChangePassword, true);
 });
 
+test("creating a student with a class also enrolls them", async () => {
+  const store = mockStore();
+  store.data.programs = [{ id: "p1", name: "AI" }];
+  store.data.sessions = [{ id: "s1", program_id: "p1", session_name: "Lớp 1" }];
+  const app = appFor(store, owner);
+  const created = await request(app, {
+    method: "POST",
+    path: "/api/admin/students",
+    body: {
+      fullName: "Lan Lớp",
+      email: "lan-class@vsc.academy",
+      temporaryPassword: STUDENT_TMP,
+      sessionId: "s1",
+    },
+  });
+  assert.equal(created.status, 200);
+  assert.ok(created.json.enrollmentId);
+  const enrollment = store.data.enrollments.find((row) => row.student_id === created.json.id);
+  assert.equal(enrollment.session_id, "s1");
+  const listed = await request(app, { path: "/api/admin/students?sessionId=s1" });
+  assert.equal(listed.status, 200);
+  const row = listed.json.items.find((item) => item.id === created.json.id);
+  assert.equal(row.classes[0].session_name, "Lớp 1");
+  const missing = await request(app, {
+    method: "POST",
+    path: "/api/admin/students",
+    body: {
+      fullName: "Không lớp",
+      email: "no-class@vsc.academy",
+      temporaryPassword: STUDENT_TMP,
+      sessionId: "missing",
+    },
+  });
+  assert.equal(missing.status, 400);
+});
+
 test("creating an instructor also creates a login user from email and temporary password", async () => {
   const store = mockStore();
   const app = appFor(store, owner);
@@ -366,11 +402,13 @@ test("admin UI adds temporary password fields and reset buttons", () => {
 test("admin UI exposes student add, edit, and delete controls", () => {
   const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
   assert.match(ui, /\+ Học viên/);
-  assert.match(ui, /\["Tên", "Email", "SĐT", "Đang học", "Hoàn thành", "Trạng thái", "Ngày tạo", "Thao tác"\]/);
+  assert.match(ui, /\["Tên", "Email", "SĐT", "Lớp", "Trạng thái", "Ngày tạo", "Thao tác"\]/);
   assert.match(ui, /data-student-delete/);
   assert.match(ui, /id="student-delete"/);
   assert.match(ui, /confirmAction\("Xóa học viên này\?/);
   assert.match(ui, /canManageStaff\(\) \? `<a class="btn btn-primary" href="\$\{href\("\/students\/new"\)\}"/);
+  assert.match(ui, /Chưa xếp lớp/);
+  assert.match(ui, /redirectEnrollments/);
   assert.match(ui, /Phản hồi máy chủ không hợp lệ/);
 });
 
