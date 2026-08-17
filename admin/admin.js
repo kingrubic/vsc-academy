@@ -35,7 +35,7 @@
     advanced: "Nâng cao",
     workshop: "Hội thảo",
   };
-  const FORMAT_LABEL = { online: "Trực tuyến", offline: "Trực tiếp", hybrid: "Kết hợp" };
+  const FORMAT_LABEL = { online: "Online trực tiếp", offline: "Offline tại chỗ", hybrid: "Kết hợp" };
   const TYPE_LABEL = { course: "Khóa học", workshop: "Hội thảo" };
   const FACULTY_ROLE = { lead: "Phụ trách", instructor: "Giảng viên", guest: "Khách mời" };
   const STUDENT_LABEL = { invited: "Đã mời", active: "Đang học", inactive: "Ngưng", suspended: "Tạm khóa" };
@@ -1091,7 +1091,7 @@
             <div class="field"><label>Ngày</label><input type="date" name="date" required /></div>
             <div class="field"><label>Bắt đầu</label><input type="time" name="startTime" required /></div>
             <div class="field"><label>Kết thúc</label><input type="time" name="endTime" required /></div>
-            <div class="field"><label>Hình thức</label><select name="format">${optList([["online","Trực tuyến"],["offline","Trực tiếp"],["hybrid","Kết hợp"]], "online")}</select></div>
+            <div class="field"><label>Hình thức</label><select name="format">${optList([["online","Online trực tiếp"],["offline","Offline tại chỗ"],["hybrid","Kết hợp"]], "online")}</select></div>
             <div class="field"><label>Trạng thái</label><select name="status">${opts(MEETING_LABEL, "scheduled")}</select></div>
             <div class="field"><label>Link họp</label><input name="meetingUrl" /></div>
             <div class="field"><label>Bản ghi</label><input name="recordingUrl" /></div>

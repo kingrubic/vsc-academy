@@ -199,7 +199,7 @@ Một khóa có thể có nhiều lớp (nhiều lịch). Website, trang khóa, 
 - **Mã lớp (đường dẫn)** — ví dụ `ai-starter-thang-10`
 - **Tên lớp** — tên hiện trên danh sách
 - Ngày bắt đầu / kết thúc, giờ học, thứ trong tuần (ví dụ `T3, T5`)
-- **Hình thức** — để trống thì theo khóa; hoặc chọn Trực tuyến / Trực tiếp / Kết hợp
+- **Hình thức** — để trống thì theo khóa; hoặc chọn Online trực tiếp / Offline tại chỗ / Kết hợp
 - **Địa điểm** — chọn từ mục Địa điểm (lớp offline)
 - **Link họp trực tuyến** — nếu học online
 - **Mở đăng ký** / **Đóng đăng ký**

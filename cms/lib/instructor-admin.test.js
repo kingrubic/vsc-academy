@@ -537,6 +537,13 @@ test("admin class status options are open, full, completed, and cancelled", () =
   assert.doesNotMatch(ui, /limited: "Sắp hết chỗ"/);
 });
 
+test("admin format labels distinguish live online from in-person", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /online: "Online trực tiếp"/);
+  assert.match(ui, /offline: "Offline tại chỗ"/);
+  assert.doesNotMatch(ui, /offline: "Trực tiếp"/);
+});
+
 test("admin and instructor can update meetings; only admin can delete", async () => {
   const instructor = harnessFor(undefined, { allowWrite: true });
   instructor.store.snap.class_meetings[0] = {
