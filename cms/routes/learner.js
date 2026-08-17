@@ -4,6 +4,7 @@ const { now, parseJson, alive, aliveById } = require("../lib/convex-db");
 const { hashPassword, verifyPassword, tooManyLogins, recordLogin, tooManyPasswordResets, recordPasswordReset, padPasswordReset } = require("../lib/auth");
 const V = require("../lib/validate");
 const L = require("../lib/learner");
+const Meetings = require("../lib/session-meetings");
 const C = require("../lib/lms-core");
 const Cert = require("../lib/certificate");
 const PasswordReset = require("../lib/password-reset");
@@ -335,6 +336,9 @@ function createLearnerRouter(store) {
     const snap = await store.dump();
     const ids = new Set(L.studentSessionIds(snap, req.session.student.id));
     if (!ids.size) return res.json({ items: [], week: [] });
+    for (const sessionId of ids) {
+      await Meetings.ensureSessionMeetings(store, snap, aliveById(snap.sessions, sessionId));
+    }
     const items = alive(snap.class_meetings)
       .filter((m) => ids.has(m.session_id))
       .sort((a, b) => `${a.date}${a.start_time}`.localeCompare(`${b.date}${b.start_time}`))

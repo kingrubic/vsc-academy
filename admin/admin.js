@@ -398,7 +398,6 @@
       ["Lớp học", href("/sessions")],
       ["Đăng ký", href("/registrations")],
       ["Học viên", href("/students")],
-      ["Ghi danh", href("/enrollments")],
       ["Tài liệu", href("/materials")],
       ["Thông báo", href("/announcements")],
       ["Chứng nhận", href("/certificates")],
@@ -1648,22 +1647,25 @@
 
   async function viewStudents() {
     $("#page-title").textContent = "Học viên";
-    const q = new URLSearchParams(location.search).get("q") || "";
-    const data = await api(`/students?q=${encodeURIComponent(q)}`);
+    const qs = new URLSearchParams(location.search);
+    const [data, sessions] = await Promise.all([
+      api(`/students?${qs.toString()}`),
+      api("/sessions"),
+    ]);
     app.innerHTML = `
       <div class="toolbar">
-        <input id="search" placeholder="Tên, email, SĐT" value="${esc(q)}" />
+        <input id="q" placeholder="Tên, email, SĐT" value="${esc(qs.get("q") || "")}" />
+        <select id="sessionId"><option value="">Lớp</option>${(sessions.items || []).map((s) => `<option value="${esc(s.id)}" ${qs.get("sessionId") === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}</select>
         ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/students/new")}">+ Học viên</a>` : ""}
       </div>
       ${table(
-        ["Tên", "Email", "SĐT", "Đang học", "Hoàn thành", "Trạng thái", "Ngày tạo", "Thao tác"],
+        ["Tên", "Email", "SĐT", "Lớp", "Trạng thái", "Ngày tạo", "Thao tác"],
         data.items.map(
           (s) => `<tr>
             <td><a href="${href(`/students/${s.id}`)}">${esc(s.full_name)}</a></td>
             <td>${esc(s.email)}</td>
             <td>${esc(s.phone || "")}</td>
-            <td>${s.active_courses}</td>
-            <td>${s.completed_courses}</td>
+            <td>${esc((s.classes || []).map((c) => c.session_name).filter(Boolean).join(", ") || "—")}</td>
             <td>${badge(s.status)}</td>
             <td>${fmtDate(s.created_at)}</td>
             <td>${canManageStaff()
@@ -1672,9 +1674,18 @@
           </tr>`,
         ),
       )}`;
-    $("#search").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") go(`${href("/students")}?q=${encodeURIComponent(e.target.value)}`);
+    const apply = () => {
+      const next = new URLSearchParams();
+      ["q", "sessionId"].forEach((k) => {
+        const v = document.getElementById(k).value;
+        if (v) next.set(k, v);
+      });
+      go(`${href("/students")}?${next}`);
+    };
+    $("#q").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") apply();
     });
+    $("#sessionId").onchange = apply;
     app.querySelectorAll("[data-student-delete]").forEach((button) => button.addEventListener("click", async () => {
       if (!confirmAction("Xóa học viên này? Tài khoản sẽ bị vô hiệu và các lớp đang học sẽ bị hủy ghi danh.")) return;
       button.disabled = true;
@@ -1696,12 +1707,20 @@
         return;
       }
       $("#page-title").textContent = "Học viên mới";
+      const sessions = await api("/sessions");
       app.innerHTML = `<form id="stu-new" class="card" style="padding:18px;max-width:520px">
         <div class="field"><label>Họ tên</label><input name="fullName" required /></div>
         <div class="field"><label>Email đăng nhập</label><input name="email" type="email" required /></div>
         <div class="field"><label>Mật khẩu tạm</label><input name="temporaryPassword" type="password" minlength="8" required autocomplete="new-password" /></div>
         <p class="muted">Học viên đăng nhập bằng email và mật khẩu tạm, rồi bắt buộc đổi mật khẩu.</p>
         <div class="field"><label>Điện thoại</label><input name="phone" /></div>
+        <div class="field"><label>Lớp học</label>
+          <select name="sessionId">
+            <option value="">Chưa xếp lớp</option>
+            ${(sessions.items || []).map((x) => `<option value="${esc(x.id)}">${esc(x.session_name)}</option>`).join("")}
+          </select>
+        </div>
+        <p class="muted">Chọn lớp để học viên thấy khóa trên cổng ngay. Có thể xếp sau ở tab Ghi danh.</p>
         <button class="btn btn-primary">Tạo</button>
       </form>`;
       $("#stu-new").onsubmit = async (e) => {
@@ -1723,16 +1742,20 @@
     $("#page-title").textContent = "Chi tiết học viên";
     const [d, sessions] = await Promise.all([api(`/students/${id}`), api("/sessions")]);
     const s = d.student;
+    const tab = new URLSearchParams(location.search).get("tab") || "profile";
+    const enrollHeaders = canManageStaff()
+      ? ["Khóa", "Lớp", "Trạng thái", "Thanh toán", "Tiến độ", "Chứng nhận", "Chuyển lớp", ""]
+      : ["Khóa", "Lớp", "Trạng thái", "Thanh toán", "Tiến độ", "Chứng nhận"];
     app.innerHTML = `
       <div class="tabs">
-        <button data-tab="profile" class="active">Hồ sơ</button>
-        <button data-tab="enroll">Ghi danh</button>
-        <button data-tab="att">Điểm danh</button>
-        <button data-tab="notes">Ghi chú</button>
-        <button data-tab="certs">Chứng nhận</button>
-        <button data-tab="activity">Hoạt động</button>
+        <button data-tab="profile" class="${tab === "profile" ? "active" : ""}">Hồ sơ</button>
+        <button data-tab="enroll" class="${tab === "enroll" ? "active" : ""}">Ghi danh</button>
+        <button data-tab="att" class="${tab === "att" ? "active" : ""}">Điểm danh</button>
+        <button data-tab="notes" class="${tab === "notes" ? "active" : ""}">Ghi chú</button>
+        <button data-tab="certs" class="${tab === "certs" ? "active" : ""}">Chứng nhận</button>
+        <button data-tab="activity" class="${tab === "activity" ? "active" : ""}">Hoạt động</button>
       </div>
-      <section data-pane="profile">
+      <section data-pane="profile" class="${tab === "profile" ? "" : "hidden"}">
         <form id="stu-form" class="card" style="padding:18px">
           <div class="form-grid">
             <div class="field"><label>Họ tên</label><input name="fullName" value="${esc(s.fullName)}" ${canManageStaff() ? "" : "disabled"} /></div>
@@ -1747,9 +1770,9 @@
             <button type="button" class="btn-danger" id="student-delete">Xóa</button>` : ""}</div>
         </form>
       </section>
-      <section data-pane="enroll" class="hidden">
+      <section data-pane="enroll" class="${tab === "enroll" ? "" : "hidden"}">
         ${table(
-          canManageStaff() ? ["Khóa", "Lớp", "Trạng thái", "Thanh toán", "Chuyển lớp"] : ["Khóa", "Lớp", "Trạng thái", "Thanh toán"],
+          enrollHeaders,
           d.enrollments.map(
             (e) => `<tr>
               <td>${esc(e.program_name)}</td>
@@ -1760,11 +1783,14 @@
               <td>
                 ${canManageStaff() ? `<select data-pay="${e.id}">${opts(PAY_LABEL, e.payment_status)}</select>` : esc(PAY_LABEL[e.payment_status] || e.payment_status)}
               </td>
+              <td>${e.progress?.percent ?? e.progress ?? 0}%</td>
+              <td>${badge(e.certificate_status || "none")}</td>
               ${canManageStaff() ? `<td>
                 <select data-move="${e.id}">
                   ${sessions.items.map((x) => `<option value="${x.id}" ${e.session_id === x.id ? "selected" : ""}>${esc(x.session_name)}</option>`).join("")}
                 </select>
-              </td>` : ""}
+              </td>
+              <td><button class="btn-danger" type="button" data-enroll-delete="${esc(e.id)}">Gỡ khỏi lớp</button></td>` : ""}
             </tr>`,
           ),
         )}
@@ -1773,7 +1799,7 @@
           <button class="btn btn-primary">Ghi danh</button>
         </form>` : ""}
       </section>
-      <section data-pane="att" class="hidden">
+      <section data-pane="att" class="${tab === "att" ? "" : "hidden"}">
         ${table(
           ["Buổi", "Ngày", "Trạng thái"],
           (d.meetings || []).map(
@@ -1790,20 +1816,20 @@
           "Chưa có buổi học",
         )}
       </section>
-      <section data-pane="notes" class="hidden">
+      <section data-pane="notes" class="${tab === "notes" ? "" : "hidden"}">
         <form id="note-form" class="card" style="padding:18px">
           <textarea name="notes" ${canManageStaff() ? "" : "disabled"}>${esc(s.notes || "")}</textarea>
           ${canManageStaff() ? `<button class="btn btn-primary" style="margin-top:10px">Lưu ghi chú</button>` : ""}
         </form>
       </section>
-      <section data-pane="activity" class="hidden">
+      <section data-pane="activity" class="${tab === "activity" ? "" : "hidden"}">
         <div class="card" style="padding:18px">
           <p>Tạo tài khoản: ${fmtDate(s.createdAt)}</p>
           <p>Đăng nhập gần nhất: ${s.lastLoginAt ? fmtDate(s.lastLoginAt) : "Chưa đăng nhập"}</p>
           <p>Ghi danh: ${d.enrollments.length}</p>
         </div>
       </section>
-      <section data-pane="certs" class="hidden">
+      <section data-pane="certs" class="${tab === "certs" ? "" : "hidden"}">
         ${table(
           ["Mã", "Trạng thái", "Ngày cấp", ""],
           (d.certificates || []).map(
@@ -1900,6 +1926,20 @@
           await api(`/enrollments/${sel.dataset.move}`, { method: "PUT", body: { sessionId: sel.value } });
           toast("Đã chuyển lớp");
           render();
+        }),
+      );
+      app.querySelectorAll("[data-enroll-delete]").forEach((button) =>
+        button.addEventListener("click", async () => {
+          if (!confirmAction("Xóa ghi danh này? Bản ghi sẽ bị ẩn khỏi danh sách.")) return;
+          button.disabled = true;
+          try {
+            await api(`/enrollments/${button.dataset.enrollDelete}`, { method: "DELETE" });
+            toast("Đã gỡ khỏi lớp");
+            render();
+          } catch (err) {
+            button.disabled = false;
+            toast(err.message, true);
+          }
         }),
       );
       $("#note-form")?.addEventListener("submit", async (e) => {
@@ -2072,123 +2112,21 @@
     });
   }
 
-  async function viewEnrollments() {
-    $("#page-title").textContent = "Ghi danh";
-    const q = new URLSearchParams(location.search).get("q") || "";
-    const data = await api(`/enrollments?q=${encodeURIComponent(q)}`);
-    app.innerHTML = `
-      <div class="toolbar">
-        <input id="search" placeholder="Học viên, email, khóa" value="${esc(q)}" />
-        ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/enrollments/new")}">+ Ghi danh</a>` : ""}
-      </div>
-      ${table(
-        ["Học viên", "Khóa", "Lớp", "Trạng thái", "Thanh toán", "Tiến độ", "Chứng nhận", "Thao tác"],
-        data.items.map(
-          (e) => `<tr>
-            <td><a href="${href(`/students/${e.student_id}`)}">${esc(e.student_name)}</a><br><small>${esc(e.student_email || "")}</small></td>
-            <td>${esc(e.program_name)}</td>
-            <td>${esc(e.session_name)}</td>
-            <td>${badge(e.status)}</td>
-            <td>${badge(e.payment_status)}</td>
-            <td>${e.progress?.percent ?? e.progress}%</td>
-            <td>${badge(e.eligibility?.certificateStatus || e.certificate_status || "none")}</td>
-            <td>${canManageStaff()
-              ? `<a class="btn" href="${href(`/enrollments/${e.id}`)}">Sửa</a> <button class="btn-danger" type="button" data-enroll-delete="${esc(e.id)}">Xóa</button>`
-              : `<a class="btn" href="${href(`/enrollments/${e.id}`)}">Xem</a>`}</td>
-          </tr>`,
-        ),
-      )}`;
-    $("#search").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") go(`${href("/enrollments")}?q=${encodeURIComponent(e.target.value)}`);
-    });
-    app.querySelectorAll("[data-enroll-delete]").forEach((button) => button.addEventListener("click", async () => {
-      if (!confirmAction("Xóa ghi danh này? Bản ghi sẽ bị ẩn khỏi danh sách.")) return;
-      button.disabled = true;
-      try {
-        await api(`/enrollments/${button.dataset.enrollDelete}`, { method: "DELETE" });
-        toast("Đã xóa ghi danh");
-        render();
-      } catch (err) {
-        button.disabled = false;
-        toast(err.message, true);
-      }
-    }));
-  }
-
-  async function viewEnrollment(id) {
-    const isNew = id === "new";
-    if (isNew && !canManageStaff()) {
-      go(href("/enrollments"));
-      return;
+  async function redirectEnrollments(id) {
+    if (!id || id === "new") {
+      history.replaceState({}, "", href("/students"));
+      layout();
+      return viewStudents();
     }
-    $("#page-title").textContent = isNew ? "Thêm ghi danh" : "Sửa ghi danh";
-    const [row, students, sessions] = await Promise.all([
-      isNew ? Promise.resolve({ status: "active", payment_status: "paid", notes: "" }) : api(`/enrollments/${id}`),
-      api("/students"),
-      api("/sessions"),
-    ]);
-    app.innerHTML = `
-      <form class="card" style="padding:18px" id="enr-form">
-        <div class="form-grid">
-          <div class="field"><label>Học viên</label>
-            ${isNew
-              ? `<select name="studentId" required ${canManageStaff() ? "" : "disabled"}><option value="">Chọn học viên</option>${(students.items || []).map((s) => `<option value="${esc(s.id)}">${esc(s.full_name)} · ${esc(s.email)}</option>`).join("")}</select>`
-              : `<input value="${esc(row.student_name || "")} · ${esc(row.student_email || "")}" disabled />`}
-          </div>
-          <div class="field"><label>Lớp học</label>
-            <select name="sessionId" required ${canManageStaff() ? "" : "disabled"}>
-              <option value="">Chọn lớp</option>
-              ${(sessions.items || []).map((s) => `<option value="${esc(s.id)}" ${row.session_id === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}
-            </select>
-          </div>
-          <div class="field"><label>Trạng thái</label>
-            <select name="status" ${canManageStaff() ? "" : "disabled"}>${opts(ENROLL_LABEL, row.status)}</select>
-          </div>
-          <div class="field"><label>Thanh toán</label>
-            <select name="paymentStatus" ${canManageStaff() ? "" : "disabled"}>${opts(PAY_LABEL, row.payment_status)}</select>
-          </div>
-          <div class="field full"><label>Ghi chú</label>
-            <textarea name="notes" ${canManageStaff() ? "" : "disabled"}>${esc(row.notes || "")}</textarea>
-          </div>
-        </div>
-        ${canManageStaff() ? `<div class="toolbar"><button class="btn btn-primary" type="submit">${isNew ? "Thêm ghi danh" : "Lưu thay đổi"}</button>${isNew ? "" : `<button class="btn-danger" type="button" id="enr-delete">Xóa</button>`}</div>` : ""}
-      </form>`;
-    if (canManageStaff()) {
-      $("#enr-form").onsubmit = async (e) => {
-        e.preventDefault();
-        const button = e.target.querySelector('[type="submit"]');
-        button.disabled = true;
-        try {
-          const body = {
-            studentId: val(e.target, "studentId"),
-            sessionId: val(e.target, "sessionId"),
-            status: val(e.target, "status"),
-            paymentStatus: val(e.target, "paymentStatus"),
-            notes: val(e.target, "notes") || "",
-          };
-          const data = await api(isNew ? "/enrollments" : `/enrollments/${id}`, {
-            method: isNew ? "POST" : "PUT",
-            body,
-          });
-          toast(isNew ? "Đã thêm ghi danh" : "Đã cập nhật ghi danh");
-          go(href(isNew ? `/enrollments/${data.id}` : "/enrollments"));
-        } catch (err) {
-          button.disabled = false;
-          toast(err.message, true);
-        }
-      };
-    }
-    if (!isNew && canManageStaff()) {
-      $("#enr-delete").onclick = async () => {
-        if (!confirmAction("Xóa ghi danh này? Bản ghi sẽ bị ẩn khỏi danh sách.")) return;
-        try {
-          await api(`/enrollments/${id}`, { method: "DELETE" });
-          toast("Đã xóa ghi danh");
-          go(href("/enrollments"));
-        } catch (err) {
-          toast(err.message, true);
-        }
-      };
+    try {
+      const row = await api(`/enrollments/${id}`);
+      history.replaceState({}, "", href(`/students/${row.student_id}?tab=enroll`));
+      layout();
+      return viewStudent(row.student_id);
+    } catch {
+      history.replaceState({}, "", href("/students"));
+      layout();
+      return viewStudents();
     }
   }
 
@@ -2428,8 +2366,7 @@
       if (key === "registrations") return viewRegistrations();
       if (key === "students" && id) return viewStudent(id);
       if (key === "students") return viewStudents();
-      if (key === "enrollments" && id) return viewEnrollment(id);
-      if (key === "enrollments") return viewEnrollments();
+      if (key === "enrollments") return redirectEnrollments(id);
       if (key === "materials") return viewLearnerMaterials();
       if (key === "announcements") return viewAdminAnnouncements();
       if (key === "certificates") return viewCertificates();

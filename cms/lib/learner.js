@@ -3,6 +3,7 @@ const { now, parseJson, alive, aliveById } = require("./convex-db");
 const { hashPassword, randomId } = require("./auth");
 const C = require("./lms-core");
 const Cert = require("./certificate");
+const Meetings = require("./session-meetings");
 const { queueMail } = require("./notify");
 const PasswordReset = require("./password-reset");
 
@@ -152,6 +153,7 @@ function evaluateSafe(snap, enrollment, program) {
 async function hydrateEnrollment(store, snap, enrollment, locale = "vi") {
   const program = byProgram(snap, enrollment.program_id);
   const session = aliveById(snap.sessions, enrollment.session_id);
+  if (session) await Meetings.ensureSessionMeetings(store, snap, session);
   const venue = session?.venue_id
     ? aliveById(snap.venues, session.venue_id)
     : program?.venue_default_id
@@ -339,6 +341,7 @@ async function ensureStudentAndEnrollment(store, snap, registration) {
   if (!provisioned?.ok) {
     throw Object.assign(new Error(provisioned?.error || "Không tạo được tài khoản học viên"), { status: 400 });
   }
+  await Meetings.ensureSessionMeetings(store, snap, aliveById(snap.sessions, registration.session_id));
   try {
     await store.finalizeLearnerProvision({ operationId, ownership: provisioned.ownership });
     return {

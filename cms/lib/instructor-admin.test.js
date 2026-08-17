@@ -322,6 +322,20 @@ test("enrollment CRUD enforces roles, duplicates, and protected soft deletion", 
   assert.equal(forbidden.status, 403);
 });
 
+test("student list includes class names and can filter by session", async () => {
+  const app = appFor(
+    { role: "ADMIN", instructor_id: null },
+    { allowWrite: true, sessionUser: { role: "ADMIN", instructorId: null, email: "admin@vsc.academy" } },
+  );
+  const listed = await request(app, { path: "/api/admin/students" });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.json.items[0].classes[0].session_name, "Lớp 1");
+  const filtered = await request(app, { path: "/api/admin/students?sessionId=s1" });
+  assert.equal(filtered.json.items.length, 1);
+  const empty = await request(app, { path: "/api/admin/students?sessionId=missing" });
+  assert.equal(empty.json.items.length, 0);
+});
+
 test("admin can create, edit, and delete announcements", async () => {
   const admin = { role: "ADMIN", instructor_id: null, email: "admin@vsc.academy" };
   const { app, store } = harnessFor(admin, {
@@ -435,14 +449,16 @@ test("admin UI exposes certificate template add, edit, and delete controls", () 
   assert.match(ui, /confirmAction\("Xóa mẫu chứng nhận này\?"\)/);
 });
 
-test("admin UI exposes enrollment add, edit, and delete controls", () => {
+test("admin UI manages enrollments on the student record", () => {
   const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
-  assert.match(ui, /\+ Ghi danh/);
-  assert.match(ui, /\["Học viên", "Khóa", "Lớp", "Trạng thái", "Thanh toán", "Tiến độ", "Chứng nhận", "Thao tác"\]/);
   assert.match(ui, /data-enroll-delete/);
-  assert.match(ui, /id="enr-delete"/);
+  assert.match(ui, /Gỡ khỏi lớp/);
   assert.match(ui, /confirmAction\("Xóa ghi danh này\?/);
-  assert.match(ui, /canManageStaff\(\) \? `<a class="btn btn-primary" href="\$\{href\("\/enrollments\/new"\)\}"/);
+  assert.match(ui, /redirectEnrollments/);
+  assert.match(ui, /href\(`\/students\/\$\{row\.student_id\}\?tab=enroll`\)/);
+  assert.doesNotMatch(ui, /\["Ghi danh"/);
+  assert.doesNotMatch(ui, /\+ Ghi danh/);
+  assert.doesNotMatch(ui, /id="enr-delete"/);
 });
 
 test("unmatched admin API returns JSON instead of an HTML error page", async () => {
@@ -497,9 +513,10 @@ test("admin shell uses Vietnamese navigation and versioned assets", () => {
   const root = path.join(__dirname, "..", "..", "admin");
   const ui = fs.readFileSync(path.join(root, "admin.js"), "utf8");
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  for (const label of ["Tổng quan", "Khóa học", "Lớp học", "Đăng ký", "Học viên", "Ghi danh", "Tài liệu", "Chứng nhận", "Giảng viên", "Cài đặt"]) {
+  for (const label of ["Tổng quan", "Khóa học", "Lớp học", "Đăng ký", "Học viên", "Tài liệu", "Chứng nhận", "Giảng viên", "Cài đặt"]) {
     assert.match(ui, new RegExp(`\\["${label}"`), `missing Vietnamese navigation label: ${label}`);
   }
+  assert.doesNotMatch(ui, /\["Ghi danh"/);
   for (const obsolete of ["Dashboard", "Programs", "Sessions", "Registrations", "Students", "Enrollments", "Materials", "Certificates", "Instructors", "Settings"]) {
     assert.doesNotMatch(ui, new RegExp(`\\["${obsolete}"`), `obsolete English navigation label: ${obsolete}`);
   }
