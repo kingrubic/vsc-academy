@@ -53,10 +53,44 @@ function oneOf(value, list, field) {
   if (!list.includes(value)) throw fail(`Invalid ${field}`);
 }
 
+function slugify(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function sessionSlugify(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .trim()
+    .replace(/[^A-Za-z0-9_-]+/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
+}
+
 function slug(value, field = "slug") {
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(value || ""))) {
-    throw fail(`Invalid ${field}`);
+  const normalized = slugify(value);
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized)) {
+    throw fail(
+      `${field === "slug" ? "Mã lớp" : field} không hợp lệ. Dùng chữ thường không dấu, số và gạch ngang, ví dụ ai-starter-thang-10`,
+    );
   }
+  return normalized;
+}
+
+function sessionSlug(value) {
+  const normalized = sessionSlugify(value);
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(normalized)) {
+    throw fail("Mã lớp không hợp lệ. Dùng A-Z, a-z, 0-9, gạch dưới _ hoặc gạch ngang -");
+  }
+  return normalized;
 }
 
 function nonNegInt(value, field) {
@@ -79,6 +113,9 @@ module.exports = {
   email,
   phone,
   oneOf,
+  slugify,
+  sessionSlugify,
   slug,
+  sessionSlug,
   nonNegInt,
 };
