@@ -17,6 +17,7 @@ const {
 } = require("../lib/auth");
 const C = require("../lib/lms-core");
 const V = require("../lib/validate");
+const Meetings = require("../lib/session-meetings");
 const { remainingSeats, parsePrice, pickCopy } = require("../lib/serialize");
 const L = require("../lib/learner");
 const Security = require("../lib/lms-security");
@@ -480,7 +481,7 @@ function createAdminRouter(store) {
         throw V.fail("Sĩ số không được thấp hơn số đã đăng ký");
       }
       const ts = now();
-      await store.upsert("sessions", {
+      const saved = {
         ...(existing || { registered_count: 0 }),
         id,
         program_id: programId,
@@ -515,7 +516,9 @@ function createAdminRouter(store) {
         updated_by: userId(req),
         created_at: existing?.created_at || ts,
         created_by: existing?.created_by || userId(req),
-      });
+      };
+      await store.upsert("sessions", saved);
+      await Meetings.ensureSessionMeetings(store, snap, saved);
       res.json({ ok: true, id });
     } catch (err) {
       sendErr(res, err);

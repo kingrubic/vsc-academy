@@ -65,6 +65,8 @@
         emptyNext: "NO UPCOMING CLASS YET.",
         emptyFiles: "NO NEW MATERIALS YET.",
         emptyFilesHint: "Your instructor will add materials during the programme.",
+        emptySchedule: "NO CLASS MEETINGS YET.",
+        emptyScheduleHint: "Your timetable appears once class sessions are scheduled.",
         emptyNotes: "YOU ARE UP TO DATE.",
         emptyCert: "NO CERTIFICATES YET.",
         emptyCertHint: "A certificate appears after you complete the programme and meet the issue requirements.",
@@ -177,6 +179,8 @@
         emptyNext: "CHƯA CÓ BUỔI HỌC SẮP TỚI.",
         emptyFiles: "CHƯA CÓ TÀI LIỆU MỚI.",
         emptyFilesHint: "Tài liệu sẽ được giảng viên cập nhật trong quá trình học.",
+        emptySchedule: "CHƯA CÓ LỊCH BUỔI HỌC.",
+        emptyScheduleHint: "Lịch sẽ hiện khi lớp đã được xếp buổi học.",
         emptyNotes: "BẠN ĐÃ XEM HẾT THÔNG BÁO.",
         emptyCert: "CHƯA CÓ CHỨNG NHẬN.",
         emptyCertHint: "Chứng nhận sẽ xuất hiện sau khi bạn hoàn thành chương trình và đáp ứng điều kiện cấp chứng nhận.",
@@ -770,7 +774,7 @@
           <div class="list" style="margin-top:16px">${(d.materials || []).slice(0, 3).map(materialRow).join("")}</div>
         `;
       } else if (k === "schedule") {
-        pane.innerHTML = `<div class="list">${d.meetings.map((m) => meetingRow(m)).join("")}</div>`;
+        pane.innerHTML = `<div class="list">${d.meetings.map((m) => meetingRow(m)).join("") || `<p class="empty">${t.emptySchedule}<br>${t.emptyScheduleHint}</p>`}</div>`;
       } else if (k === "materials") {
         const groups = { before: [], during: [], after: [], extra: [] };
         d.materials.forEach((m) => (groups[m.phase] || groups.extra).push(m));
@@ -784,7 +788,7 @@
           .map(
             (m) => `<article class="item"><small>${fmtDate(m.date)} · ${esc(m.title)}</small><b>${statusLabel(m.attendance || "not_recorded")}</b></article>`,
           )
-          .join("")}</div>`;
+          .join("") || `<p class="empty">${t.emptySchedule}</p>`}</div>`;
       } else {
         pane.innerHTML = `
           <div class="card">

@@ -237,7 +237,7 @@ Kéo xuống dưới form lớp:
 
 ### Thêm buổi học
 
-Tab **Buổi học** → điền tiêu đề, ngày, giờ, hình thức, link họp (nếu có) → **Thêm buổi**.
+Tab **Buổi học** → hệ thống tự tạo buổi từ ngày/giờ của lớp nếu chưa có. Có thể thêm buổi, sửa giờ, hoặc dán link họp.
 
 Học viên chỉ thấy nút vào lớp khoảng **30 phút trước giờ học** (có thể đổi trên khóa học). Link họp không hiện sẵn trên trang công khai.
 
