@@ -195,6 +195,30 @@ th { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; font-weight: 
 .field label { font-size: 11px; letter-spacing: 0.08em; color: var(--muted); }
 .field textarea { min-height: 110px; resize: vertical; }
 .field > input, .field > select, .field > textarea { width: 100%; min-width: 0; }
+.faculty-list { display: grid; gap: 10px; max-width: 720px; }
+.faculty-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: #fbfcfe;
+}
+.faculty-row input[type="checkbox"] {
+  width: auto;
+  flex: 0 0 auto;
+  margin: 0;
+}
+.faculty-row .faculty-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+}
+.faculty-row select {
+  width: auto;
+  flex: 0 0 180px;
+  min-width: 160px;
+}
 .repeater { display: grid; gap: 10px; }
 .repeater-item {
   display: grid;
@@ -239,4 +263,6 @@ th { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; font-weight: 
   .topbar { align-items: flex-start; flex-wrap: wrap; padding: 16px; }
   .topbar > div { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
   .page { padding: 16px 16px 40px; }
+  .faculty-row { flex-wrap: wrap; }
+  .faculty-row select { flex: 1 1 160px; }
 }

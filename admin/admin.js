@@ -660,16 +660,18 @@
           ${repeater("faqEn", faqEn, [{ key: "q", label: "Câu hỏi", full: true }, { key: "a", label: "Trả lời", area: true, full: true }])}
         </section>
         <section data-pane="faculty" class="${tab === "faculty" ? "" : "hidden"}">
+          <div class="faculty-list">
           ${(instructors.items || []).map((ins) => {
             const linked = (p.instructors || []).find((x) => x.instructor_id === ins.id);
-            return `<label class="field" style="display:flex;gap:10px;align-items:center">
+            return `<label class="faculty-row">
               <input type="checkbox" name="ins-${ins.id}" ${linked ? "checked" : ""} />
-              <span>${esc(ins.name)}</span>
+              <span class="faculty-name">${esc(ins.name)}</span>
               <select name="insrole-${ins.id}">
                 ${opts(FACULTY_ROLE, linked?.role || "instructor")}
               </select>
             </label>`;
           }).join("")}
+          </div>
         </section>
         <section data-pane="sessions" class="${tab === "sessions" ? "" : "hidden"}">
           ${table(
