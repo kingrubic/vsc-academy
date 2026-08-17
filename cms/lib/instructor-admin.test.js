@@ -174,6 +174,7 @@ test("instructor API allowlist permits class-scoped work and denies CMS/enrollme
   const app = appFor();
   const allowed = await request(app, { path: "/api/admin/sessions" });
   assert.equal(allowed.status, 200);
+  assert.equal(allowed.json.items[0].instructorName, "GV");
   const lms = await request(app, { path: "/api/admin/sessions/s1/lms" });
   assert.notEqual(lms.status, 403);
   const denied = [
@@ -535,6 +536,9 @@ test("admin class list stacks end date under start date", () => {
   assert.match(ui, /function fmtSessionDates\(s\)/);
   assert.match(ui, /fmtDate\(s\.end_date \|\| s\.start_date\)/);
   assert.match(ui, /<td>\$\{fmtSessionDates\(s\)\}<\/td>/);
+  assert.match(ui, /\["Lớp", "Khóa", "Giảng viên", "Ngày", "Giờ", "Đăng ký", "Trạng thái"/);
+  assert.match(ui, /name="instructorId"/);
+  assert.match(ui, /s\.instructorName/);
 });
 
 test("admin class status options are open, full, completed, and cancelled", () => {

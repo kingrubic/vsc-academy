@@ -18,7 +18,7 @@ const {
 const C = require("../lib/lms-core");
 const V = require("../lib/validate");
 const Meetings = require("../lib/session-meetings");
-const { remainingSeats, parsePrice, pickCopy } = require("../lib/serialize");
+const { remainingSeats, parsePrice, pickCopy, sessionInstructorName } = require("../lib/serialize");
 const L = require("../lib/learner");
 const Security = require("../lib/lms-security");
 const StaffPortal = require("../lib/staff-portal");
@@ -444,6 +444,7 @@ function createAdminRouter(store) {
           ...row,
           remaining: remainingSeats(row),
           programName: programShortName(program) || row.program_id,
+          instructorName: sessionInstructorName(snap, row, program),
         };
       });
     res.json({ items: rows });
@@ -480,6 +481,13 @@ function createAdminRouter(store) {
       if (capacity != null && capacity < registered) {
         throw V.fail("Sĩ số không được thấp hơn số đã đăng ký");
       }
+      const instructorId =
+        body.instructorId !== undefined
+          ? String(body.instructorId || "").trim() || null
+          : existing?.instructor_id ?? null;
+      if (instructorId && !aliveById(snap.instructors, instructorId)) {
+        throw V.fail("Giảng viên không tồn tại");
+      }
       const ts = now();
       const saved = {
         ...(existing || { registered_count: 0 }),
@@ -487,6 +495,7 @@ function createAdminRouter(store) {
         program_id: programId,
         slug,
         session_name: body.sessionName ?? existing?.session_name ?? "",
+        instructor_id: instructorId,
         start_date: body.startDate || existing?.start_date,
         end_date: body.endDate ?? existing?.end_date ?? body.startDate ?? existing?.start_date,
         days_of_week: body.daysOfWeek ?? existing?.days_of_week ?? "",

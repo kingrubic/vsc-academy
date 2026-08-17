@@ -899,11 +899,12 @@
         ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/sessions/new")}">+ Lớp mới</a>` : ""}
       </div>
       ${table(
-        ["Lớp", "Khóa", "Ngày", "Giờ", "Đăng ký", "Trạng thái", ""],
+        ["Lớp", "Khóa", "Giảng viên", "Ngày", "Giờ", "Đăng ký", "Trạng thái", ""],
         filtered.map(
           (s) => `<tr>
             <td><a href="${href(`/sessions/${s.id}`)}">${esc(s.session_name || s.slug)}</a></td>
             <td>${esc(s.programName || "")}</td>
+            <td>${esc(s.instructorName || "—")}</td>
             <td>${fmtSessionDates(s)}</td>
             <td>${esc(s.start_time)}–${esc(s.end_time)}</td>
             <td>${s.registered_count}</td>
@@ -924,10 +925,11 @@
       return;
     }
     $("#page-title").textContent = isNew ? "Tạo lớp" : "Chi tiết lớp";
-    const [s, programs, venues] = await Promise.all([
+    const [s, programs, venues, instructors] = await Promise.all([
       isNew ? { program_id: new URLSearchParams(location.search).get("programId") || "" } : api(`/sessions/${id}`),
       api("/programs"),
       api("/venues"),
+      api("/instructors"),
     ]);
     app.innerHTML = `
       <form id="session-form" class="card" style="padding:18px">
@@ -940,6 +942,12 @@
             <small style="display:block;margin-top:6px;color:#6b7c94">A–Z, a–z, 0–9, gạch dưới _ và gạch ngang -. Ví dụ: AIS-T10 hoặc AI_STARTER_10</small>
           </div>
           <div class="field"><label>Tên lớp</label><input name="sessionName" value="${esc(s.session_name || "")}" /></div>
+          <div class="field"><label>Giảng viên</label>
+            <select name="instructorId">
+              <option value="">Theo khóa</option>
+              ${(instructors.items || []).map((ins) => `<option value="${esc(ins.id)}" ${s.instructor_id === ins.id ? "selected" : ""}>${esc(ins.name)}</option>`).join("")}
+            </select>
+          </div>
           <div class="field"><label>Loại</label><select name="type">${opts(TYPE_LABEL, s.type || "course")}</select></div>
           <div class="field"><label>Ngày bắt đầu</label><input type="date" name="startDate" value="${esc((s.start_date || "").slice(0, 10))}" required /></div>
           <div class="field"><label>Ngày kết thúc</label><input type="date" name="endDate" value="${esc((s.end_date || "").slice(0, 10))}" /></div>
@@ -994,6 +1002,7 @@
         programId: val(form, "programId"),
         slug: slugify(val(form, "slug")),
         sessionName: val(form, "sessionName"),
+        instructorId: val(form, "instructorId") || null,
         type: val(form, "type"),
         startDate: val(form, "startDate"),
         endDate: val(form, "endDate") || val(form, "startDate"),
