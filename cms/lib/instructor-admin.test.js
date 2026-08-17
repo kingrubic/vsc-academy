@@ -500,6 +500,12 @@ test("admin UI hides instructor-forbidden enrollment and delete controls", () =>
   assert.match(ui, /canManageStaff\(\) \? `<select data-pay=/);
   assert.match(ui, /canManageStaff\(\) \? `<button type="button" class="btn-danger" id="mat-del"/);
   assert.match(ui, /canManageStaff\(\) \? `<button type="button" class="btn-danger" id="ann-del"/);
+  assert.match(ui, /function canEditMeetings\(\)/);
+  assert.match(ui, /canEditMeetings\(\)/);
+  assert.match(ui, /data-edit-mtg=/);
+  assert.match(ui, /data-del-mtg=/);
+  assert.match(ui, /\/meetings\/\$\{editingId\}/);
+  assert.match(ui, /Lưu buổi/);
   assert.match(ui, /captureNext\(/);
   assert.match(ui, /vsc_staff_next/);
   assert.doesNotMatch(ui, /\$\("#note-form"\)\.onsubmit/);
@@ -518,6 +524,68 @@ test("admin shell uses Vietnamese navigation and versioned assets", () => {
   }
   assert.match(html, /\/admin\/admin\.css\?v=[0-9-]+/);
   assert.match(html, /\/admin\/admin\.js\?v=[0-9-]+/);
+});
+
+test("admin and instructor can update meetings; only admin can delete", async () => {
+  const instructor = harnessFor(undefined, { allowWrite: true });
+  instructor.store.snap.class_meetings[0] = {
+    id: "m1",
+    session_id: "s1",
+    title_vi: "Buổi 1",
+    title_en: "Session 1",
+    date: "2026-09-01",
+    start_time: "19:00",
+    end_time: "21:00",
+    format: "online",
+    meeting_url: "https://meet.google.com/old",
+    recording_url: "",
+    status: "scheduled",
+  };
+  const edited = await request(instructor.app, {
+    method: "PUT",
+    path: "/api/admin/meetings/m1",
+    body: {
+      titleVi: "Buổi 1 đổi lịch",
+      date: "2026-09-08",
+      startTime: "19:30",
+      endTime: "21:30",
+      meetingUrl: "https://meet.google.com/new",
+      status: "rescheduled",
+    },
+  });
+  assert.equal(edited.status, 200);
+  const meeting = instructor.store.snap.class_meetings[0];
+  assert.equal(meeting.title_vi, "Buổi 1 đổi lịch");
+  assert.equal(meeting.date, "2026-09-08");
+  assert.equal(meeting.start_time, "19:30");
+  assert.equal(meeting.meeting_url, "https://meet.google.com/new");
+  assert.equal(meeting.status, "rescheduled");
+
+  const instructorDelete = await request(instructor.app, {
+    method: "DELETE",
+    path: "/api/admin/meetings/m1",
+  });
+  assert.equal(instructorDelete.status, 403);
+  assert.equal(instructor.store.snap.class_meetings[0].deleted_at, undefined);
+
+  const admin = harnessFor(
+    { role: "ADMIN", instructor_id: null, email: "admin@vsc.academy" },
+    { allowWrite: true, sessionUser: { role: "ADMIN", instructorId: null, email: "admin@vsc.academy" } },
+  );
+  admin.store.snap.class_meetings[0] = { ...instructor.store.snap.class_meetings[0] };
+  const adminEdit = await request(admin.app, {
+    method: "PUT",
+    path: "/api/admin/meetings/m1",
+    body: { titleVi: "Buổi 1 admin", date: "2026-09-15", startTime: "18:00", endTime: "20:00" },
+  });
+  assert.equal(adminEdit.status, 200);
+  assert.equal(admin.store.snap.class_meetings[0].title_vi, "Buổi 1 admin");
+  const adminDelete = await request(admin.app, {
+    method: "DELETE",
+    path: "/api/admin/meetings/m1",
+  });
+  assert.equal(adminDelete.status, 200);
+  assert.ok(admin.store.snap.class_meetings[0].deleted_at);
 });
 
 test("instructor cannot create or clear unscoped materials", async () => {
