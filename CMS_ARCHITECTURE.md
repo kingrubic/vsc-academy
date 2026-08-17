@@ -112,13 +112,12 @@ Stored in DB with public keys the frontend already understands:
 
 | Admin label | Stored / public |
 |---|---|
-| Draft | `draft` (hidden) |
 | Registration Open | `open` |
-| Opening Soon | `upcoming` |
-| Limited Seats | `limited` |
 | Full | `full` |
 | Completed | `completed` (public `ended`) |
 | Cancelled | `cancelled` (hidden) |
+
+Legacy stored values `draft`, `upcoming`, and `limited` normalize to `open`.
 
 ## Migration
 

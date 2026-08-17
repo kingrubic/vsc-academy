@@ -465,7 +465,7 @@ function createAdminRouter(store) {
       }
       const body = req.body || {};
       V.required(body, isNew ? ["programId", "slug", "startDate", "startTime", "endTime"] : []);
-      if (body.status) V.oneOf(body.status, V.SESSION_STATUS, "status");
+      if (body.status) V.oneOf(V.normalizeSessionStatus(body.status) || body.status, V.SESSION_STATUS, "status");
       const id = isNew ? body.id || randomId("ses") : req.params.id;
       const snap = await store.dump(true);
       const existing = isNew ? null : aliveById(snap.sessions, id);
@@ -505,7 +505,7 @@ function createAdminRouter(store) {
         capacity,
         remaining_seats:
           body.remainingSeats != null ? V.nonNegInt(body.remainingSeats, "remainingSeats") : existing?.remaining_seats,
-        status: body.status || existing?.status || "draft",
+        status: V.normalizeSessionStatus(body.status || existing?.status) || "open",
         type: body.type || existing?.type || "course",
         registration_open_date: body.registrationOpenDate ?? existing?.registration_open_date ?? null,
         registration_close_date: body.registrationCloseDate ?? existing?.registration_close_date ?? null,

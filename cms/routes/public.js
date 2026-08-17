@@ -93,9 +93,7 @@ function createPublicRouter(store) {
         const registered = Number(session.registered_count || 0) + 1;
         const updated = { ...session, registered_count: registered, updated_at: ts };
         if (updated.capacity != null && remainingSeats(updated) <= 0) {
-          if (["open", "limited"].includes(updated.status)) updated.status = "full";
-        } else if (updated.capacity != null && remainingSeats(updated) <= 3 && updated.status === "open") {
-          updated.status = "limited";
+          if (updated.status === "open") updated.status = "full";
         }
         await store.upsert("sessions", updated);
       }

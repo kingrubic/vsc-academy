@@ -526,6 +526,17 @@ test("admin shell uses Vietnamese navigation and versioned assets", () => {
   assert.match(html, /\/admin\/admin\.js\?v=[0-9-]+/);
 });
 
+test("admin class status options are open, full, completed, and cancelled", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /SESSION_STATUS_OPTIONS = \["open", "full", "completed", "cancelled"\]/);
+  assert.match(ui, /open: "Đang mở đăng ký"/);
+  assert.match(ui, /full: "Đã đầy"/);
+  assert.match(ui, /completed: "Đã hoàn thành"/);
+  assert.match(ui, /cancelled: "Đã hủy"/);
+  assert.doesNotMatch(ui, /upcoming: "Sắp mở"/);
+  assert.doesNotMatch(ui, /limited: "Sắp hết chỗ"/);
+});
+
 test("admin and instructor can update meetings; only admin can delete", async () => {
   const instructor = harnessFor(undefined, { allowWrite: true });
   instructor.store.snap.class_meetings[0] = {
