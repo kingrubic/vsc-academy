@@ -6,11 +6,8 @@ const Cert = require("./certificate");
 const { queueMail } = require("./notify");
 const PasswordReset = require("./password-reset");
 
-const TEMP_PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-
 function newTemporaryPassword(length = 12) {
-  const bytes = crypto.randomBytes(length);
-  return Array.from(bytes, (byte) => TEMP_PASSWORD_ALPHABET[byte % TEMP_PASSWORD_ALPHABET.length]).join("");
+  return crypto.randomBytes(Math.ceil(length / 2)).toString("hex").slice(0, length);
 }
 
 function publicStudent(row) {
