@@ -167,7 +167,7 @@ Website tiếng Anh chỉ hiện khóa khi trạng thái tiếng Anh là **Đã 
 
 Mở khóa → tab **Tổng quan** → **Giá (VND)** → nhập số không dấu chấm (ví dụ `999000`) → **Lưu**.
 
-Mọi lớp **không** có “giá riêng” sẽ dùng giá mới. Muốn một lớp giá khác, sửa **Giá riêng** trên lớp đó.
+Mọi lớp dùng giá của khóa. Đổi giá ở **Khóa học → Tổng quan → Giá (VND)**.
 
 ### Quy tắc chứng nhận (tab Tổng quan)
 
@@ -199,10 +199,9 @@ Một khóa có thể có nhiều lớp (nhiều lịch). Website, trang khóa, 
 - **Mã lớp (đường dẫn)** — ví dụ `ai-starter-thang-10`
 - **Tên lớp** — tên hiện trên danh sách
 - Ngày bắt đầu / kết thúc, giờ học, thứ trong tuần (ví dụ `T3, T5`)
-- **Hình thức** — để trống thì theo khóa; hoặc chọn Trực tuyến / Trực tiếp / Kết hợp
+- **Hình thức** — để trống thì theo khóa; hoặc chọn Online trực tiếp / Offline tại chỗ / Kết hợp
 - **Địa điểm** — chọn từ mục Địa điểm (lớp offline)
 - **Link họp trực tuyến** — nếu học online
-- **Sĩ số**, **Giá riêng** (chỉ khi khác giá khóa)
 - **Mở đăng ký** / **Đóng đăng ký**
 - **Trạng thái** — xem bảng dưới
 
@@ -212,10 +211,7 @@ Bấm **Lưu lớp**. Website cập nhật lịch, trang khóa và form đăng k
 
 | Trạng thái | Website hiểu như thế nào |
 |---|---|
-| **Nháp** | Ẩn, chưa công bố |
-| **Sắp mở** | Sắp nhận đăng ký |
 | **Đang mở đăng ký** | Đang nhận học viên |
-| **Sắp hết chỗ** | Vẫn nhận, nhấn mạnh còn ít chỗ |
 | **Đã đầy** | Ngừng nhận đăng ký |
 | **Đã hoàn thành** | Lớp đã xong |
 | **Đã hủy** | Không mở lớp này |
@@ -230,15 +226,17 @@ Kéo xuống dưới form lớp:
 |---|---|
 | **Tổng quan** | Số học viên, bao nhiêu người đủ điều kiện chứng nhận |
 | **Học viên** | Danh sách trong lớp, thanh toán, tiến độ. **Đề xuất hoàn thành** khi giảng viên thấy học viên đã xong |
-| **Buổi học** | Từng buổi: tiêu đề, ngày, giờ, link họp, link bản ghi |
+| **Buổi học** | Từng buổi: tiêu đề, ngày, giờ, link họp, link bản ghi. **Sửa** / **Xóa** trên từng dòng |
 | **Điểm danh** | Có mặt / Vắng / Có phép / Chưa ghi |
 | **Tài liệu** | Tài liệu gắn lớp này |
 | **Thông báo** | Thông báo gửi học viên lớp |
 | **Chứng nhận** | Chọn học viên và cấp chứng nhận |
 
-### Thêm buổi học
+### Thêm / sửa buổi học
 
-Tab **Buổi học** → điền tiêu đề, ngày, giờ, hình thức, link họp (nếu có) → **Thêm buổi**.
+Tab **Buổi học** → hệ thống tự tạo buổi từ ngày/giờ của lớp nếu chưa có. Có thể thêm buổi, sửa giờ, hoặc dán link họp.
+
+Muốn sửa buổi đã tạo: bấm **Sửa** trên dòng đó, form bên dưới đổi thành **Sửa buổi học**, chỉnh rồi **Lưu buổi**. Đổi ngày/giờ hoặc chuyển trạng thái **Đổi lịch** / **Đã hủy** sẽ gửi thông báo in-app cho học viên của lớp. Admin / chủ sở hữu có thể **Xóa** buổi.
 
 Học viên chỉ thấy nút vào lớp khoảng **30 phút trước giờ học** (có thể đổi trên khóa học). Link họp không hiện sẵn trên trang công khai.
 
@@ -263,18 +261,11 @@ Mở dòng → sửa thông tin nếu cần → đổi **Trạng thái**:
 
 | Trạng thái | Khi nào dùng |
 |---|---|
-| **Mới** | Vừa nộp form, chưa liên hệ |
-| **Đã liên hệ** | Đã gọi / nhắn, đang tư vấn |
-| **Chờ thanh toán** | Đã đồng ý học, chờ chuyển khoản |
-| **Đã thanh toán** | Đã nhận tiền |
+| **Chờ thanh toán** | Form mới nộp, hoặc đã liên hệ / chờ chuyển khoản |
 | **Đã xác nhận** | Chốt chỗ — hệ thống tạo học viên và ghi danh vào lớp |
-| **Danh sách chờ** | Lớp đầy, xếp hàng |
 | **Đã hủy** | Không học |
-| **Đã hoàn thành** | Đăng ký đã khép (thường dùng sau khóa) |
 
-> **Quan trọng:** Chỉ khi chuyển sang **Đã xác nhận**, học viên mới có tài khoản cổng học và được ghi danh. Nếu email chưa từng học, hệ thống gửi **email kích hoạt**. Học viên mở link trong email, đặt mật khẩu (tối thiểu 8 ký tự), rồi vào cổng học viên.
-
-Nếu gửi email thất bại, trạng thái xác nhận sẽ không hoàn tất — kiểm tra lại rồi thử lần nữa, đừng bỏ học viên ở trạng thái “đã mời” dở.
+> **Quan trọng:** Chỉ khi chuyển sang **Đã xác nhận**, học viên mới có tài khoản cổng học và được ghi danh. Nếu email chưa từng học, hệ thống tạo tài khoản ngay và hiện **email + mật khẩu tạm** một lần cho admin. **Chưa gửi email kích hoạt tự động** — admin gửi thông tin đăng nhập thủ công. Học viên đăng nhập rồi bắt buộc đổi mật khẩu (tối thiểu 8 ký tự).
 
 Có thể ghi chú, đổi lớp, sửa số tiền ngay trên form. Bấm **Lưu thay đổi**.
 
@@ -282,23 +273,27 @@ Có thể ghi chú, đổi lớp, sửa số tiền ngay trên form. Bấm **Lư
 
 ## 8. Học viên
 
-Hồ sơ người đã (hoặc sắp) học. Khác với **Đăng ký**: đăng ký là form bán hàng; học viên là tài khoản học tập.
+Hồ sơ người đã (hoặc sắp) học. Khác với **Đăng ký**: đăng ký là form bán hàng; học viên là tài khoản học tập. Chỗ trong lớp (ghi danh) nằm ngay trên hồ sơ này — không còn menu Ghi danh riêng.
+
+Danh sách: tên, email, SĐT, **lớp đang học**, trạng thái tài khoản. Lọc theo lớp nếu cần xem một lớp. Roster theo lớp vẫn ở **Lớp học → tab Học viên**.
 
 ### Tạo học viên tay
 
 **Học viên** → **+ Học viên**:
 
 1. Họ tên, email đăng nhập, mật khẩu tạm, điện thoại.
-2. Bấm **Tạo**.
-3. Nhắn mật khẩu tạm cho học viên. Lần đăng nhập đầu, học viên **bắt buộc đổi mật khẩu**.
-4. Vào chi tiết học viên → tab **Ghi danh** để cho vào lớp.
+2. Chọn **Lớp** nếu đã biết lớp (không bắt buộc).
+3. Bấm **Tạo**.
+4. Nhắn mật khẩu tạm cho học viên. Lần đăng nhập đầu, học viên **bắt buộc đổi mật khẩu**.
+
+Nếu chưa chọn lớp lúc tạo: vào chi tiết → tab **Ghi danh** → chọn lớp → **Ghi danh**.
 
 ### Tab chi tiết học viên
 
 | Tab | Việc làm |
 |---|---|
 | **Hồ sơ** | Tên, điện thoại, trạng thái tài khoản. **Reset mật khẩu** gửi link vào email. **Xóa** vô hiệu tài khoản và hủy các lớp đang học |
-| **Ghi danh** | Cho vào lớp, đổi trạng thái học, đổi thanh toán, **chuyển lớp** |
+| **Ghi danh** | Cho vào lớp, đổi trạng thái học, đổi thanh toán, **chuyển lớp**, **gỡ khỏi lớp**. Tiến độ và chứng nhận hiện trên từng hàng |
 | **Điểm danh** | Xem / sửa điểm danh từng buổi |
 | **Ghi chú** | Ghi chú nội bộ (học viên không thấy) |
 | **Chứng nhận** | Xem PDF, **Cấp lại**, **Thu hồi** |
@@ -328,13 +323,12 @@ Hồ sơ người đã (hoặc sắp) học. Khác với **Đăng ký**: đăng 
 
 ## 9. Ghi danh
 
-Menu **Ghi danh** xem **toàn bộ** chỗ học: học viên nào — khóa nào — lớp nào — đã trả tiền chưa — tiến độ — chứng nhận.
+Không còn menu riêng. Một người có thể học nhiều khóa / nhiều lớp:
 
-- **+ Ghi danh:** chọn học viên + lớp.
-- **Sửa:** đổi lớp, trạng thái học, thanh toán, ghi chú.
-- **Xóa:** gỡ học viên khỏi lớp (cẩn thận nếu đã có chứng nhận).
+- Theo người: menu **Học viên** → cột Lớp, hoặc chi tiết → tab **Ghi danh**.
+- Theo lớp: **Lớp học** → tab **Học viên** (thanh toán, tiến độ, đề xuất hoàn thành, chứng nhận).
 
-Một người có thể học nhiều khóa / nhiều lớp.
+URL cũ `/admin/enrollments` chuyển về **Học viên**.
 
 ---
 
@@ -543,7 +537,7 @@ Trang xác minh chứng nhận (`/verify/…`) là trang công khai: hiện tên
 ## 21. Tình huống thường gặp
 
 **Đăng ký rồi mà học viên chưa vào được cổng?**  
-Chưa chuyển sang **Đã xác nhận**, hoặc email kích hoạt chưa tới. Kiểm tra hộp thư (kể cả spam), gửi lại bằng **Reset mật khẩu** trên hồ sơ học viên.
+Chưa chuyển sang **Đã xác nhận**, hoặc chưa gửi mật khẩu tạm cho học viên. Mở menu **Học viên** để kiểm tra tài khoản; nếu vừa xác nhận thì mật khẩu tạm chỉ hiện một lần trên màn hình xác nhận.
 
 **Đổi tên khóa trên website, chứng nhận vẫn tên cũ?**  
 File PDF đã cấp không tự đổi. Mở chứng nhận đang **Đã cấp** → **Cấp lại**. Chọn mẫu **Chứng nhận hoàn thành khóa học (VI + EN)** nếu đang cấp từ tab lớp.

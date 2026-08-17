@@ -211,7 +211,7 @@ test("registration CRUD enforces roles, validation, persistence, and protected s
   assert.equal(invalid.status, 400);
   const created = await request(app, {
     method: "POST", path: "/api/admin/registrations",
-    body: { fullName: "Nguyễn An", phone: "0901234567", email: "AN@example.com", sessionId: "s1", amount: 1200000, status: "new", consentPrivacy: true },
+    body: { fullName: "Nguyễn An", phone: "0901234567", email: "AN@example.com", sessionId: "s1", amount: 1200000, status: "pending_payment", consentPrivacy: true },
   });
   assert.equal(created.status, 201);
   assert.match(created.json.id, /^VSC-\d{4}-000001$/);
@@ -320,6 +320,20 @@ test("enrollment CRUD enforces roles, duplicates, and protected soft deletion", 
   const editor = appFor({ role: "EDITOR", instructor_id: null }, { sessionUser: { role: "EDITOR", instructorId: null } });
   const forbidden = await request(editor, { method: "POST", path: "/api/admin/enrollments", body: {} });
   assert.equal(forbidden.status, 403);
+});
+
+test("student list includes class names and can filter by session", async () => {
+  const app = appFor(
+    { role: "ADMIN", instructor_id: null },
+    { allowWrite: true, sessionUser: { role: "ADMIN", instructorId: null, email: "admin@vsc.academy" } },
+  );
+  const listed = await request(app, { path: "/api/admin/students" });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.json.items[0].classes[0].session_name, "Lớp 1");
+  const filtered = await request(app, { path: "/api/admin/students?sessionId=s1" });
+  assert.equal(filtered.json.items.length, 1);
+  const empty = await request(app, { path: "/api/admin/students?sessionId=missing" });
+  assert.equal(empty.json.items.length, 0);
 });
 
 test("admin can create, edit, and delete announcements", async () => {
@@ -435,14 +449,16 @@ test("admin UI exposes certificate template add, edit, and delete controls", () 
   assert.match(ui, /confirmAction\("Xóa mẫu chứng nhận này\?"\)/);
 });
 
-test("admin UI exposes enrollment add, edit, and delete controls", () => {
+test("admin UI manages enrollments on the student record", () => {
   const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
-  assert.match(ui, /\+ Ghi danh/);
-  assert.match(ui, /\["Học viên", "Khóa", "Lớp", "Trạng thái", "Thanh toán", "Tiến độ", "Chứng nhận", "Thao tác"\]/);
   assert.match(ui, /data-enroll-delete/);
-  assert.match(ui, /id="enr-delete"/);
+  assert.match(ui, /Gỡ khỏi lớp/);
   assert.match(ui, /confirmAction\("Xóa ghi danh này\?/);
-  assert.match(ui, /canManageStaff\(\) \? `<a class="btn btn-primary" href="\$\{href\("\/enrollments\/new"\)\}"/);
+  assert.match(ui, /redirectEnrollments/);
+  assert.match(ui, /href\(`\/students\/\$\{row\.student_id\}\?tab=enroll`\)/);
+  assert.doesNotMatch(ui, /\["Ghi danh"/);
+  assert.doesNotMatch(ui, /\+ Ghi danh/);
+  assert.doesNotMatch(ui, /id="enr-delete"/);
 });
 
 test("unmatched admin API returns JSON instead of an HTML error page", async () => {
@@ -464,6 +480,15 @@ test("admin UI exposes registration add, edit, delete, and core fields", () => {
     assert.match(ui, new RegExp(`name=\\"${field}\\"`), `missing registration field ${field}`);
   }
   assert.match(ui, /confirmAction\("Xóa đăng ký này\?"\)/);
+  assert.match(ui, /showLearnerCredentials/);
+  assert.match(ui, /Gửi thông tin đăng nhập thủ công/);
+  assert.doesNotMatch(ui, /Đã xác nhận và gửi email kích hoạt/);
+  assert.match(ui, /REG_STATUS_OPTIONS/);
+  assert.doesNotMatch(ui, /Danh sách chờ/);
+  assert.doesNotMatch(ui, /Đã liên hệ/);
+  assert.doesNotMatch(ui, /Giá riêng/);
+  assert.doesNotMatch(ui, /name="priceOverride"/);
+  assert.doesNotMatch(ui, /<label>Sĩ số<\/label>/);
   assert.match(ui, /canManageStaff\(\) \? `<a class="btn btn-primary" href="\$\{href\("\/registrations\/new"\)\}"/);
   assert.match(ui, /canManageStaff\(\) \? `<a class="btn" href="\$\{href\(`\/registrations\/\$\{r\.id\}`\)\}">Sửa/);
   assert.match(ui, /if \(isNew && !canManageStaff\(\)\)/);
@@ -475,6 +500,12 @@ test("admin UI hides instructor-forbidden enrollment and delete controls", () =>
   assert.match(ui, /canManageStaff\(\) \? `<select data-pay=/);
   assert.match(ui, /canManageStaff\(\) \? `<button type="button" class="btn-danger" id="mat-del"/);
   assert.match(ui, /canManageStaff\(\) \? `<button type="button" class="btn-danger" id="ann-del"/);
+  assert.match(ui, /function canEditMeetings\(\)/);
+  assert.match(ui, /canEditMeetings\(\)/);
+  assert.match(ui, /data-edit-mtg=/);
+  assert.match(ui, /data-del-mtg=/);
+  assert.match(ui, /\/meetings\/\$\{editingId\}/);
+  assert.match(ui, /Lưu buổi/);
   assert.match(ui, /captureNext\(/);
   assert.match(ui, /vsc_staff_next/);
   assert.doesNotMatch(ui, /\$\("#note-form"\)\.onsubmit/);
@@ -484,9 +515,10 @@ test("admin shell uses Vietnamese navigation and versioned assets", () => {
   const root = path.join(__dirname, "..", "..", "admin");
   const ui = fs.readFileSync(path.join(root, "admin.js"), "utf8");
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  for (const label of ["Tổng quan", "Khóa học", "Lớp học", "Đăng ký", "Học viên", "Ghi danh", "Tài liệu", "Chứng nhận", "Giảng viên", "Cài đặt"]) {
+  for (const label of ["Tổng quan", "Khóa học", "Lớp học", "Đăng ký", "Học viên", "Tài liệu", "Chứng nhận", "Giảng viên", "Cài đặt"]) {
     assert.match(ui, new RegExp(`\\["${label}"`), `missing Vietnamese navigation label: ${label}`);
   }
+  assert.doesNotMatch(ui, /\["Ghi danh"/);
   for (const obsolete of ["Dashboard", "Programs", "Sessions", "Registrations", "Students", "Enrollments", "Materials", "Certificates", "Instructors", "Settings"]) {
     assert.doesNotMatch(ui, new RegExp(`\\["${obsolete}"`), `obsolete English navigation label: ${obsolete}`);
   }
@@ -494,6 +526,93 @@ test("admin shell uses Vietnamese navigation and versioned assets", () => {
   assert.match(html, /\/admin\/admin\.js\?v=[0-9-]+/);
   assert.match(html, /id="show-password"/);
   assert.match(html, /Hiện mật khẩu/);
+});
+
+test("admin class list stacks end date under start date", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /function fmtSessionDates\(s\)/);
+  assert.match(ui, /fmtDate\(s\.end_date \|\| s\.start_date\)/);
+  assert.match(ui, /<td>\$\{fmtSessionDates\(s\)\}<\/td>/);
+});
+
+test("admin class status options are open, full, completed, and cancelled", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /SESSION_STATUS_OPTIONS = \["open", "full", "completed", "cancelled"\]/);
+  assert.match(ui, /open: "Đang mở đăng ký"/);
+  assert.match(ui, /full: "Đã đầy"/);
+  assert.match(ui, /completed: "Đã hoàn thành"/);
+  assert.match(ui, /cancelled: "Đã hủy"/);
+  assert.doesNotMatch(ui, /upcoming: "Sắp mở"/);
+  assert.doesNotMatch(ui, /limited: "Sắp hết chỗ"/);
+});
+
+test("admin format labels distinguish live online from in-person", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /online: "Online trực tiếp"/);
+  assert.match(ui, /offline: "Offline tại chỗ"/);
+  assert.doesNotMatch(ui, /offline: "Trực tiếp"/);
+});
+
+test("admin and instructor can update meetings; only admin can delete", async () => {
+  const instructor = harnessFor(undefined, { allowWrite: true });
+  instructor.store.snap.class_meetings[0] = {
+    id: "m1",
+    session_id: "s1",
+    title_vi: "Buổi 1",
+    title_en: "Session 1",
+    date: "2026-09-01",
+    start_time: "19:00",
+    end_time: "21:00",
+    format: "online",
+    meeting_url: "https://meet.google.com/old",
+    recording_url: "",
+    status: "scheduled",
+  };
+  const edited = await request(instructor.app, {
+    method: "PUT",
+    path: "/api/admin/meetings/m1",
+    body: {
+      titleVi: "Buổi 1 đổi lịch",
+      date: "2026-09-08",
+      startTime: "19:30",
+      endTime: "21:30",
+      meetingUrl: "https://meet.google.com/new",
+      status: "rescheduled",
+    },
+  });
+  assert.equal(edited.status, 200);
+  const meeting = instructor.store.snap.class_meetings[0];
+  assert.equal(meeting.title_vi, "Buổi 1 đổi lịch");
+  assert.equal(meeting.date, "2026-09-08");
+  assert.equal(meeting.start_time, "19:30");
+  assert.equal(meeting.meeting_url, "https://meet.google.com/new");
+  assert.equal(meeting.status, "rescheduled");
+
+  const instructorDelete = await request(instructor.app, {
+    method: "DELETE",
+    path: "/api/admin/meetings/m1",
+  });
+  assert.equal(instructorDelete.status, 403);
+  assert.equal(instructor.store.snap.class_meetings[0].deleted_at, undefined);
+
+  const admin = harnessFor(
+    { role: "ADMIN", instructor_id: null, email: "admin@vsc.academy" },
+    { allowWrite: true, sessionUser: { role: "ADMIN", instructorId: null, email: "admin@vsc.academy" } },
+  );
+  admin.store.snap.class_meetings[0] = { ...instructor.store.snap.class_meetings[0] };
+  const adminEdit = await request(admin.app, {
+    method: "PUT",
+    path: "/api/admin/meetings/m1",
+    body: { titleVi: "Buổi 1 admin", date: "2026-09-15", startTime: "18:00", endTime: "20:00" },
+  });
+  assert.equal(adminEdit.status, 200);
+  assert.equal(admin.store.snap.class_meetings[0].title_vi, "Buổi 1 admin");
+  const adminDelete = await request(admin.app, {
+    method: "DELETE",
+    path: "/api/admin/meetings/m1",
+  });
+  assert.equal(adminDelete.status, 200);
+  assert.ok(admin.store.snap.class_meetings[0].deleted_at);
 });
 
 test("instructor cannot create or clear unscoped materials", async () => {

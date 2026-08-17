@@ -82,7 +82,7 @@ Helpers used by the server: `getPrograms()`, `getProgram(slug, locale)`, `getSes
 
 ### Admin UI
 
-`/admin` `/admin/login` `/admin/programs` `/admin/programs/:id` `/admin/sessions` `/admin/sessions/:id` `/admin/registrations` `/admin/registrations/:id` `/admin/students` `/admin/students/:id` `/admin/enrollments` `/admin/materials` `/admin/announcements` `/admin/certificates` `/admin/certificate-templates` `/admin/instructors` `/admin/insights` `/admin/resources` `/admin/media` `/admin/venues` `/admin/settings`
+`/admin` `/admin/login` `/admin/programs` `/admin/programs/:id` `/admin/sessions` `/admin/sessions/:id` `/admin/registrations` `/admin/registrations/:id` `/admin/students` `/admin/students/:id` `/admin/materials` `/admin/announcements` `/admin/certificates` `/admin/certificate-templates` `/admin/instructors` `/admin/insights` `/admin/resources` `/admin/media` `/admin/venues` `/admin/settings`
 
 ### Learner Portal
 
@@ -112,13 +112,12 @@ Stored in DB with public keys the frontend already understands:
 
 | Admin label | Stored / public |
 |---|---|
-| Draft | `draft` (hidden) |
 | Registration Open | `open` |
-| Opening Soon | `upcoming` |
-| Limited Seats | `limited` |
 | Full | `full` |
 | Completed | `completed` (public `ended`) |
 | Cancelled | `cancelled` (hidden) |
+
+Legacy stored values `draft`, `upcoming`, and `limited` normalize to `open`.
 
 ## Migration
 

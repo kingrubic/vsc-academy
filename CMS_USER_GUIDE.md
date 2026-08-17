@@ -44,7 +44,7 @@ Mở lớp → đổi trạng thái **Full** hoặc **Completed**, hoặc đặt
 
 **Đăng ký**: lọc theo khóa / lớp / trạng thái, tìm tên-email-SĐT.
 
-Mở chi tiết để đổi Mới → Đã liên hệ → Chờ thanh toán → Đã thanh toán → Đã xác nhận, thêm ghi chú, chuyển lớp.
+Mở chi tiết để đổi Chờ thanh toán → Đã xác nhận (tạo tài khoản học viên) hoặc Đã hủy, thêm ghi chú, chuyển lớp.
 
 **Tải CSV** tải danh sách.
 
@@ -80,7 +80,7 @@ Tài khoản demo: `hoc-vien@vsc.academy` / `VscLearner!2026`
 
 - **Học viên** — hồ sơ, ghi danh, chuyển lớp, đánh dấu hoàn thành. Tạo mới: nhập mật khẩu tạm (học viên phải đổi khi đăng nhập lần đầu). **Reset mật khẩu** gửi link vào email.
 - **Giảng viên** — hồ sơ + email đăng nhập. Tạo mới: nhập mật khẩu tạm (bắt buộc đổi lần đầu). **Reset mật khẩu** gửi link `/giang-vien/dat-lai-mat-khau`.
-- **Lớp học** — thêm **buổi học** với ngày/giờ/link họp.
+- **Lớp học** — thêm / sửa **buổi học** với ngày/giờ/link họp.
 - **Tài liệu** — tài liệu trước / trong / sau buổi, gắn khóa hoặc lớp.
 - **Thông báo** — gửi tất cả / khóa / lớp / học viên, mức thường/quan trọng/khẩn.
 

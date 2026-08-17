@@ -6,7 +6,7 @@ const path = require("path");
 const express = require("express");
 const { createAdminRouter } = require("../routes/admin");
 const { createLearnerRouter } = require("../routes/learner");
-const { hashPassword, resetPasswordResetLimiter } = require("./auth");
+const { hashPassword, resetPasswordResetLimiter, verifyPassword } = require("./auth");
 const Mailer = require("./mailer");
 const P = require("./staff-portal");
 const C = require("./lms-core");
@@ -229,6 +229,42 @@ test("creating a student stores a temporary password and requires a change on fi
   assert.equal(me.json.student.mustChangePassword, true);
 });
 
+test("creating a student with a class also enrolls them", async () => {
+  const store = mockStore();
+  store.data.programs = [{ id: "p1", name: "AI" }];
+  store.data.sessions = [{ id: "s1", program_id: "p1", session_name: "Lớp 1" }];
+  const app = appFor(store, owner);
+  const created = await request(app, {
+    method: "POST",
+    path: "/api/admin/students",
+    body: {
+      fullName: "Lan Lớp",
+      email: "lan-class@vsc.academy",
+      temporaryPassword: STUDENT_TMP,
+      sessionId: "s1",
+    },
+  });
+  assert.equal(created.status, 200);
+  assert.ok(created.json.enrollmentId);
+  const enrollment = store.data.enrollments.find((row) => row.student_id === created.json.id);
+  assert.equal(enrollment.session_id, "s1");
+  const listed = await request(app, { path: "/api/admin/students?sessionId=s1" });
+  assert.equal(listed.status, 200);
+  const row = listed.json.items.find((item) => item.id === created.json.id);
+  assert.equal(row.classes[0].session_name, "Lớp 1");
+  const missing = await request(app, {
+    method: "POST",
+    path: "/api/admin/students",
+    body: {
+      fullName: "Không lớp",
+      email: "no-class@vsc.academy",
+      temporaryPassword: STUDENT_TMP,
+      sessionId: "missing",
+    },
+  });
+  assert.equal(missing.status, 400);
+});
+
 test("creating an instructor also creates a login user from email and temporary password", async () => {
   const store = mockStore();
   const app = appFor(store, owner);
@@ -366,12 +402,16 @@ test("admin UI adds temporary password fields and reset buttons", () => {
 test("admin UI exposes student add, edit, and delete controls", () => {
   const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
   assert.match(ui, /\+ Học viên/);
-  assert.match(ui, /\["Tên", "Email", "SĐT", "Đang học", "Hoàn thành", "Trạng thái", "Ngày tạo", "Thao tác"\]/);
+  assert.match(ui, /\["Tên", "Email", "SĐT", "Lớp", "Trạng thái", "Ngày tạo", "Thao tác"\]/);
   assert.match(ui, /data-student-delete/);
   assert.match(ui, /id="student-delete"/);
   assert.match(ui, /confirmAction\("Xóa học viên này\?/);
   assert.match(ui, /canManageStaff\(\) \? `<a class="btn btn-primary" href="\$\{href\("\/students\/new"\)\}"/);
+  assert.match(ui, /Chưa xếp lớp/);
+  assert.match(ui, /redirectEnrollments/);
   assert.match(ui, /Phản hồi máy chủ không hợp lệ/);
+  assert.match(ui, /function submitButton\(form\)/);
+  assert.match(ui, /<button class="btn btn-primary" type="submit">Tạo<\/button>/);
 });
 
 test("unauthenticated staff reset path stays on dat-lai-mat-khau", () => {
@@ -552,14 +592,11 @@ test("activation email uses an absolute https URL and outbox redacts the token",
   await withEnv("PUBLIC_SITE_URL", "https://vscacademy.edu.vn", async () => {
     try {
       const store = mockStore();
-      await L.ensureStudentAndEnrollment(store, store.data, {
-        id: "reg1",
-        email: "new@vsc.academy",
-        full_name: "New",
-        session_id: "s1",
-        program_id: "p1",
-        locale: "vi",
-      });
+      await L.sendActivationEmail(
+        store,
+        { id: "st-new", email: "new@vsc.academy", full_name: "New" },
+        "act-token-secret",
+      );
       assert.match(sent[0].text, /https:\/\/vscacademy\.edu\.vn\/hoc-vien\/kich-hoat\?token=/);
       const mail = store.data.mail_outbox.find((row) => row.to_email === "new@vsc.academy");
       assert.doesNotMatch(mail.body, /token=/);
@@ -568,6 +605,44 @@ test("activation email uses an absolute https URL and outbox redacts the token",
       Mailer.setTestTransport(null);
     }
   });
+});
+
+test("confirming a registration creates an active learner without sending mail", async () => {
+  const sent = [];
+  Mailer.setTestTransport({
+    sendMail: async (msg) => {
+      sent.push(msg);
+      return msg;
+    },
+  });
+  try {
+    const store = mockStore();
+    const result = await L.ensureStudentAndEnrollment(store, store.data, {
+      id: "reg1",
+      email: "new@vsc.academy",
+      full_name: "New",
+      session_id: "s1",
+      program_id: "p1",
+      locale: "vi",
+      status: "confirmed",
+    });
+    assert.equal(sent.length, 0);
+    assert.equal(result.emailed, false);
+    assert.equal(result.studentCreated, true);
+    assert.equal(result.to, "new@vsc.academy");
+    assert.equal(result.temporaryPassword.length, 12);
+    assert.equal(store.data.mail_outbox.length, 0);
+    const student = store.data.students.find((row) => row.email === "new@vsc.academy");
+    assert.equal(student.status, "active");
+    assert.equal(Number(student.must_change_password), 1);
+    assert.equal(student.activation_token, null);
+    assert.equal(verifyPassword(result.temporaryPassword, student.password_hash), true);
+    const enrollment = store.data.enrollments.find((row) => row.student_id === student.id);
+    assert.equal(enrollment.session_id, "s1");
+    assert.equal(store.data.registrations.find((row) => row.id === "reg1").student_id, student.id);
+  } finally {
+    Mailer.setTestTransport(null);
+  }
 });
 
 test("password reset fails closed without PUBLIC_SITE_URL and ignores Host", async () => {
@@ -750,7 +825,7 @@ test("new instructor cannot steal another instructor login email", async () => {
   assert.equal(store.data.instructors.filter((row) => row.email === "gv@vsc.academy").length, 1);
 });
 
-test("activation fails closed and leaves no partial learner state", async () => {
+test("confirming a registration still creates a learner without PUBLIC_SITE_URL or SMTP", async () => {
   Mailer.setTestTransport(null);
   const registration = {
     id: "reg-new",
@@ -763,23 +838,21 @@ test("activation fails closed and leaves no partial learner state", async () => 
 
   const missingOrigin = mockStore();
   await withEnv("PUBLIC_SITE_URL", null, async () => {
-    await assert.rejects(
-      () => L.ensureStudentAndEnrollment(missingOrigin, missingOrigin.data, registration),
-      /PUBLIC_SITE_URL/,
-    );
+    const result = await L.ensureStudentAndEnrollment(missingOrigin, missingOrigin.data, registration);
+    assert.equal(result.created, true);
+    assert.equal(result.emailed, false);
+    assert.equal(result.studentCreated, true);
   });
-  assert.equal(missingOrigin.data.students.some((row) => row.email === "new2@vsc.academy"), false);
-  assert.equal(missingOrigin.data.enrollments.length, 0);
+  assert.equal(missingOrigin.data.students.some((row) => row.email === "new2@vsc.academy"), true);
+  assert.equal(missingOrigin.data.enrollments.length, 1);
 
-  Mailer.setTestTransport(null);
   const noSmtp = mockStore();
   await withEnv("PUBLIC_SITE_URL", "https://vscacademy.edu.vn", async () => {
-    await assert.rejects(
-      () => L.ensureStudentAndEnrollment(noSmtp, noSmtp.data, registration),
-      /SMTP/,
-    );
+    const result = await L.ensureStudentAndEnrollment(noSmtp, noSmtp.data, registration);
+    assert.equal(result.created, true);
+    assert.equal(result.emailed, false);
   });
-  assert.equal(noSmtp.data.students.some((row) => row.email === "new2@vsc.academy"), false);
+  assert.equal(noSmtp.data.students.some((row) => row.email === "new2@vsc.academy"), true);
 
   Mailer.setTestTransport({
     sendMail: async () => {
@@ -788,29 +861,21 @@ test("activation fails closed and leaves no partial learner state", async () => 
   });
   const sendFail = mockStore();
   sendFail.data.registrations.push({ id: "reg-new", status: "pending", email: "new2@vsc.academy" });
-  await withEnv("PUBLIC_SITE_URL", "https://vscacademy.edu.vn", async () => {
-    await assert.rejects(
-      () => L.ensureStudentAndEnrollment(sendFail, sendFail.data, registration),
-      /kích hoạt|smtp-down/,
-    );
-  });
-  assert.equal(sendFail.data.students.some((row) => row.email === "new2@vsc.academy"), false);
-  assert.equal(sendFail.data.enrollments.length, 0);
-  assert.equal(sendFail.data.registrations.find((row) => row.id === "reg-new").status, "pending");
+  const mailed = await L.ensureStudentAndEnrollment(sendFail, sendFail.data, registration);
+  assert.equal(mailed.emailed, false);
+  assert.equal(sendFail.data.students.some((row) => row.email === "new2@vsc.academy"), true);
+  assert.equal(sendFail.data.enrollments.length, 1);
+  Mailer.setTestTransport(null);
 
   const storeFail = mockStore();
   storeFail.provisionLearnerAccount = async () => {
     throw new Error("store down");
   };
-  Mailer.setTestTransport({ sendMail: async (msg) => msg });
-  await withEnv("PUBLIC_SITE_URL", "https://vscacademy.edu.vn", async () => {
-    await assert.rejects(
-      () => L.ensureStudentAndEnrollment(storeFail, storeFail.data, registration),
-      /store down/,
-    );
-  });
+  await assert.rejects(
+    () => L.ensureStudentAndEnrollment(storeFail, storeFail.data, registration),
+    /store down/,
+  );
   assert.equal(storeFail.data.students.some((row) => row.email === "new2@vsc.academy"), false);
-  Mailer.setTestTransport(null);
 });
 
 test("reset-access and confirm do not return raw activation tokens", async () => {
@@ -824,6 +889,36 @@ test("reset-access and confirm do not return raw activation tokens", async () =>
       assert.equal(reset.json.emailed, true);
       assert.equal(reset.json.activationPath, undefined);
       assert.equal(JSON.stringify(reset.json).includes("token="), false);
+
+      store.data.sessions.push({
+        id: "s1",
+        program_id: "p1",
+        session_name: "AS01",
+        start_date: "2026-08-24",
+        registered_count: 0,
+      });
+      store.data.registrations.push({
+        id: "reg-confirm",
+        full_name: "Học viên mới",
+        phone: "0901234567",
+        email: "confirm@vsc.academy",
+        session_id: "s1",
+        program_id: "p1",
+        status: "new",
+        amount: 0,
+        notes: "[]",
+      });
+      const confirmed = await request(app, {
+        method: "PUT",
+        path: "/api/admin/registrations/reg-confirm",
+        body: { status: "confirmed" },
+      });
+      assert.equal(confirmed.status, 200);
+      assert.equal(confirmed.json.emailed, false);
+      assert.equal(confirmed.json.studentCreated, true);
+      assert.ok(confirmed.json.temporaryPassword);
+      assert.equal(JSON.stringify(confirmed.json).includes("token="), false);
+      assert.equal(confirmed.json.activationPath, undefined);
     } finally {
       Mailer.setTestTransport(null);
     }

@@ -1,23 +1,26 @@
 (() => {
+  const SESSION_STATUS_OPTIONS = ["open", "full", "completed", "cancelled"];
   const SESSION_LABEL = {
-    draft: "Nháp",
     open: "Đang mở đăng ký",
-    upcoming: "Sắp mở",
-    limited: "Sắp hết chỗ",
     full: "Đã đầy",
     completed: "Đã hoàn thành",
     cancelled: "Đã hủy",
   };
+  function sessionStatusKey(status) {
+    if (status === "full" || status === "completed" || status === "cancelled") return status;
+    return "open";
+  }
   const REG_LABEL = {
-    new: "Mới",
-    contacted: "Đã liên hệ",
     pending_payment: "Chờ thanh toán",
-    paid: "Đã thanh toán",
     confirmed: "Đã xác nhận",
-    waitlist: "Danh sách chờ",
     cancelled: "Đã hủy",
-    completed: "Đã hoàn thành",
+    new: "Chờ thanh toán",
+    contacted: "Chờ thanh toán",
+    paid: "Chờ thanh toán",
+    waitlist: "Chờ thanh toán",
+    completed: "Đã xác nhận",
   };
+  const REG_STATUS_OPTIONS = ["pending_payment", "confirmed", "cancelled"];
   const LANG_LABEL = {
     not_created: "Chưa tạo",
     ai_draft: "Nháp AI",
@@ -32,13 +35,20 @@
     advanced: "Nâng cao",
     workshop: "Hội thảo",
   };
-  const FORMAT_LABEL = { online: "Trực tuyến", offline: "Trực tiếp", hybrid: "Kết hợp" };
+  const FORMAT_LABEL = { online: "Online trực tiếp", offline: "Offline tại chỗ", hybrid: "Kết hợp" };
   const TYPE_LABEL = { course: "Khóa học", workshop: "Hội thảo" };
   const FACULTY_ROLE = { lead: "Phụ trách", instructor: "Giảng viên", guest: "Khách mời" };
   const STUDENT_LABEL = { invited: "Đã mời", active: "Đang học", inactive: "Ngưng", suspended: "Tạm khóa" };
   const ENROLL_LABEL = { active: "Đang học", completed: "Đã hoàn thành", in_progress: "Đang học", paused: "Tạm dừng", cancelled: "Đã hủy" };
   const PAY_LABEL = { unpaid: "Chưa thanh toán", pending: "Chờ thanh toán", paid: "Đã thanh toán", refunded: "Đã hoàn tiền" };
   const ATT_LABEL = { not_recorded: "Chưa ghi", present: "Có mặt", absent: "Vắng", excused: "Có phép" };
+  const MEETING_LABEL = {
+    scheduled: "Đã lên lịch",
+    live: "Đang diễn ra",
+    completed: "Đã hoàn thành",
+    cancelled: "Đã hủy",
+    rescheduled: "Đổi lịch",
+  };
   const CERT_LABEL = {
     none: "Chưa có",
     eligible: "Đủ điều kiện",
@@ -79,11 +89,53 @@
   const app = $("#app");
   const toastEl = $("#toast");
 
+  function adminRegStatus(status) {
+    if (status === "confirmed" || status === "completed") return "confirmed";
+    if (status === "cancelled") return "cancelled";
+    return "pending_payment";
+  }
+
   function toast(msg, error) {
     toastEl.textContent = msg;
     toastEl.classList.toggle("error", !!error);
     toastEl.classList.add("show");
     setTimeout(() => toastEl.classList.remove("show"), 2800);
+  }
+
+  function showLearnerCredentials({ email, temporaryPassword, studentId }) {
+    const back = document.createElement("div");
+    back.className = "modal-back";
+    back.innerHTML = `
+      <div class="modal" role="dialog" aria-labelledby="cred-title">
+        <h2 id="cred-title">Đã tạo tài khoản học viên</h2>
+        <p class="muted">Chưa gửi email kích hoạt. Sao chép thông tin này và gửi thủ công cho học viên. Mật khẩu tạm chỉ hiện một lần.</p>
+        <p><strong>Email</strong></p>
+        <div class="cred-row"><code>${esc(email)}</code><button type="button" class="btn" data-copy="${esc(email)}">Sao chép</button></div>
+        <p><strong>Mật khẩu tạm</strong></p>
+        <div class="cred-row"><code>${esc(temporaryPassword)}</code><button type="button" class="btn" data-copy="${esc(temporaryPassword)}">Sao chép</button></div>
+        <div class="toolbar" style="margin-top:16px">
+          ${studentId ? `<button type="button" class="btn btn-primary" id="cred-open">Mở Học viên</button>` : ""}
+          <button type="button" class="btn" id="cred-close">Đóng</button>
+        </div>
+      </div>`;
+    document.body.appendChild(back);
+    back.addEventListener("click", async (e) => {
+      if (!e.target.dataset.copy) return;
+      try {
+        await navigator.clipboard.writeText(e.target.dataset.copy);
+        toast("Đã sao chép");
+      } catch {
+        toast("Không sao chép được", true);
+      }
+    });
+    const open = $("#cred-open", back);
+    if (open) {
+      open.onclick = () => {
+        back.remove();
+        go(href(`/students/${studentId}`));
+      };
+    }
+    $("#cred-close", back).onclick = () => back.remove();
   }
 
   async function api(path, opts = {}) {
@@ -141,6 +193,9 @@
   }
   function canManageStaff() {
     return ["OWNER", "ADMIN"].includes(state.user?.role);
+  }
+  function canEditMeetings() {
+    return ["OWNER", "ADMIN", "INSTRUCTOR"].includes(state.user?.role);
   }
   function homeFor(user) {
     return user?.role === "INSTRUCTOR" ? "/giang-vien" : "/admin";
@@ -215,6 +270,11 @@
     if (!d) return "—";
     return String(d).slice(0, 10).split("-").reverse().join("/");
   }
+  function fmtSessionDates(s) {
+    const start = fmtDate(s.start_date);
+    const end = fmtDate(s.end_date || s.start_date);
+    return `${start}<span class="date-end">${end}</span>`;
+  }
   function labelOf(...maps) {
     return (key) => {
       for (const map of maps) {
@@ -231,6 +291,7 @@
     ENROLL_LABEL,
     PAY_LABEL,
     ATT_LABEL,
+    MEETING_LABEL,
     CERT_LABEL,
     PRIORITY_LABEL,
     TARGET_LABEL,
@@ -291,6 +352,9 @@
   function confirmAction(message) {
     return window.confirm(message);
   }
+  function submitButton(form) {
+    return form.querySelector('button[type="submit"], input[type="submit"], button.btn-primary:not([type]), button:not([type])');
+  }
   function esc(s) {
     return String(s ?? "")
       .replace(/&/g, "&amp;")
@@ -347,7 +411,6 @@
       ["Lớp học", href("/sessions")],
       ["Đăng ký", href("/registrations")],
       ["Học viên", href("/students")],
-      ["Ghi danh", href("/enrollments")],
       ["Tài liệu", href("/materials")],
       ["Thông báo", href("/announcements")],
       ["Chứng nhận", href("/certificates")],
@@ -407,7 +470,7 @@
             ["Lớp", "Ngày", "Chỗ", "Đăng ký", "Trạng thái"],
             d.upcoming.map(
               (x) =>
-                `<tr><td><a href="${href(`/sessions/${x.id}`)}">${esc(x.programName)}</a></td><td>${fmtDate(x.start_date)}</td><td>${x.capacity ?? "—"}</td><td>${x.registered_count}</td><td>${badge(x.status)}</td></tr>`,
+                `<tr><td><a href="${href(`/sessions/${x.id}`)}">${esc(x.programName)}</a></td><td>${fmtDate(x.start_date)}</td><td>${x.capacity ?? "—"}</td><td>${x.registered_count}</td><td>${badge(sessionStatusKey(x.status))}</td></tr>`,
             ),
           )}
         </div>
@@ -694,7 +757,7 @@
           ${table(
             ["Lớp", "Ngày", "Trạng thái", ""],
             (p.sessions || []).map(
-              (s) => `<tr><td>${esc(s.session_name)}</td><td>${fmtDate(s.start_date)}</td><td>${badge(s.status)}</td><td><a href="${href(`/sessions/${s.id}`)}">Mở</a></td></tr>`,
+              (s) => `<tr><td>${esc(s.session_name)}</td><td>${fmtDate(s.start_date)}</td><td>${badge(sessionStatusKey(s.status))}</td><td><a href="${href(`/sessions/${s.id}`)}">Mở</a></td></tr>`,
             ),
             "Chưa có lớp",
           )}
@@ -827,25 +890,24 @@
     const programId = new URLSearchParams(location.search).get("programId") || "";
     const status = new URLSearchParams(location.search).get("status") || "";
     const filtered = data.items.filter(
-      (s) => (!programId || s.program_id === programId) && (!status || s.status === status),
+      (s) => (!programId || s.program_id === programId) && (!status || sessionStatusKey(s.status) === status),
     );
     app.innerHTML = `
       <div class="toolbar">
         <select id="f-program"><option value="">Tất cả khóa</option>${programs.items.map((p) => `<option value="${p.id}" ${p.id === programId ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
-        <select id="f-status"><option value="">Tất cả trạng thái</option>${Object.keys(SESSION_LABEL).map((k) => `<option value="${k}" ${k === status ? "selected" : ""}>${SESSION_LABEL[k]}</option>`).join("")}</select>
+        <select id="f-status"><option value="">Tất cả trạng thái</option>${SESSION_STATUS_OPTIONS.map((k) => `<option value="${k}" ${k === status ? "selected" : ""}>${SESSION_LABEL[k]}</option>`).join("")}</select>
         ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/sessions/new")}">+ Lớp mới</a>` : ""}
       </div>
       ${table(
-        ["Lớp", "Khóa", "Ngày", "Giờ", "Chỗ", "Đăng ký", "Trạng thái", ""],
+        ["Lớp", "Khóa", "Ngày", "Giờ", "Đăng ký", "Trạng thái", ""],
         filtered.map(
           (s) => `<tr>
             <td><a href="${href(`/sessions/${s.id}`)}">${esc(s.session_name || s.slug)}</a></td>
             <td>${esc(s.programName || "")}</td>
-            <td>${fmtDate(s.start_date)}</td>
+            <td>${fmtSessionDates(s)}</td>
             <td>${esc(s.start_time)}–${esc(s.end_time)}</td>
-            <td>${s.capacity ?? "—"}</td>
             <td>${s.registered_count}</td>
-            <td>${badge(s.status)}</td>
+            <td>${badge(sessionStatusKey(s.status))}</td>
             <td><a href="${href(`/sessions/${s.id}`)}">Sửa</a></td>
           </tr>`,
         ),
@@ -891,11 +953,9 @@
           <div class="field"><label>Nền tảng trực tuyến</label><input name="onlinePlatform" value="${esc(s.online_platform || "")}" /></div>
           <div class="field"><label>Link họp trực tuyến</label><input name="meetingUrl" value="${esc(s.meeting_url || "")}" /></div>
           <div class="field"><label>Mở link vào lớp (phút trước giờ học)</label><input type="number" name="joinLinkOpenMinutesBefore" value="${s.join_link_open_minutes_before ?? ""}" placeholder="Theo khóa" /></div>
-          <div class="field"><label>Giá riêng (VND)</label><input type="number" name="priceOverride" value="${s.price_override ?? ""}" /></div>
-          <div class="field"><label>Sĩ số</label><input type="number" name="capacity" value="${s.capacity ?? ""}" /></div>
           <div class="field"><label>Đã đăng ký</label><input value="${s.registered_count || 0}" disabled /></div>
           <div class="field"><label>Trạng thái</label>
-            <select name="status">${Object.keys(SESSION_LABEL).map((k) => `<option value="${k}" ${(s.status || (isNew ? "open" : "")) === k ? "selected" : ""}>${SESSION_LABEL[k]}</option>`).join("")}</select>
+            <select name="status">${SESSION_STATUS_OPTIONS.map((k) => `<option value="${k}" ${sessionStatusKey(s.status || (isNew ? "open" : "")) === k ? "selected" : ""}>${SESSION_LABEL[k]}</option>`).join("")}</select>
           </div>
           <div class="field"><label>Mở đăng ký</label><input type="date" name="registrationOpenDate" value="${esc((s.registration_open_date || "").slice(0, 10))}" /></div>
           <div class="field"><label>Đóng đăng ký</label><input type="date" name="registrationCloseDate" value="${esc((s.registration_close_date || "").slice(0, 10))}" /></div>
@@ -945,8 +1005,6 @@
         onlinePlatform: val(form, "onlinePlatform"),
         meetingUrl: val(form, "meetingUrl"),
         joinLinkOpenMinutesBefore: val(form, "joinLinkOpenMinutesBefore") === "" ? null : Number(val(form, "joinLinkOpenMinutesBefore")),
-        priceOverride: val(form, "priceOverride") === "" ? null : Number(val(form, "priceOverride")),
-        capacity: val(form, "capacity") === "" ? null : Number(val(form, "capacity")),
         status: val(form, "status"),
         registrationOpenDate: val(form, "registrationOpenDate") || null,
         registrationCloseDate: val(form, "registrationCloseDate") || null,
@@ -1023,34 +1081,96 @@
         } else if (k === "meetings") {
           pane.innerHTML = `${table(
             ["Buổi", "Ngày", "Giờ", "Trạng thái", ""],
-            lms.meetings.map(
-              (m) => `<tr><td>${esc(m.title_vi)}</td><td>${fmtDate(m.date)}</td><td>${esc(m.start_time)}–${esc(m.end_time)}</td><td>${badge(m.status)}</td><td></td></tr>`,
-            ),
+            lms.meetings.map((m) => {
+              const edit = canEditMeetings()
+                ? `<button type="button" class="btn" data-edit-mtg="${esc(m.id)}">Sửa</button>`
+                : "";
+              const del = canManageStaff()
+                ? ` <button type="button" class="btn-danger" data-del-mtg="${esc(m.id)}">Xóa</button>`
+                : "";
+              return `<tr><td>${esc(m.title_vi)}</td><td>${fmtDate(m.date)}</td><td>${esc(m.start_time)}–${esc(m.end_time)}</td><td>${badge(m.status)}</td><td>${edit}${del}</td></tr>`;
+            }),
             "Chưa có buổi",
           )}
-          <form id="mtg-form" class="form-grid" style="margin-top:12px">
+          ${canEditMeetings() ? `<form id="mtg-form" class="form-grid" style="margin-top:12px">
+            <p id="mtg-form-title" class="field full" style="margin:0;font-weight:600">Thêm buổi học</p>
             <div class="field"><label>Tiêu đề tiếng Việt</label><input name="titleVi" required /></div>
             <div class="field"><label>Tiêu đề tiếng Anh</label><input name="titleEn" /></div>
             <div class="field"><label>Ngày</label><input type="date" name="date" required /></div>
             <div class="field"><label>Bắt đầu</label><input type="time" name="startTime" required /></div>
             <div class="field"><label>Kết thúc</label><input type="time" name="endTime" required /></div>
-            <div class="field"><label>Hình thức</label><select name="format">${optList([["online","Trực tuyến"],["offline","Trực tiếp"]], "online")}</select></div>
+            <div class="field"><label>Hình thức</label><select name="format">${optList([["online","Online trực tiếp"],["offline","Offline tại chỗ"],["hybrid","Kết hợp"]], "online")}</select></div>
+            <div class="field"><label>Trạng thái</label><select name="status">${opts(MEETING_LABEL, "scheduled")}</select></div>
             <div class="field"><label>Link họp</label><input name="meetingUrl" /></div>
             <div class="field"><label>Bản ghi</label><input name="recordingUrl" /></div>
-            <button class="btn btn-primary">Thêm buổi</button>
-          </form>`;
-          $("#mtg-form").onsubmit = async (e) => {
-            e.preventDefault();
-            const body = Object.fromEntries(new FormData(e.target).entries());
-            body.sessionId = id;
-            try {
-              await api("/meetings", { method: "POST", body });
-              toast("Đã thêm buổi học");
-              render();
-            } catch (err) {
-              toast(err.message, true);
-            }
+            <div class="field full toolbar" style="margin:0">
+              <button class="btn btn-primary" id="mtg-submit" type="submit">Thêm buổi</button>
+              <button class="btn hidden" id="mtg-cancel" type="button">Hủy sửa</button>
+            </div>
+          </form>` : ""}`;
+          const form = $("#mtg-form");
+          const stayOnMeetings = () => {
+            const next = new URL(location.href);
+            next.searchParams.set("tab", "meetings");
+            history.replaceState({}, "", `${next.pathname}${next.search}`);
+            render();
           };
+          if (form) {
+            const fillMeeting = (m) => {
+              form.dataset.editing = m ? m.id : "";
+              form.elements.titleVi.value = m?.title_vi || "";
+              form.elements.titleEn.value = m?.title_en || "";
+              form.elements.date.value = String(m?.date || "").slice(0, 10);
+              form.elements.startTime.value = String(m?.start_time || "").slice(0, 5);
+              form.elements.endTime.value = String(m?.end_time || "").slice(0, 5);
+              form.elements.format.value = m?.format || "online";
+              form.elements.status.value = MEETING_LABEL[m?.status] ? m.status : "scheduled";
+              form.elements.meetingUrl.value = m?.meeting_url || "";
+              form.elements.recordingUrl.value = m?.recording_url || "";
+              $("#mtg-form-title").textContent = m ? "Sửa buổi học" : "Thêm buổi học";
+              $("#mtg-submit").textContent = m ? "Lưu buổi" : "Thêm buổi";
+              $("#mtg-cancel").classList.toggle("hidden", !m);
+            };
+            pane.querySelectorAll("[data-edit-mtg]").forEach((btn) =>
+              btn.addEventListener("click", () => {
+                const m = lms.meetings.find((row) => row.id === btn.dataset.editMtg);
+                if (!m) return;
+                fillMeeting(m);
+                form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+              }),
+            );
+            $("#mtg-cancel").onclick = () => fillMeeting(null);
+            form.onsubmit = async (e) => {
+              e.preventDefault();
+              const body = Object.fromEntries(new FormData(e.target).entries());
+              body.sessionId = id;
+              const editingId = form.dataset.editing;
+              try {
+                if (editingId) {
+                  await api(`/meetings/${editingId}`, { method: "PUT", body });
+                  toast("Đã lưu buổi học");
+                } else {
+                  await api("/meetings", { method: "POST", body });
+                  toast("Đã thêm buổi học");
+                }
+                stayOnMeetings();
+              } catch (err) {
+                toast(err.message, true);
+              }
+            };
+          }
+          pane.querySelectorAll("[data-del-mtg]").forEach((btn) =>
+            btn.addEventListener("click", async () => {
+              if (!confirmAction("Xóa buổi học này?")) return;
+              try {
+                await api(`/meetings/${btn.dataset.delMtg}`, { method: "DELETE" });
+                toast("Đã xóa buổi học");
+                stayOnMeetings();
+              } catch (err) {
+                toast(err.message, true);
+              }
+            }),
+          );
         } else if (k === "attendance") {
           const rows = [];
           lms.meetings.forEach((m) => {
@@ -1159,7 +1279,7 @@
         <input id="q" placeholder="Tên, email, SĐT, mã" value="${esc(qs.get("q") || "")}" />
         <select id="programId"><option value="">Khóa</option>${programs.items.map((p) => `<option value="${p.id}" ${qs.get("programId") === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
         <select id="sessionId"><option value="">Lớp</option>${sessions.items.map((s) => `<option value="${s.id}" ${qs.get("sessionId") === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}</select>
-        <select id="status"><option value="">Trạng thái</option>${Object.keys(REG_LABEL).map((k) => `<option value="${k}" ${qs.get("status") === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select>
+        <select id="status"><option value="">Trạng thái</option>${REG_STATUS_OPTIONS.map((k) => `<option value="${k}" ${qs.get("status") === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select>
         <a class="btn" href="/api/admin/registrations/export.csv">Tải CSV</a>
         ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/registrations/new")}">+ Thêm đăng ký</a>` : ""}
       </div>
@@ -1211,7 +1331,7 @@
       return;
     }
     $("#page-title").textContent = isNew ? "Thêm đăng ký" : "Sửa đăng ký";
-    const [r, sessions] = await Promise.all([isNew ? Promise.resolve({ status: "new", amount: 0 }) : api(`/registrations/${id}`), api("/sessions")]);
+    const [r, sessions] = await Promise.all([isNew ? Promise.resolve({ status: "pending_payment", amount: 0 }) : api(`/registrations/${id}`), api("/sessions")]);
     app.innerHTML = `
       <form class="card" style="padding:18px" id="reg-form">
         ${isNew ? "" : `<p><strong>ID:</strong> ${esc(r.id)} · <strong>Ngày tạo:</strong> ${fmtDate(r.created_at)}</p>`}
@@ -1221,7 +1341,7 @@
           <div class="field"><label>Email</label><input name="email" type="email" required ${canManageStaff() ? "" : "disabled"} value="${esc(r.email || "")}" /></div>
           <div class="field"><label>Lớp học</label><select name="sessionId" required ${canManageStaff() ? "" : "disabled"}><option value="">Chọn lớp</option>${sessions.items.map((s) => `<option value="${s.id}" ${r.session_id === s.id ? "selected" : ""}>${esc(s.session_name)} · ${fmtDate(s.start_date)}</option>`).join("")}</select></div>
           <div class="field"><label>Số tiền (VND)</label><input name="amount" type="number" min="0" step="1" required ${canManageStaff() ? "" : "disabled"} value="${esc(r.amount ?? 0)}" /></div>
-          <div class="field"><label>Trạng thái</label><select name="status" ${canManageStaff() ? "" : "disabled"}>${Object.keys(REG_LABEL).map((k) => `<option value="${k}" ${r.status === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select></div>
+          <div class="field"><label>Trạng thái</label><select name="status" ${canManageStaff() ? "" : "disabled"}>${REG_STATUS_OPTIONS.map((k) => `<option value="${k}" ${adminRegStatus(r.status) === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select></div>
           <div class="field"><label>Vai trò công việc</label><input name="jobRole" ${canManageStaff() ? "" : "disabled"} value="${esc(r.job_role || "")}" /></div>
           <div class="field"><label>Tổ chức</label><input name="organization" ${canManageStaff() ? "" : "disabled"} value="${esc(r.organization || "")}" /></div>
           <div class="field full"><label>Mục tiêu</label><textarea name="goal" ${canManageStaff() ? "" : "disabled"}>${esc(r.goal || "")}</textarea></div>
@@ -1235,8 +1355,8 @@
     if (canManageStaff()) $("#reg-form").onsubmit = async (e) => {
       e.preventDefault();
       try {
-        const button = e.target.querySelector('[type="submit"]');
-        button.disabled = true;
+        const button = submitButton(e.target);
+        if (button) button.disabled = true;
         const data = await api(isNew ? "/registrations" : `/registrations/${id}`, {
           method: isNew ? "POST" : "PUT",
           body: {
@@ -1247,10 +1367,25 @@
             consentMarketing: e.target.elements.consentMarketing.checked, note: isNew ? "" : val(e.target, "note"),
           },
         });
-        toast(data.emailed ? `Đã xác nhận và gửi email kích hoạt tới ${data.to}` : isNew ? "Đã thêm đăng ký" : "Đã cập nhật đăng ký");
-        go(href(isNew ? `/registrations/${data.id}` : "/registrations"));
+        if (data.temporaryPassword) {
+          toast("Đã xác nhận và tạo tài khoản học viên. Gửi thông tin đăng nhập thủ công.");
+          showLearnerCredentials({
+            email: data.to,
+            temporaryPassword: data.temporaryPassword,
+            studentId: data.studentId,
+          });
+          go(href(data.studentId ? `/students/${data.studentId}` : "/students"));
+        } else {
+          toast(
+            data.studentCreated === false && val(e.target, "status") === "confirmed"
+              ? "Đã xác nhận và ghi danh học viên hiện có"
+              : isNew ? "Đã thêm đăng ký" : "Đã cập nhật đăng ký",
+          );
+          go(href(isNew ? `/registrations/${data.id}` : "/registrations"));
+        }
       } catch (err) {
-        e.target.querySelector('[type="submit"]').disabled = false;
+        const retry = submitButton(e.target);
+        if (retry) retry.disabled = false;
         toast(err.message, true);
       }
     };
@@ -1537,22 +1672,25 @@
 
   async function viewStudents() {
     $("#page-title").textContent = "Học viên";
-    const q = new URLSearchParams(location.search).get("q") || "";
-    const data = await api(`/students?q=${encodeURIComponent(q)}`);
+    const qs = new URLSearchParams(location.search);
+    const [data, sessions] = await Promise.all([
+      api(`/students?${qs.toString()}`),
+      api("/sessions"),
+    ]);
     app.innerHTML = `
       <div class="toolbar">
-        <input id="search" placeholder="Tên, email, SĐT" value="${esc(q)}" />
+        <input id="q" placeholder="Tên, email, SĐT" value="${esc(qs.get("q") || "")}" />
+        <select id="sessionId"><option value="">Lớp</option>${(sessions.items || []).map((s) => `<option value="${esc(s.id)}" ${qs.get("sessionId") === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}</select>
         ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/students/new")}">+ Học viên</a>` : ""}
       </div>
       ${table(
-        ["Tên", "Email", "SĐT", "Đang học", "Hoàn thành", "Trạng thái", "Ngày tạo", "Thao tác"],
+        ["Tên", "Email", "SĐT", "Lớp", "Trạng thái", "Ngày tạo", "Thao tác"],
         data.items.map(
           (s) => `<tr>
             <td><a href="${href(`/students/${s.id}`)}">${esc(s.full_name)}</a></td>
             <td>${esc(s.email)}</td>
             <td>${esc(s.phone || "")}</td>
-            <td>${s.active_courses}</td>
-            <td>${s.completed_courses}</td>
+            <td>${esc((s.classes || []).map((c) => c.session_name).filter(Boolean).join(", ") || "—")}</td>
             <td>${badge(s.status)}</td>
             <td>${fmtDate(s.created_at)}</td>
             <td>${canManageStaff()
@@ -1561,9 +1699,18 @@
           </tr>`,
         ),
       )}`;
-    $("#search").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") go(`${href("/students")}?q=${encodeURIComponent(e.target.value)}`);
+    const apply = () => {
+      const next = new URLSearchParams();
+      ["q", "sessionId"].forEach((k) => {
+        const v = document.getElementById(k).value;
+        if (v) next.set(k, v);
+      });
+      go(`${href("/students")}?${next}`);
+    };
+    $("#q").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") apply();
     });
+    $("#sessionId").onchange = apply;
     app.querySelectorAll("[data-student-delete]").forEach((button) => button.addEventListener("click", async () => {
       if (!confirmAction("Xóa học viên này? Tài khoản sẽ bị vô hiệu và các lớp đang học sẽ bị hủy ghi danh.")) return;
       button.disabled = true;
@@ -1585,25 +1732,33 @@
         return;
       }
       $("#page-title").textContent = "Học viên mới";
+      const sessions = await api("/sessions");
       app.innerHTML = `<form id="stu-new" class="card" style="padding:18px;max-width:520px">
         <div class="field"><label>Họ tên</label><input name="fullName" required /></div>
         <div class="field"><label>Email đăng nhập</label><input name="email" type="email" required /></div>
         <div class="field"><label>Mật khẩu tạm</label><input name="temporaryPassword" type="password" minlength="8" required autocomplete="new-password" /></div>
         <p class="muted">Học viên đăng nhập bằng email và mật khẩu tạm, rồi bắt buộc đổi mật khẩu.</p>
         <div class="field"><label>Điện thoại</label><input name="phone" /></div>
-        <button class="btn btn-primary">Tạo</button>
+        <div class="field"><label>Lớp học</label>
+          <select name="sessionId">
+            <option value="">Chưa xếp lớp</option>
+            ${(sessions.items || []).map((x) => `<option value="${esc(x.id)}">${esc(x.session_name)}</option>`).join("")}
+          </select>
+        </div>
+        <p class="muted">Chọn lớp để học viên thấy khóa trên cổng ngay. Có thể xếp sau ở tab Ghi danh.</p>
+        <button class="btn btn-primary" type="submit">Tạo</button>
       </form>`;
       $("#stu-new").onsubmit = async (e) => {
         e.preventDefault();
-        const button = e.target.querySelector('[type="submit"]');
-        button.disabled = true;
+        const button = submitButton(e.target);
+        if (button) button.disabled = true;
         try {
           const body = Object.fromEntries(new FormData(e.target).entries());
           const r = await api("/students", { method: "POST", body });
           toast("Đã thêm học viên");
           go(href(`/students/${r.id}`));
         } catch (err) {
-          button.disabled = false;
+          if (button) button.disabled = false;
           toast(err.message, true);
         }
       };
@@ -1612,16 +1767,20 @@
     $("#page-title").textContent = "Chi tiết học viên";
     const [d, sessions] = await Promise.all([api(`/students/${id}`), api("/sessions")]);
     const s = d.student;
+    const tab = new URLSearchParams(location.search).get("tab") || "profile";
+    const enrollHeaders = canManageStaff()
+      ? ["Khóa", "Lớp", "Trạng thái", "Thanh toán", "Tiến độ", "Chứng nhận", "Chuyển lớp", ""]
+      : ["Khóa", "Lớp", "Trạng thái", "Thanh toán", "Tiến độ", "Chứng nhận"];
     app.innerHTML = `
       <div class="tabs">
-        <button data-tab="profile" class="active">Hồ sơ</button>
-        <button data-tab="enroll">Ghi danh</button>
-        <button data-tab="att">Điểm danh</button>
-        <button data-tab="notes">Ghi chú</button>
-        <button data-tab="certs">Chứng nhận</button>
-        <button data-tab="activity">Hoạt động</button>
+        <button data-tab="profile" class="${tab === "profile" ? "active" : ""}">Hồ sơ</button>
+        <button data-tab="enroll" class="${tab === "enroll" ? "active" : ""}">Ghi danh</button>
+        <button data-tab="att" class="${tab === "att" ? "active" : ""}">Điểm danh</button>
+        <button data-tab="notes" class="${tab === "notes" ? "active" : ""}">Ghi chú</button>
+        <button data-tab="certs" class="${tab === "certs" ? "active" : ""}">Chứng nhận</button>
+        <button data-tab="activity" class="${tab === "activity" ? "active" : ""}">Hoạt động</button>
       </div>
-      <section data-pane="profile">
+      <section data-pane="profile" class="${tab === "profile" ? "" : "hidden"}">
         <form id="stu-form" class="card" style="padding:18px">
           <div class="form-grid">
             <div class="field"><label>Họ tên</label><input name="fullName" value="${esc(s.fullName)}" ${canManageStaff() ? "" : "disabled"} /></div>
@@ -1631,14 +1790,14 @@
               ${canManageStaff() ? `<select name="status">${opts(STUDENT_LABEL, s.status)}</select>` : `<input value="${esc(STUDENT_LABEL[s.status] || s.status)}" disabled />`}
             </div>
           </div>
-          <div class="toolbar">${canManageStaff() ? `<button class="btn btn-primary">Lưu</button>
+          <div class="toolbar">${canManageStaff() ? `<button class="btn btn-primary" type="submit">Lưu</button>
             <button type="button" class="btn" id="student-reset-password">Reset mật khẩu</button>
             <button type="button" class="btn-danger" id="student-delete">Xóa</button>` : ""}</div>
         </form>
       </section>
-      <section data-pane="enroll" class="hidden">
+      <section data-pane="enroll" class="${tab === "enroll" ? "" : "hidden"}">
         ${table(
-          canManageStaff() ? ["Khóa", "Lớp", "Trạng thái", "Thanh toán", "Chuyển lớp"] : ["Khóa", "Lớp", "Trạng thái", "Thanh toán"],
+          enrollHeaders,
           d.enrollments.map(
             (e) => `<tr>
               <td>${esc(e.program_name)}</td>
@@ -1649,11 +1808,14 @@
               <td>
                 ${canManageStaff() ? `<select data-pay="${e.id}">${opts(PAY_LABEL, e.payment_status)}</select>` : esc(PAY_LABEL[e.payment_status] || e.payment_status)}
               </td>
+              <td>${e.progress?.percent ?? e.progress ?? 0}%</td>
+              <td>${badge(e.certificate_status || "none")}</td>
               ${canManageStaff() ? `<td>
                 <select data-move="${e.id}">
                   ${sessions.items.map((x) => `<option value="${x.id}" ${e.session_id === x.id ? "selected" : ""}>${esc(x.session_name)}</option>`).join("")}
                 </select>
-              </td>` : ""}
+              </td>
+              <td><button class="btn-danger" type="button" data-enroll-delete="${esc(e.id)}">Gỡ khỏi lớp</button></td>` : ""}
             </tr>`,
           ),
         )}
@@ -1662,7 +1824,7 @@
           <button class="btn btn-primary">Ghi danh</button>
         </form>` : ""}
       </section>
-      <section data-pane="att" class="hidden">
+      <section data-pane="att" class="${tab === "att" ? "" : "hidden"}">
         ${table(
           ["Buổi", "Ngày", "Trạng thái"],
           (d.meetings || []).map(
@@ -1679,20 +1841,20 @@
           "Chưa có buổi học",
         )}
       </section>
-      <section data-pane="notes" class="hidden">
+      <section data-pane="notes" class="${tab === "notes" ? "" : "hidden"}">
         <form id="note-form" class="card" style="padding:18px">
           <textarea name="notes" ${canManageStaff() ? "" : "disabled"}>${esc(s.notes || "")}</textarea>
           ${canManageStaff() ? `<button class="btn btn-primary" style="margin-top:10px">Lưu ghi chú</button>` : ""}
         </form>
       </section>
-      <section data-pane="activity" class="hidden">
+      <section data-pane="activity" class="${tab === "activity" ? "" : "hidden"}">
         <div class="card" style="padding:18px">
           <p>Tạo tài khoản: ${fmtDate(s.createdAt)}</p>
           <p>Đăng nhập gần nhất: ${s.lastLoginAt ? fmtDate(s.lastLoginAt) : "Chưa đăng nhập"}</p>
           <p>Ghi danh: ${d.enrollments.length}</p>
         </div>
       </section>
-      <section data-pane="certs" class="hidden">
+      <section data-pane="certs" class="${tab === "certs" ? "" : "hidden"}">
         ${table(
           ["Mã", "Trạng thái", "Ngày cấp", ""],
           (d.certificates || []).map(
@@ -1724,7 +1886,7 @@
     $("#stu-form").onsubmit = async (e) => {
       e.preventDefault();
       if (!canManageStaff()) return;
-      const button = e.target.querySelector('[type="submit"]');
+      const button = submitButton(e.target);
       if (button) button.disabled = true;
       try {
         await api(`/students/${id}`, { method: "PUT", body: Object.fromEntries(new FormData(e.target).entries()) });
@@ -1789,6 +1951,20 @@
           await api(`/enrollments/${sel.dataset.move}`, { method: "PUT", body: { sessionId: sel.value } });
           toast("Đã chuyển lớp");
           render();
+        }),
+      );
+      app.querySelectorAll("[data-enroll-delete]").forEach((button) =>
+        button.addEventListener("click", async () => {
+          if (!confirmAction("Xóa ghi danh này? Bản ghi sẽ bị ẩn khỏi danh sách.")) return;
+          button.disabled = true;
+          try {
+            await api(`/enrollments/${button.dataset.enrollDelete}`, { method: "DELETE" });
+            toast("Đã gỡ khỏi lớp");
+            render();
+          } catch (err) {
+            button.disabled = false;
+            toast(err.message, true);
+          }
         }),
       );
       $("#note-form")?.addEventListener("submit", async (e) => {
@@ -1923,12 +2099,12 @@
         <div class="field"><label>Lớp học</label><select name="sessionId"><option value="">—</option>${sessions.items.map((s) => `<option value="${s.id}" ${item.session_id === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}</select></div>
         <div class="field"><label>Mã học viên (nếu gửi cho một người)</label><input name="studentId" value="${esc(item.student_id || "")}" /></div>
       </div>
-      <div class="toolbar"><button class="btn btn-primary">Đăng</button>
+      <div class="toolbar"><button class="btn btn-primary" type="submit">Đăng</button>
       ${editing !== "new" && canManageStaff() ? `<button type="button" class="btn-danger" id="ann-del">Xóa</button>` : ""}</div>
     </form>`;
     $("#ann-form").onsubmit = async (e) => {
       e.preventDefault();
-      const button = e.target.querySelector('[type="submit"]');
+      const button = submitButton(e.target);
       if (button) button.disabled = true;
       const body = Object.fromEntries(new FormData(e.target).entries());
       try {
@@ -1961,123 +2137,21 @@
     });
   }
 
-  async function viewEnrollments() {
-    $("#page-title").textContent = "Ghi danh";
-    const q = new URLSearchParams(location.search).get("q") || "";
-    const data = await api(`/enrollments?q=${encodeURIComponent(q)}`);
-    app.innerHTML = `
-      <div class="toolbar">
-        <input id="search" placeholder="Học viên, email, khóa" value="${esc(q)}" />
-        ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/enrollments/new")}">+ Ghi danh</a>` : ""}
-      </div>
-      ${table(
-        ["Học viên", "Khóa", "Lớp", "Trạng thái", "Thanh toán", "Tiến độ", "Chứng nhận", "Thao tác"],
-        data.items.map(
-          (e) => `<tr>
-            <td><a href="${href(`/students/${e.student_id}`)}">${esc(e.student_name)}</a><br><small>${esc(e.student_email || "")}</small></td>
-            <td>${esc(e.program_name)}</td>
-            <td>${esc(e.session_name)}</td>
-            <td>${badge(e.status)}</td>
-            <td>${badge(e.payment_status)}</td>
-            <td>${e.progress?.percent ?? e.progress}%</td>
-            <td>${badge(e.eligibility?.certificateStatus || e.certificate_status || "none")}</td>
-            <td>${canManageStaff()
-              ? `<a class="btn" href="${href(`/enrollments/${e.id}`)}">Sửa</a> <button class="btn-danger" type="button" data-enroll-delete="${esc(e.id)}">Xóa</button>`
-              : `<a class="btn" href="${href(`/enrollments/${e.id}`)}">Xem</a>`}</td>
-          </tr>`,
-        ),
-      )}`;
-    $("#search").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") go(`${href("/enrollments")}?q=${encodeURIComponent(e.target.value)}`);
-    });
-    app.querySelectorAll("[data-enroll-delete]").forEach((button) => button.addEventListener("click", async () => {
-      if (!confirmAction("Xóa ghi danh này? Bản ghi sẽ bị ẩn khỏi danh sách.")) return;
-      button.disabled = true;
-      try {
-        await api(`/enrollments/${button.dataset.enrollDelete}`, { method: "DELETE" });
-        toast("Đã xóa ghi danh");
-        render();
-      } catch (err) {
-        button.disabled = false;
-        toast(err.message, true);
-      }
-    }));
-  }
-
-  async function viewEnrollment(id) {
-    const isNew = id === "new";
-    if (isNew && !canManageStaff()) {
-      go(href("/enrollments"));
-      return;
+  async function redirectEnrollments(id) {
+    if (!id || id === "new") {
+      history.replaceState({}, "", href("/students"));
+      layout();
+      return viewStudents();
     }
-    $("#page-title").textContent = isNew ? "Thêm ghi danh" : "Sửa ghi danh";
-    const [row, students, sessions] = await Promise.all([
-      isNew ? Promise.resolve({ status: "active", payment_status: "paid", notes: "" }) : api(`/enrollments/${id}`),
-      api("/students"),
-      api("/sessions"),
-    ]);
-    app.innerHTML = `
-      <form class="card" style="padding:18px" id="enr-form">
-        <div class="form-grid">
-          <div class="field"><label>Học viên</label>
-            ${isNew
-              ? `<select name="studentId" required ${canManageStaff() ? "" : "disabled"}><option value="">Chọn học viên</option>${(students.items || []).map((s) => `<option value="${esc(s.id)}">${esc(s.full_name)} · ${esc(s.email)}</option>`).join("")}</select>`
-              : `<input value="${esc(row.student_name || "")} · ${esc(row.student_email || "")}" disabled />`}
-          </div>
-          <div class="field"><label>Lớp học</label>
-            <select name="sessionId" required ${canManageStaff() ? "" : "disabled"}>
-              <option value="">Chọn lớp</option>
-              ${(sessions.items || []).map((s) => `<option value="${esc(s.id)}" ${row.session_id === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}
-            </select>
-          </div>
-          <div class="field"><label>Trạng thái</label>
-            <select name="status" ${canManageStaff() ? "" : "disabled"}>${opts(ENROLL_LABEL, row.status)}</select>
-          </div>
-          <div class="field"><label>Thanh toán</label>
-            <select name="paymentStatus" ${canManageStaff() ? "" : "disabled"}>${opts(PAY_LABEL, row.payment_status)}</select>
-          </div>
-          <div class="field full"><label>Ghi chú</label>
-            <textarea name="notes" ${canManageStaff() ? "" : "disabled"}>${esc(row.notes || "")}</textarea>
-          </div>
-        </div>
-        ${canManageStaff() ? `<div class="toolbar"><button class="btn btn-primary" type="submit">${isNew ? "Thêm ghi danh" : "Lưu thay đổi"}</button>${isNew ? "" : `<button class="btn-danger" type="button" id="enr-delete">Xóa</button>`}</div>` : ""}
-      </form>`;
-    if (canManageStaff()) {
-      $("#enr-form").onsubmit = async (e) => {
-        e.preventDefault();
-        const button = e.target.querySelector('[type="submit"]');
-        button.disabled = true;
-        try {
-          const body = {
-            studentId: val(e.target, "studentId"),
-            sessionId: val(e.target, "sessionId"),
-            status: val(e.target, "status"),
-            paymentStatus: val(e.target, "paymentStatus"),
-            notes: val(e.target, "notes") || "",
-          };
-          const data = await api(isNew ? "/enrollments" : `/enrollments/${id}`, {
-            method: isNew ? "POST" : "PUT",
-            body,
-          });
-          toast(isNew ? "Đã thêm ghi danh" : "Đã cập nhật ghi danh");
-          go(href(isNew ? `/enrollments/${data.id}` : "/enrollments"));
-        } catch (err) {
-          button.disabled = false;
-          toast(err.message, true);
-        }
-      };
-    }
-    if (!isNew && canManageStaff()) {
-      $("#enr-delete").onclick = async () => {
-        if (!confirmAction("Xóa ghi danh này? Bản ghi sẽ bị ẩn khỏi danh sách.")) return;
-        try {
-          await api(`/enrollments/${id}`, { method: "DELETE" });
-          toast("Đã xóa ghi danh");
-          go(href("/enrollments"));
-        } catch (err) {
-          toast(err.message, true);
-        }
-      };
+    try {
+      const row = await api(`/enrollments/${id}`);
+      history.replaceState({}, "", href(`/students/${row.student_id}?tab=enroll`));
+      layout();
+      return viewStudent(row.student_id);
+    } catch {
+      history.replaceState({}, "", href("/students"));
+      layout();
+      return viewStudents();
     }
   }
 
@@ -2180,7 +2254,7 @@
     if (!canManageStaff()) return;
     $("#tpl-form").onsubmit = async (e) => {
       e.preventDefault();
-      const button = e.target.querySelector('[type="submit"]');
+      const button = submitButton(e.target);
       if (button) button.disabled = true;
       const body = Object.fromEntries(new FormData(e.target).entries());
       try {
@@ -2317,8 +2391,7 @@
       if (key === "registrations") return viewRegistrations();
       if (key === "students" && id) return viewStudent(id);
       if (key === "students") return viewStudents();
-      if (key === "enrollments" && id) return viewEnrollment(id);
-      if (key === "enrollments") return viewEnrollments();
+      if (key === "enrollments") return redirectEnrollments(id);
       if (key === "materials") return viewLearnerMaterials();
       if (key === "announcements") return viewAdminAnnouncements();
       if (key === "certificates") return viewCertificates();

@@ -17,6 +17,7 @@ const {
 } = require("../lib/auth");
 const C = require("../lib/lms-core");
 const V = require("../lib/validate");
+const Meetings = require("../lib/session-meetings");
 const { remainingSeats, parsePrice, pickCopy } = require("../lib/serialize");
 const L = require("../lib/learner");
 const Security = require("../lib/lms-security");
@@ -193,7 +194,7 @@ function createAdminRouter(store) {
     ).length;
     const openReg = scopedSessions.filter((s) => ["open", "limited"].includes(s.status)).length;
     const registrations = req.lmsScope?.type === "instructor" ? 0 : alive(snap.registrations).length;
-    const newRegs = req.lmsScope?.type === "instructor" ? 0 : alive(snap.registrations).filter((r) => r.status === "new").length;
+    const newRegs = req.lmsScope?.type === "instructor" ? 0 : alive(snap.registrations).filter((r) => V.normalizeRegStatus(r.status) === "pending_payment").length;
     const learners = alive(snap.students).filter(
       (student) => Security.instructorOwnsStudent(req.lmsScope, snap, student.id),
     ).length;
@@ -464,7 +465,7 @@ function createAdminRouter(store) {
       }
       const body = req.body || {};
       V.required(body, isNew ? ["programId", "slug", "startDate", "startTime", "endTime"] : []);
-      if (body.status) V.oneOf(body.status, V.SESSION_STATUS, "status");
+      if (body.status) V.oneOf(V.normalizeSessionStatus(body.status) || body.status, V.SESSION_STATUS, "status");
       const id = isNew ? body.id || randomId("ses") : req.params.id;
       const snap = await store.dump(true);
       const existing = isNew ? null : aliveById(snap.sessions, id);
@@ -480,7 +481,7 @@ function createAdminRouter(store) {
         throw V.fail("Sĩ số không được thấp hơn số đã đăng ký");
       }
       const ts = now();
-      await store.upsert("sessions", {
+      const saved = {
         ...(existing || { registered_count: 0 }),
         id,
         program_id: programId,
@@ -504,7 +505,7 @@ function createAdminRouter(store) {
         capacity,
         remaining_seats:
           body.remainingSeats != null ? V.nonNegInt(body.remainingSeats, "remainingSeats") : existing?.remaining_seats,
-        status: body.status || existing?.status || "draft",
+        status: V.normalizeSessionStatus(body.status || existing?.status) || "open",
         type: body.type || existing?.type || "course",
         registration_open_date: body.registrationOpenDate ?? existing?.registration_open_date ?? null,
         registration_close_date: body.registrationCloseDate ?? existing?.registration_close_date ?? null,
@@ -515,7 +516,9 @@ function createAdminRouter(store) {
         updated_by: userId(req),
         created_at: existing?.created_at || ts,
         created_by: existing?.created_by || userId(req),
-      });
+      };
+      await store.upsert("sessions", saved);
+      await Meetings.ensureSessionMeetings(store, snap, saved);
       res.json({ ok: true, id });
     } catch (err) {
       sendErr(res, err);
@@ -750,7 +753,7 @@ function createAdminRouter(store) {
     const rows = alive(snap.registrations)
       .filter((r) => !programId || r.program_id === programId)
       .filter((r) => !sessionId || r.session_id === sessionId)
-      .filter((r) => !status || r.status === status)
+      .filter((r) => !status || V.registrationStatusMatches(status, r.status))
       .filter((r) => !q || like(r.full_name, q) || like(r.email, q) || like(r.phone, q) || like(r.id, q))
       .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
       .map((row) => {
@@ -837,7 +840,7 @@ function createAdminRouter(store) {
       const phone = String(value("phone", "phone")).trim();
       const email = String(value("email", "email")).trim().toLowerCase();
       const sessionId = String(value("sessionId", "session_id")).trim();
-      const status = String(value("status", "status", "new")).trim();
+      const status = V.normalizeRegStatus(String(value("status", "status", "pending_payment")).trim()) || "pending_payment";
       const amount = body.amount !== undefined || isNew ? V.nonNegInt(value("amount", "amount", 0), "amount") : row.amount;
       if (isNew) V.required({ fullName, phone, email, sessionId, status, amount }, ["fullName", "phone", "email", "sessionId", "status", "amount"]);
       if (isNew || body.fullName !== undefined) V.required({ fullName }, ["fullName"]);
@@ -889,7 +892,15 @@ function createAdminRouter(store) {
       } else if (isNew && newCounted) {
         await adjustRegistrationCount(snap, updated.session_id, 1, ts);
       }
-      res.status(isNew ? 201 : 200).json({ ok: true, id: updated.id, emailed: !!activation?.emailed, to: activation?.to });
+      res.status(isNew ? 201 : 200).json({
+        ok: true,
+        id: updated.id,
+        emailed: false,
+        studentCreated: !!activation?.studentCreated,
+        studentId: activation?.student?.id,
+        to: activation?.to,
+        temporaryPassword: activation?.temporaryPassword,
+      });
     } catch (err) {
       sendErr(res, err);
     }
