@@ -167,7 +167,7 @@ Website tiếng Anh chỉ hiện khóa khi trạng thái tiếng Anh là **Đã 
 
 Mở khóa → tab **Tổng quan** → **Giá (VND)** → nhập số không dấu chấm (ví dụ `999000`) → **Lưu**.
 
-Mọi lớp **không** có “giá riêng” sẽ dùng giá mới. Muốn một lớp giá khác, sửa **Giá riêng** trên lớp đó.
+Mọi lớp dùng giá của khóa. Đổi giá ở **Khóa học → Tổng quan → Giá (VND)**.
 
 ### Quy tắc chứng nhận (tab Tổng quan)
 
@@ -202,7 +202,6 @@ Một khóa có thể có nhiều lớp (nhiều lịch). Website, trang khóa, 
 - **Hình thức** — để trống thì theo khóa; hoặc chọn Trực tuyến / Trực tiếp / Kết hợp
 - **Địa điểm** — chọn từ mục Địa điểm (lớp offline)
 - **Link họp trực tuyến** — nếu học online
-- **Sĩ số**, **Giá riêng** (chỉ khi khác giá khóa)
 - **Mở đăng ký** / **Đóng đăng ký**
 - **Trạng thái** — xem bảng dưới
 
@@ -263,14 +262,9 @@ Mở dòng → sửa thông tin nếu cần → đổi **Trạng thái**:
 
 | Trạng thái | Khi nào dùng |
 |---|---|
-| **Mới** | Vừa nộp form, chưa liên hệ |
-| **Đã liên hệ** | Đã gọi / nhắn, đang tư vấn |
-| **Chờ thanh toán** | Đã đồng ý học, chờ chuyển khoản |
-| **Đã thanh toán** | Đã nhận tiền |
+| **Chờ thanh toán** | Form mới nộp, hoặc đã liên hệ / chờ chuyển khoản |
 | **Đã xác nhận** | Chốt chỗ — hệ thống tạo học viên và ghi danh vào lớp |
-| **Danh sách chờ** | Lớp đầy, xếp hàng |
 | **Đã hủy** | Không học |
-| **Đã hoàn thành** | Đăng ký đã khép (thường dùng sau khóa) |
 
 > **Quan trọng:** Chỉ khi chuyển sang **Đã xác nhận**, học viên mới có tài khoản cổng học và được ghi danh. Nếu email chưa từng học, hệ thống tạo tài khoản ngay và hiện **email + mật khẩu tạm** một lần cho admin. **Chưa gửi email kích hoạt tự động** — admin gửi thông tin đăng nhập thủ công. Học viên đăng nhập rồi bắt buộc đổi mật khẩu (tối thiểu 8 ký tự).
 

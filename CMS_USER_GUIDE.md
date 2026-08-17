@@ -44,7 +44,7 @@ Mở lớp → đổi trạng thái **Full** hoặc **Completed**, hoặc đặt
 
 **Đăng ký**: lọc theo khóa / lớp / trạng thái, tìm tên-email-SĐT.
 
-Mở chi tiết để đổi Mới → Đã liên hệ → Chờ thanh toán → Đã thanh toán → Đã xác nhận, thêm ghi chú, chuyển lớp.
+Mở chi tiết để đổi Chờ thanh toán → Đã xác nhận (tạo tài khoản học viên) hoặc Đã hủy, thêm ghi chú, chuyển lớp.
 
 **Tải CSV** tải danh sách.
 

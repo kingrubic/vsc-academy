@@ -193,7 +193,7 @@ function createAdminRouter(store) {
     ).length;
     const openReg = scopedSessions.filter((s) => ["open", "limited"].includes(s.status)).length;
     const registrations = req.lmsScope?.type === "instructor" ? 0 : alive(snap.registrations).length;
-    const newRegs = req.lmsScope?.type === "instructor" ? 0 : alive(snap.registrations).filter((r) => r.status === "new").length;
+    const newRegs = req.lmsScope?.type === "instructor" ? 0 : alive(snap.registrations).filter((r) => V.normalizeRegStatus(r.status) === "pending_payment").length;
     const learners = alive(snap.students).filter(
       (student) => Security.instructorOwnsStudent(req.lmsScope, snap, student.id),
     ).length;
@@ -750,7 +750,7 @@ function createAdminRouter(store) {
     const rows = alive(snap.registrations)
       .filter((r) => !programId || r.program_id === programId)
       .filter((r) => !sessionId || r.session_id === sessionId)
-      .filter((r) => !status || r.status === status)
+      .filter((r) => !status || V.registrationStatusMatches(status, r.status))
       .filter((r) => !q || like(r.full_name, q) || like(r.email, q) || like(r.phone, q) || like(r.id, q))
       .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
       .map((row) => {
@@ -837,7 +837,7 @@ function createAdminRouter(store) {
       const phone = String(value("phone", "phone")).trim();
       const email = String(value("email", "email")).trim().toLowerCase();
       const sessionId = String(value("sessionId", "session_id")).trim();
-      const status = String(value("status", "status", "new")).trim();
+      const status = V.normalizeRegStatus(String(value("status", "status", "pending_payment")).trim()) || "pending_payment";
       const amount = body.amount !== undefined || isNew ? V.nonNegInt(value("amount", "amount", 0), "amount") : row.amount;
       if (isNew) V.required({ fullName, phone, email, sessionId, status, amount }, ["fullName", "phone", "email", "sessionId", "status", "amount"]);
       if (isNew || body.fullName !== undefined) V.required({ fullName }, ["fullName"]);

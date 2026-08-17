@@ -29,3 +29,17 @@ test("sessionSlug rejects values outside A-Z a-z 0-9 _ -", () => {
   assert.throws(() => V.sessionSlug("???"), /Mã lớp không hợp lệ/);
   assert.throws(() => V.sessionSlug(""), /Mã lớp không hợp lệ/);
 });
+
+test("normalizeRegStatus maps legacy registration statuses to the three admin states", () => {
+  assert.equal(V.normalizeRegStatus("new"), "pending_payment");
+  assert.equal(V.normalizeRegStatus("contacted"), "pending_payment");
+  assert.equal(V.normalizeRegStatus("paid"), "pending_payment");
+  assert.equal(V.normalizeRegStatus("waitlist"), "pending_payment");
+  assert.equal(V.normalizeRegStatus("pending_payment"), "pending_payment");
+  assert.equal(V.normalizeRegStatus("completed"), "confirmed");
+  assert.equal(V.normalizeRegStatus("confirmed"), "confirmed");
+  assert.equal(V.normalizeRegStatus("cancelled"), "cancelled");
+  assert.equal(V.normalizeRegStatus("nope"), "");
+  assert.equal(V.registrationStatusMatches("pending_payment", "new"), true);
+  assert.equal(V.registrationStatusMatches("confirmed", "new"), false);
+});
