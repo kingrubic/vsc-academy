@@ -140,6 +140,27 @@ function remainingSeats(row) {
   return row.remaining_seats ?? null;
 }
 
+function sessionInstructorIds(snap, session, programRow) {
+  const assigned = String(session?.instructor_id || "").trim();
+  if (assigned) return [assigned];
+  const programId = session?.program_id || programRow?.id;
+  const links = (snap.program_instructors || [])
+    .filter((x) => x.program_id === programId)
+    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+    .map((x) => x.instructor_id)
+    .filter(Boolean);
+  if (links.length) return [...new Set(links)];
+  const primary = programRow?.primary_instructor_id;
+  return primary ? [primary] : [];
+}
+
+function sessionInstructorName(snap, session, programRow) {
+  return sessionInstructorIds(snap, session, programRow)
+    .map((id) => aliveById(snap.instructors || [], id)?.name)
+    .filter(Boolean)
+    .join(", ");
+}
+
 function sessionPublic(snap, row, programRow, locale = "vi") {
   const info = programInfo(snap, programRow, locale);
   const venue = getVenue(snap, row.venue_id) || getVenue(snap, programRow.venue_default_id);
@@ -147,6 +168,7 @@ function sessionPublic(snap, row, programRow, locale = "vi") {
   const price = row.price_override != null ? formatPrice(row.price_override) : info.price;
   const desc = locale === "en" ? row.description_en || row.description_vi : row.description_vi;
   const remaining = remainingSeats(row);
+  const instructorName = sessionInstructorName(snap, row, programRow);
   const location =
     format === "offline" && venue
       ? `${venue.name} · ${locale === "en" ? venue.address_en || venue.address_vi : venue.address_vi}`
@@ -177,6 +199,7 @@ function sessionPublic(snap, row, programRow, locale = "vi") {
     registrationUrl: registrationUrl(row),
     detailUrl: detailUrl(programRow),
   };
+  if (instructorName) item.instructorName = instructorName;
   if (info.scheduleLabel) item.scheduleLabel = info.scheduleLabel;
   if (info.supportLabel) item.supportLabel = info.supportLabel;
   if (info.primaryPlatform) item.primaryPlatform = info.primaryPlatform;
@@ -445,4 +468,5 @@ module.exports = {
   resourceDataJs,
   bootstrap,
   remainingSeats,
+  sessionInstructorName,
 };

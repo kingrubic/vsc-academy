@@ -18,7 +18,7 @@ const {
 const C = require("../lib/lms-core");
 const V = require("../lib/validate");
 const Meetings = require("../lib/session-meetings");
-const { remainingSeats, parsePrice, pickCopy } = require("../lib/serialize");
+const { remainingSeats, parsePrice, pickCopy, sessionInstructorName } = require("../lib/serialize");
 const L = require("../lib/learner");
 const Security = require("../lib/lms-security");
 const StaffPortal = require("../lib/staff-portal");
@@ -432,7 +432,7 @@ function createAdminRouter(store) {
   router.get("/sessions", async (req, res) => {
     const programId = req.query.programId || null;
     const status = req.query.status || null;
-    const snap = await store.dump();
+    const snap = await store.dump(true);
     const rows = alive(snap.sessions)
       .filter((s) => !programId || s.program_id === programId)
       .filter((s) => !status || s.status === status)
@@ -444,17 +444,22 @@ function createAdminRouter(store) {
           ...row,
           remaining: remainingSeats(row),
           programName: programShortName(program) || row.program_id,
+          instructorName: sessionInstructorName(snap, row, program),
         };
       });
     res.json({ items: rows });
   });
 
   router.get("/sessions/:id", async (req, res) => {
-    const snap = await store.dump();
+    const snap = await store.dump(true);
     const row = aliveById(snap.sessions, req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
     if (!Security.instructorOwnsSession(req.lmsScope, row.id)) return res.status(403).json({ error: "Forbidden" });
-    res.json(row);
+    const program = aliveById(snap.programs, row.program_id);
+    res.json({
+      ...row,
+      instructorName: sessionInstructorName(snap, row, program),
+    });
   });
 
   async function saveSession(req, res) {
@@ -480,6 +485,13 @@ function createAdminRouter(store) {
       if (capacity != null && capacity < registered) {
         throw V.fail("Sĩ số không được thấp hơn số đã đăng ký");
       }
+      const instructorId =
+        body.instructorId !== undefined
+          ? String(body.instructorId || "").trim() || null
+          : existing?.instructor_id ?? null;
+      if (instructorId && !aliveById(snap.instructors, instructorId)) {
+        throw V.fail("Giảng viên không tồn tại");
+      }
       const ts = now();
       const saved = {
         ...(existing || { registered_count: 0 }),
@@ -487,6 +499,7 @@ function createAdminRouter(store) {
         program_id: programId,
         slug,
         session_name: body.sessionName ?? existing?.session_name ?? "",
+        instructor_id: instructorId,
         start_date: body.startDate || existing?.start_date,
         end_date: body.endDate ?? existing?.end_date ?? body.startDate ?? existing?.start_date,
         days_of_week: body.daysOfWeek ?? existing?.days_of_week ?? "",
@@ -519,7 +532,7 @@ function createAdminRouter(store) {
       };
       await store.upsert("sessions", saved);
       await Meetings.ensureSessionMeetings(store, snap, saved);
-      res.json({ ok: true, id });
+      res.json({ ok: true, id, instructorId: saved.instructor_id });
     } catch (err) {
       sendErr(res, err);
     }
