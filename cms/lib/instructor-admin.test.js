@@ -524,6 +524,8 @@ test("admin shell uses Vietnamese navigation and versioned assets", () => {
   }
   assert.match(html, /\/admin\/admin\.css\?v=[0-9-]+/);
   assert.match(html, /\/admin\/admin\.js\?v=[0-9-]+/);
+  assert.match(html, /id="show-password"/);
+  assert.match(html, /Hiện mật khẩu/);
 });
 
 test("admin class list stacks end date under start date", () => {

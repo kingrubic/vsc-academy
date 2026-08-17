@@ -2408,6 +2408,10 @@
     }
   }
 
+  $("#show-password")?.addEventListener("change", (e) => {
+    const input = $("#password");
+    if (input) input.type = e.target.checked ? "text" : "password";
+  });
   $("#login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     $("#login-error").textContent = "";
