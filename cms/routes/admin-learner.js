@@ -5,6 +5,7 @@ const { now, parseJson, alive, aliveById, like, programShortName } = require("..
 const { requireRole, randomId, editorLocked, hashPassword } = require("../lib/auth");
 const V = require("../lib/validate");
 const L = require("../lib/learner");
+const Meetings = require("../lib/session-meetings");
 const C = require("../lib/lms-core");
 const Cert = require("../lib/certificate");
 const { notifyStudents, sessionStudentIds, programStudentIds, publicOutboxRow } = require("../lib/notify");
@@ -25,9 +26,49 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
+function studentClassRows(snap, studentId, lmsScope) {
+  return (snap.enrollments || [])
+    .filter((e) => e.student_id === studentId && !e.deleted_at && e.status !== "cancelled")
+    .filter((e) => Security.instructorOwnsSession(lmsScope, e.session_id))
+    .map((e) => {
+      const session = aliveById(snap.sessions, e.session_id);
+      return {
+        enrollment_id: e.id,
+        session_id: e.session_id,
+        session_name: session?.session_name || "",
+        status: e.status,
+        payment_status: e.payment_status,
+      };
+    });
+}
+
+async function createEnrollment(store, student, session, paymentStatus = "paid") {
+  const id = randomId("enr");
+  const ts = now();
+  await store.upsert("enrollments", {
+    id,
+    student_id: student.id,
+    program_id: session.program_id,
+    session_id: session.id,
+    registration_id: null,
+    status: "active",
+    payment_status: paymentStatus || "paid",
+    progress: 0,
+    completion_status: "in_progress",
+    certificate_status: "none",
+    joined_at: ts,
+    completed_at: null,
+    notes: "",
+    created_at: ts,
+    updated_at: ts,
+  });
+  return id;
+}
+
 function attachLearnerAdmin(router, store) {
   router.get("/students", async (req, res) => {
     const q = String(req.query.q || "").trim();
+    const sessionId = String(req.query.sessionId || "").trim();
     const snap = await store.dump();
     const items = alive(snap.students)
       .filter((s) => {
@@ -39,22 +80,36 @@ function attachLearnerAdmin(router, store) {
           );
           if (!allowed.has(s.id)) return false;
         }
+        if (sessionId) {
+          const inClass = (snap.enrollments || []).some(
+            (e) =>
+              e.student_id === s.id &&
+              !e.deleted_at &&
+              String(e.session_id) === sessionId &&
+              Security.instructorOwnsSession(req.lmsScope, e.session_id),
+          );
+          if (!inClass) return false;
+        }
         return !q || like(s.full_name, q) || like(s.email, q) || like(s.phone, q);
       })
       .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
-      .map((s) => ({
-        id: s.id,
-        full_name: s.full_name,
-        email: s.email,
-        phone: s.phone,
-        avatar: s.avatar,
-        status: s.status,
-        language_preference: s.language_preference,
-        last_login_at: s.last_login_at,
-        created_at: s.created_at,
-        active_courses: (snap.enrollments || []).filter((e) => e.student_id === s.id && e.status === "active" && Security.instructorOwnsSession(req.lmsScope, e.session_id)).length,
-        completed_courses: (snap.enrollments || []).filter((e) => e.student_id === s.id && e.status === "completed" && Security.instructorOwnsSession(req.lmsScope, e.session_id)).length,
-      }));
+      .map((s) => {
+        const classes = studentClassRows(snap, s.id, req.lmsScope);
+        return {
+          id: s.id,
+          full_name: s.full_name,
+          email: s.email,
+          phone: s.phone,
+          avatar: s.avatar,
+          status: s.status,
+          language_preference: s.language_preference,
+          last_login_at: s.last_login_at,
+          created_at: s.created_at,
+          classes,
+          active_courses: classes.filter((c) => c.status === "active").length,
+          completed_courses: classes.filter((c) => c.status === "completed").length,
+        };
+      });
     res.json({ items });
   });
 
@@ -75,12 +130,14 @@ function attachLearnerAdmin(router, store) {
       .map((row) => {
         const session = aliveById(snap.sessions, row.session_id);
         const program = aliveById(snap.programs, row.program_id);
+        const cert = (snap.certificates || []).find((c) => c.enrollment_id === row.id && c.status === "issued");
         return {
           ...row,
           session_name: session?.session_name,
           start_date: session?.start_date,
           program_name: programShortName(program),
           progress: L.enrollmentProgress(snap, row.id, row.session_id),
+          certificate_status: cert ? "issued" : row.certificate_status || "none",
         };
       });
     const meetings = alive(snap.class_meetings)
@@ -120,6 +177,10 @@ function attachLearnerAdmin(router, store) {
       const email = String(req.body.email).trim().toLowerCase();
       const temporaryPassword = String(req.body.temporaryPassword || "");
       if (temporaryPassword.length < 8) throw V.fail("Mật khẩu tạm tối thiểu 8 ký tự");
+      const sessionId = String(req.body.sessionId || "").trim();
+      const snap = await store.dump(true);
+      const session = sessionId ? aliveById(snap.sessions, sessionId) : null;
+      if (sessionId && !session) throw V.fail("Không tìm thấy lớp");
       const id = randomId("stu");
       const ts = now();
       const result = await store.createStudentAccount({
@@ -140,7 +201,11 @@ function attachLearnerAdmin(router, store) {
         updated_at: ts,
       });
       if (!result?.ok) throw V.fail(result?.error || "Không tạo được học viên");
-      res.json({ ok: true, id });
+      let enrollmentId = null;
+      if (session) {
+        enrollmentId = await createEnrollment(store, { id }, session, req.body.paymentStatus);
+      }
+      res.json({ ok: true, id, enrollmentId });
     } catch (err) {
       res.status(err.status || 400).json({ error: err.message });
     }
@@ -263,25 +328,7 @@ function attachLearnerAdmin(router, store) {
       if ((snap.enrollments || []).some((e) => e.student_id === student.id && e.session_id === session.id && !e.deleted_at)) {
         throw V.fail("Học viên đã ghi danh lớp này");
       }
-      const id = randomId("enr");
-      const ts = now();
-      await store.upsert("enrollments", {
-        id,
-        student_id: student.id,
-        program_id: session.program_id,
-        session_id: session.id,
-        registration_id: null,
-        status: "active",
-        payment_status: req.body.paymentStatus || "paid",
-        progress: 0,
-        completion_status: "in_progress",
-        certificate_status: "none",
-        joined_at: ts,
-        completed_at: null,
-        notes: "",
-        created_at: ts,
-        updated_at: ts,
-      });
+      const id = await createEnrollment(store, student, session, req.body.paymentStatus);
       res.json({ ok: true, id });
     } catch (err) {
       res.status(err.status || 400).json({ error: err.message });
@@ -830,6 +877,11 @@ function attachLearnerAdmin(router, store) {
     if (!session) return res.status(404).json({ error: "Not found" });
     if (!Security.instructorOwnsSession(req.lmsScope, session.id)) return res.status(403).json({ error: "Forbidden" });
     const program = aliveById(snap.programs, session.program_id);
+    try {
+      await Meetings.ensureSessionMeetings(store, snap, session);
+    } catch {
+      /* Instructor read-only stores still need the LMS payload. */
+    }
     const enrollments = (snap.enrollments || [])
       .filter((e) => e.session_id === session.id)
       .map((row) => {
@@ -870,13 +922,7 @@ function attachLearnerAdmin(router, store) {
 
   router.get("/certificate-templates", async (_req, res) => {
     const snap = await store.dump(true);
-    let items = snap.certificate_templates || [];
-    if (!items.find((t) => t.id === "tpl-vsc-default")) {
-      const ts = now();
-      const row = { ...Cert.DEFAULT_TEMPLATE, created_at: ts, updated_at: ts };
-      await store.upsert("certificate_templates", row);
-      items = [row, ...items];
-    }
+    const items = await Cert.ensureOfficialTemplates(store, snap);
     res.json({ items });
   });
 
@@ -899,6 +945,8 @@ function attachLearnerAdmin(router, store) {
       signer2_title: req.body.signer2Title || "",
       program_id: req.body.programId || null,
       language: req.body.language || "vi",
+      pair_id: req.body.pairId || "",
+      background_image: req.body.backgroundImage || "",
       status: req.body.status || "published",
       version: Number(req.body.version || 1),
       created_at: ts,
@@ -928,6 +976,8 @@ function attachLearnerAdmin(router, store) {
       signer2_name: req.body.signer2Name ?? row.signer2_name,
       signer2_title: req.body.signer2Title ?? row.signer2_title,
       language: req.body.language ?? row.language,
+      pair_id: req.body.pairId ?? row.pair_id ?? "",
+      background_image: req.body.backgroundImage ?? row.background_image ?? "",
       status: req.body.status || row.status,
       version: Number(row.version || 1) + (req.body.bumpVersion ? 1 : 0),
       updated_at: now(),
@@ -941,7 +991,7 @@ function attachLearnerAdmin(router, store) {
       const snap = await store.dump(true);
       const row = (snap.certificate_templates || []).find((t) => t.id === req.params.id);
       if (!row) return res.status(404).json({ error: "Not found" });
-      if (row.id === "tpl-vsc-default") {
+      if (Cert.isOfficialTemplateId(row.id)) {
         return res.status(409).json({ error: "Không xóa được mẫu mặc định" });
       }
       const inUse = (snap.certificates || []).some((c) => c.template_id === row.id);
@@ -1034,10 +1084,12 @@ function attachLearnerAdmin(router, store) {
     const snap = await store.dump();
     const row = (snap.certificates || []).find((c) => c.id === req.params.id || c.certificate_code === req.params.id);
     if (!row || row.status !== "issued") return res.status(404).json({ error: "Not found" });
-    const abs = Cert.pdfAbsolutePath(row);
+    const lang = req.query.lang === "en" ? "en" : "vi";
+    const abs = Cert.pdfAbsolutePath(row, lang);
     if (!abs) return res.status(404).json({ error: "PDF missing" });
     res.setHeader("Content-Type", "application/pdf");
     Security.setPrivateDownloadHeaders(res);
+    res.setHeader("Content-Disposition", `inline; filename="${Cert.pdfDownloadName(row, lang)}"`);
     res.sendFile(abs);
   });
 

@@ -4,6 +4,7 @@ const { now, parseJson, alive, aliveById } = require("../lib/convex-db");
 const { hashPassword, verifyPassword, tooManyLogins, recordLogin, tooManyPasswordResets, recordPasswordReset, padPasswordReset } = require("../lib/auth");
 const V = require("../lib/validate");
 const L = require("../lib/learner");
+const Meetings = require("../lib/session-meetings");
 const C = require("../lib/lms-core");
 const Cert = require("../lib/certificate");
 const PasswordReset = require("../lib/password-reset");
@@ -335,6 +336,9 @@ function createLearnerRouter(store) {
     const snap = await store.dump();
     const ids = new Set(L.studentSessionIds(snap, req.session.student.id));
     if (!ids.size) return res.json({ items: [], week: [] });
+    for (const sessionId of ids) {
+      await Meetings.ensureSessionMeetings(store, snap, aliveById(snap.sessions, sessionId));
+    }
     const items = alive(snap.class_meetings)
       .filter((m) => ids.has(m.session_id))
       .sort((a, b) => `${a.date}${a.start_time}`.localeCompare(`${b.date}${b.start_time}`))
@@ -447,12 +451,17 @@ function createLearnerRouter(store) {
         (c.id === req.params.id || c.certificate_code === req.params.id),
     );
     if (!row || row.status !== "issued") return res.status(404).json({ error: "Not found" });
-    const abs = Cert.pdfAbsolutePath(row);
+    const lang = req.query.lang === "en" ? "en" : "vi";
+    const abs = Cert.pdfAbsolutePath(row, lang);
     if (!abs) return res.status(404).json({ error: "PDF missing" });
+    const download = req.query.download === "1" || req.query.download === "true";
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Cache-Control", "private, no-store, max-age=0");
-    res.setHeader("Content-Disposition", `attachment; filename="${row.certificate_code}.pdf"`);
+    res.setHeader(
+      "Content-Disposition",
+      `${download ? "attachment" : "inline"}; filename="${Cert.pdfDownloadName(row, lang)}"`,
+    );
     res.sendFile(abs);
   });
 
@@ -476,6 +485,8 @@ function serializeLearnerCert(row, locale) {
     issueDate: row.issue_date,
     status: row.status,
     verificationUrl: row.verification_url,
+    hasPdfVi: Boolean(row.pdf_url_vi || row.pdf_url),
+    hasPdfEn: Boolean(row.pdf_url_en),
   };
 }
 

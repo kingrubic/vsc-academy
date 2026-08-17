@@ -17,6 +17,8 @@ Site tĩnh VSC Academy + CMS, backend **Convex self-hosted local** (cùng kiểu
 Đăng nhập admin: `vutrananh97@gmail.com`, `nnqbao@gmail.com` (mật khẩu tạm riêng từ `VSC_OWNER_TEMP_PASSWORD` và `VSC_ADMIN_TEMP_PASSWORD`, bắt buộc đổi lần đầu)
 Học viên demo: `hoc-vien@vsc.academy` / `VscLearner!2026`
 
+Hướng dẫn dùng trang quản trị (cho admin, không cần kiến thức kỹ thuật): [`HUONG_DAN_QUAN_TRI.md`](HUONG_DAN_QUAN_TRI.md)
+
 ## Environment variables
 
 | Variable | Required | Purpose |

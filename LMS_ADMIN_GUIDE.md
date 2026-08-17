@@ -1,4 +1,8 @@
-# VSC Academy Learner Portal — Hướng dẫn quản trị
+# VSC Academy Learner Portal — Ghi chú kỹ thuật quản trị
+
+Hướng dẫn dùng trang quản trị cho admin: [`HUONG_DAN_QUAN_TRI.md`](HUONG_DAN_QUAN_TRI.md).
+
+Tài liệu này giữ các ghi chú kỹ thuật (cổng học viên, chứng nhận, email).
 
 - Cổng học viên: `http://localhost:4173/hoc-vien` (EN: `/en/student`)
 - Admin: `http://localhost:4173/admin`
@@ -15,11 +19,11 @@ Học viên **không** tự có tài khoản khi nộp form `/dang-ky`.
 
 1. Mở **Đăng ký**.
 2. Đổi trạng thái **Đã xác nhận**.
-3. CMS tạo học viên (nếu email chưa có) + ghi danh.
-4. CMS gửi email kích hoạt tuyệt đối (`https://vscacademy.edu.vn/hoc-vien/kich-hoat?token=…`). Admin không thấy raw token. Thiếu SMTP/`PUBLIC_SITE_URL` thì xác nhận thất bại, không để học viên invited dở.
-5. Học viên mở link trong email, đặt mật khẩu (≥ 8 ký tự), vào portal.
+3. CMS tạo học viên (nếu email chưa có) + ghi danh. Học viên xuất hiện ngay trong menu **Học viên**.
+4. CMS **không** gửi email kích hoạt. Admin nhận email + mật khẩu tạm một lần trên màn hình, rồi gửi thủ công cho học viên.
+5. Học viên đăng nhập cổng học bằng email và mật khẩu tạm, rồi bắt buộc đổi mật khẩu (≥ 8 ký tự).
 
-Tạo tay: **Học viên → + Học viên** → ghi danh vào lớp.
+Tạo tay: **Học viên → + Học viên** (có thể chọn lớp ngay). Nếu chưa chọn lớp: chi tiết học viên → tab **Ghi danh**.
 
 Trạng thái học viên: Đã mời / Đang học / Ngưng / Tạm khóa.
 
@@ -28,15 +32,16 @@ Trạng thái học viên: Đã mời / Đang học / Ngưng / Tạm khóa.
 - Từ **Học viên → chi tiết → Ghi danh**: chọn lớp → Ghi danh.
 - Hoặc xác nhận đăng ký (tự ghi danh).
 - Một học viên có thể học nhiều khóa / nhiều lớp.
-- Chuyển lớp: đổi lớp trên bản ghi danh.
-- **Ghi danh** (`/admin/enrollments`) xem toàn bộ: học viên, khóa, lớp, thanh toán, tiến độ, chứng nhận.
+- Chuyển lớp / gỡ khỏi lớp: trên tab Ghi danh của học viên.
+- Roster cả lớp: **Lớp học → tab Học viên** (thanh toán, tiến độ, chứng nhận). Không còn menu `/admin/enrollments`.
 
-## 3. Tạo buổi học
+## 3. Tạo / sửa buổi học
 
-Mở **Sessions → chi tiết lớp → tab MEETINGS**.
+Mở **Lớp học → chi tiết lớp → tab Buổi học**.
 
-- Title VI/EN, ngày, giờ bắt đầu/kết thúc, format (online/offline), Google Meet URL, recording URL.
-- Có thể reschedule (đổi ngày/giờ) hoặc cancel. Học viên thuộc lớp nhận thông báo in-app.
+- Title VI/EN, ngày, giờ bắt đầu/kết thúc, format (online/offline/hybrid), Google Meet URL, recording URL, trạng thái.
+- **Sửa** trên dòng buổi để đổi lịch, link họp, bản ghi hoặc trạng thái (`rescheduled` / `cancelled`). Học viên thuộc lớp nhận thông báo in-app.
+- Admin / owner có thể **Xóa** buổi. Giảng viên sửa được buổi của lớp mình, không xóa được.
 
 ## 4. Thêm Google Meet
 
@@ -48,7 +53,7 @@ Lớp offline: không dùng Meet. Học viên thấy venue + địa chỉ + **XE
 
 ## 5. Đổi lịch
 
-Tab MEETINGS → sửa ngày/giờ/status (`rescheduled` / `cancelled`). Portal lịch học cập nhật ngay. Thông báo “Thay đổi lịch học” gửi tới học viên của session.
+Tab **Buổi học** → **Sửa** → đổi ngày/giờ/status (`rescheduled` / `cancelled`). Portal lịch học cập nhật ngay. Thông báo “Thay đổi lịch học” gửi tới học viên của lớp.
 
 ## 6. Upload tài liệu
 

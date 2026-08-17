@@ -65,6 +65,8 @@
         emptyNext: "NO UPCOMING CLASS YET.",
         emptyFiles: "NO NEW MATERIALS YET.",
         emptyFilesHint: "Your instructor will add materials during the programme.",
+        emptySchedule: "NO CLASS MEETINGS YET.",
+        emptyScheduleHint: "Your timetable appears once class sessions are scheduled.",
         emptyNotes: "YOU ARE UP TO DATE.",
         emptyCert: "NO CERTIFICATES YET.",
         emptyCertHint: "A certificate appears after you complete the programme and meet the issue requirements.",
@@ -101,6 +103,10 @@
         revoked: "Revoked",
         viewCert: "VIEW CERTIFICATE →",
         downloadPdf: "DOWNLOAD PDF ↓",
+        viewPdfVi: "VIEW VIETNAMESE →",
+        viewPdfEn: "VIEW ENGLISH →",
+        downloadPdfVi: "DOWNLOAD VIETNAMESE PDF ↓",
+        downloadPdfEn: "DOWNLOAD ENGLISH PDF ↓",
         verify: "VERIFY →",
         finished: "YOU HAVE COMPLETED THE PROGRAMME",
         certReady: "YOUR CERTIFICATE IS READY",
@@ -173,6 +179,8 @@
         emptyNext: "CHƯA CÓ BUỔI HỌC SẮP TỚI.",
         emptyFiles: "CHƯA CÓ TÀI LIỆU MỚI.",
         emptyFilesHint: "Tài liệu sẽ được giảng viên cập nhật trong quá trình học.",
+        emptySchedule: "CHƯA CÓ LỊCH BUỔI HỌC.",
+        emptyScheduleHint: "Lịch sẽ hiện khi lớp đã được xếp buổi học.",
         emptyNotes: "BẠN ĐÃ XEM HẾT THÔNG BÁO.",
         emptyCert: "CHƯA CÓ CHỨNG NHẬN.",
         emptyCertHint: "Chứng nhận sẽ xuất hiện sau khi bạn hoàn thành chương trình và đáp ứng điều kiện cấp chứng nhận.",
@@ -209,6 +217,10 @@
         revoked: "Đã thu hồi",
         viewCert: "XEM CHỨNG NHẬN →",
         downloadPdf: "TẢI PDF ↓",
+        viewPdfVi: "XEM TIẾNG VIỆT →",
+        viewPdfEn: "XEM TIẾNG ANH →",
+        downloadPdfVi: "TẢI PDF TIẾNG VIỆT ↓",
+        downloadPdfEn: "TẢI PDF TIẾNG ANH ↓",
         verify: "XÁC MINH →",
         finished: "BẠN ĐÃ HOÀN THÀNH CHƯƠNG TRÌNH",
         certReady: "CHỨNG NHẬN CỦA BẠN ĐÃ SẴN SÀNG",
@@ -762,7 +774,7 @@
           <div class="list" style="margin-top:16px">${(d.materials || []).slice(0, 3).map(materialRow).join("")}</div>
         `;
       } else if (k === "schedule") {
-        pane.innerHTML = `<div class="list">${d.meetings.map((m) => meetingRow(m)).join("")}</div>`;
+        pane.innerHTML = `<div class="list">${d.meetings.map((m) => meetingRow(m)).join("") || `<p class="empty">${t.emptySchedule}<br>${t.emptyScheduleHint}</p>`}</div>`;
       } else if (k === "materials") {
         const groups = { before: [], during: [], after: [], extra: [] };
         d.materials.forEach((m) => (groups[m.phase] || groups.extra).push(m));
@@ -776,7 +788,7 @@
           .map(
             (m) => `<article class="item"><small>${fmtDate(m.date)} · ${esc(m.title)}</small><b>${statusLabel(m.attendance || "not_recorded")}</b></article>`,
           )
-          .join("")}</div>`;
+          .join("") || `<p class="empty">${t.emptySchedule}</p>`}</div>`;
       } else {
         pane.innerHTML = `
           <div class="card">
@@ -912,8 +924,16 @@
             <p>${statusLabel(c.status)}</p>
             ${
               c.status === "issued"
-                ? `<div>
-                    <a class="btn btn-primary" href="/api/learner/certificates/${c.id}/pdf">${t.downloadPdf}</a>
+                ? `<div class="cert-actions">
+                    ${
+                      c.hasPdfEn
+                        ? `<a class="btn" href="/api/learner/certificates/${c.id}/pdf?lang=vi" target="_blank">${t.viewPdfVi}</a>
+                    <a class="btn btn-primary" href="/api/learner/certificates/${c.id}/pdf?lang=vi&download=1">${t.downloadPdfVi}</a>
+                    <a class="btn" href="/api/learner/certificates/${c.id}/pdf?lang=en" target="_blank">${t.viewPdfEn}</a>
+                    <a class="btn btn-primary" href="/api/learner/certificates/${c.id}/pdf?lang=en&download=1">${t.downloadPdfEn}</a>`
+                        : `<a class="btn" href="/api/learner/certificates/${c.id}/pdf" target="_blank">${t.viewCert}</a>
+                    <a class="btn btn-primary" href="/api/learner/certificates/${c.id}/pdf?download=1">${t.downloadPdf}</a>`
+                    }
                     <a class="btn" href="${esc(c.verificationUrl || `/verify/${c.certificateCode}`)}" target="_blank">${t.verify}</a>
                   </div>`
                 : ""

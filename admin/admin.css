@@ -149,6 +149,7 @@ h1, h2, h3 { font-family: var(--display); letter-spacing: -0.02em; }
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--line); font-size: 13px; }
 th { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; font-weight: 700; }
+.date-end { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
 .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 .toolbar input, .toolbar select, .field input, .field select, .field textarea {
   padding: 10px 12px;
@@ -195,6 +196,30 @@ th { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; font-weight: 
 .field label { font-size: 11px; letter-spacing: 0.08em; color: var(--muted); }
 .field textarea { min-height: 110px; resize: vertical; }
 .field > input, .field > select, .field > textarea { width: 100%; min-width: 0; }
+.faculty-list { display: grid; gap: 10px; max-width: 720px; }
+.faculty-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: #fbfcfe;
+}
+.faculty-row input[type="checkbox"] {
+  width: auto;
+  flex: 0 0 auto;
+  margin: 0;
+}
+.faculty-row .faculty-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+}
+.faculty-row select {
+  width: auto;
+  flex: 0 0 180px;
+  min-width: 160px;
+}
 .repeater { display: grid; gap: 10px; }
 .repeater-item {
   display: grid;
@@ -227,6 +252,17 @@ th { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; font-weight: 
   z-index: 30;
 }
 .modal { width: min(480px, calc(100% - 32px)); background: #fff; padding: 22px; }
+.modal h2 { margin: 0 0 8px; font-size: 18px; }
+.cred-row { display: flex; gap: 8px; align-items: center; margin: 6px 0 12px; }
+.cred-row code {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  background: #f4f7fb;
+  border: 1px solid var(--line);
+  font-size: 14px;
+  word-break: break-all;
+}
 .hidden { display: none !important; }
 .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
 .media-card { border: 1px solid var(--line); background: #fff; padding: 10px; }
@@ -239,4 +275,6 @@ th { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; font-weight: 
   .topbar { align-items: flex-start; flex-wrap: wrap; padding: 16px; }
   .topbar > div { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
   .page { padding: 16px 16px 40px; }
+  .faculty-row { flex-wrap: wrap; }
+  .faculty-row select { flex: 1 1 160px; }
 }

@@ -279,16 +279,17 @@
       return;
     }
     if (p.courseSummary) {
-      const formatLabel = p.formatLabel || s.formatLabel || (s.format === "online" ? "Online trực tiếp" : "Offline");
-      const durationLabel = p.durationLabel || s.durationLabel;
-      const totalDuration = p.totalDuration || s.totalDuration;
-      const location = p.location || s.location;
-      const price = p.price || s.price;
-      const classSize = p.classSizeLabel || s.classSizeLabel || `${p.minCapacity || s.minCapacity}–${p.maxCapacity || s.capacity} ${T.learners || "học viên"}`;
+      const formatLabel = p.formatLabel || s?.formatLabel || (s?.format === "online" ? "Online trực tiếp" : "Offline");
+      const durationLabel = p.durationLabel || s?.durationLabel;
+      const totalDuration = p.totalDuration || s?.totalDuration;
+      const location = p.location || s?.location;
+      const price = p.price || s?.price;
+      const classSize = p.classSizeLabel || s?.classSizeLabel || `${p.minCapacity || s?.minCapacity}–${p.maxCapacity || s?.capacity} ${T.learners || "học viên"}`;
+      const registerHref = s?.registrationUrl ? `${root}${s.registrationUrl}` : registerPath(`?program=${p.slug}`);
       $("#enrollmentPanel").classList.add("course-summary-card");
       $("#enrollmentPanel").setAttribute("aria-label", `${p.shortName}`);
       $("#enrollmentPanel").innerHTML =
-        `<header><h2>${p.shortName}</h2><p class="summary-label">${p.courseSummary.label}</p></header><dl><div><dt>${(T.format || "Hình thức").toUpperCase()}</dt><dd>${formatLabel}</dd></div><div><dt>${(T.duration || "Thời lượng").toUpperCase()}</dt><dd>${durationLabel} <span>· ${T.total || "Tổng"} ${String(totalDuration).replace(/^4\b/, "04")}</span></dd></div>${location ? `<div><dt>${(T.platform || "Nền tảng").toUpperCase()}</dt><dd>${location}</dd></div>` : ""}<div><dt>${(T.tuition || "Học phí").toUpperCase()}</dt><dd class="summary-price">${price}</dd></div><div><dt>${(T.classSize || "Quy mô lớp").toUpperCase()}</dt><dd>${classSize}</dd></div></dl><p class="summary-note">${p.courseSummary.note}</p><a class="button" href="${root}${s.registrationUrl}">${(T.registerNow || "Đăng ký ngay").toUpperCase()} →</a><a class="panel-link" href="${schedulePath(`?program=${p.id}`)}">${(T.viewSchedule || "Xem lịch khai giảng").toUpperCase()} →</a>`;
+        `<header><h2>${p.shortName}</h2><p class="summary-label">${p.courseSummary.label}</p></header><dl><div><dt>${(T.format || "Hình thức").toUpperCase()}</dt><dd>${formatLabel}</dd></div><div><dt>${(T.duration || "Thời lượng").toUpperCase()}</dt><dd>${durationLabel} <span>· ${T.total || "Tổng"} ${String(totalDuration).replace(/^4\b/, "04")}</span></dd></div>${location ? `<div><dt>${(T.platform || "Nền tảng").toUpperCase()}</dt><dd>${location}</dd></div>` : ""}<div><dt>${(T.tuition || "Học phí").toUpperCase()}</dt><dd class="summary-price">${price}</dd></div><div><dt>${(T.classSize || "Quy mô lớp").toUpperCase()}</dt><dd>${classSize}</dd></div></dl><p class="summary-note">${p.courseSummary.note}</p><a class="button" href="${registerHref}">${(T.registerNow || "Đăng ký ngay").toUpperCase()} →</a><a class="panel-link" href="${schedulePath(`?program=${p.id}`)}">${(T.viewSchedule || "Xem lịch khai giảng").toUpperCase()} →</a>`;
       return;
     }
     $("#enrollmentPanel").innerHTML =
@@ -488,7 +489,7 @@
     : (I.locale === "en" ? "New dates will be published soon" : "Lịch mới đang được cập nhật");
   const primaryHref =
     p.ctaHref ||
-    (nearest ? `${root}${nearest.registrationUrl}` : p.id === "ai-foundation" ? registerPath(`?program=${p.slug}`) : schedulePath());
+    (nearest ? `${root}${nearest.registrationUrl}` : registerPath(`?program=${p.slug}`));
   $("#finalRegister").href = primaryHref;
   $("#finalRegister").textContent = p.final?.cta
     ? `${p.final.cta} →`
