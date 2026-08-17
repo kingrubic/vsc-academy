@@ -1223,7 +1223,7 @@
             : (choices[0]?.value || "tpl-vsc-default");
           pane.innerHTML = `<p>${lms.summary.eligible} đủ điều kiện · ${lms.summary.missingAttendance} thiếu điểm danh · ${lms.summary.incomplete} chưa hoàn thành</p>
             ${table(
-              ["Học viên", "Điểm danh", "Hoàn thành", "Thanh toán", "Chứng nhận", ""],
+              ["Học viên", "Điểm danh", "Hoàn thành", "Thanh toán", "Chứng nhận", `<label class="select-all"><input type="checkbox" data-select-all /> Tất cả</label>`],
               lms.enrollments.map((e) => {
                 const issued = e.certificate.status === "issued";
                 const blocked = issued || e.status === "cancelled";
@@ -1239,12 +1239,34 @@
               }),
             )}
             <div class="toolbar" style="margin-top:12px;align-items:end">
+              <label class="select-all"><input type="checkbox" data-select-all /> Chọn tất cả học viên</label>
               <div class="field" style="margin:0">
                 <label for="issue-template">Mẫu chứng nhận</label>
                 <select id="issue-template">${optList(choices.map((item) => [item.value, item.label]), selectedTemplate)}</select>
               </div>
               <button class="btn btn-primary" id="issue-selected" type="button">Cấp chứng nhận đã chọn</button>
             </div>`;
+          const selectableBoxes = () => [...pane.querySelectorAll("[data-bulk]:not(:disabled)")];
+          const selectAllBoxes = () => [...pane.querySelectorAll("[data-select-all]")];
+          const syncSelectAll = () => {
+            const boxes = selectableBoxes();
+            const checked = boxes.filter((x) => x.checked).length;
+            selectAllBoxes().forEach((el) => {
+              el.disabled = !boxes.length;
+              el.checked = boxes.length > 0 && checked === boxes.length;
+              el.indeterminate = checked > 0 && checked < boxes.length;
+            });
+          };
+          selectAllBoxes().forEach((el) => {
+            el.addEventListener("change", () => {
+              selectableBoxes().forEach((x) => {
+                x.checked = el.checked;
+              });
+              syncSelectAll();
+            });
+          });
+          pane.querySelectorAll("[data-bulk]").forEach((el) => el.addEventListener("change", syncSelectAll));
+          syncSelectAll();
           $("#issue-selected").onclick = async () => {
             const selected = [...pane.querySelectorAll("[data-bulk]:checked")];
             const ids = selected.map((x) => x.dataset.bulk);
