@@ -5,6 +5,7 @@ const { now, parseJson, alive, aliveById, like, programShortName } = require("..
 const { requireRole, randomId, editorLocked, hashPassword } = require("../lib/auth");
 const V = require("../lib/validate");
 const L = require("../lib/learner");
+const Meetings = require("../lib/session-meetings");
 const C = require("../lib/lms-core");
 const Cert = require("../lib/certificate");
 const { notifyStudents, sessionStudentIds, programStudentIds, publicOutboxRow } = require("../lib/notify");
@@ -830,6 +831,11 @@ function attachLearnerAdmin(router, store) {
     if (!session) return res.status(404).json({ error: "Not found" });
     if (!Security.instructorOwnsSession(req.lmsScope, session.id)) return res.status(403).json({ error: "Forbidden" });
     const program = aliveById(snap.programs, session.program_id);
+    try {
+      await Meetings.ensureSessionMeetings(store, snap, session);
+    } catch {
+      /* Instructor read-only stores still need the LMS payload. */
+    }
     const enrollments = (snap.enrollments || [])
       .filter((e) => e.session_id === session.id)
       .map((row) => {
