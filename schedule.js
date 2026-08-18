@@ -9,8 +9,10 @@ const slashDate=iso=>{const[y,m,d]=String(iso||'').split('-');return y&&m&&d?`${
 const weekdayOf=iso=>WEEKDAYS[new Date(`${iso}T12:00:00`).getDay()]||'';
 const scheduleMainHtml=e=>{
   const meetings=Array.isArray(e.meetings)?e.meetings.filter(m=>m&&m.date):[];
-  if(!e.scheduleLabel||!meetings.length) return e.scheduleLabel||'';
-  return meetings.map(m=>`+${weekdayOf(m.date)}: ${slashDate(m.date)} | ${m.startTime||m.start_time||e.startTime}–${m.endTime||m.end_time||e.endTime}`).join('<br>');
+  if(meetings.length>=2){
+    return meetings.map(m=>`+${weekdayOf(m.date)}: ${slashDate(m.date)} | ${m.startTime||m.start_time||e.startTime}–${m.endTime||m.end_time||e.endTime}`).join('<br>');
+  }
+  return e.scheduleLabel||'';
 };
 const heroFeed=document.querySelector('#scheduleHeroFeed'),heroCounter=document.querySelector('#scheduleHeroCounter'),heroFeedBox=document.querySelector('.schedule-hero-feed');
 if(heroFeed&&events.length){
