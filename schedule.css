@@ -25,6 +25,6 @@
 .selected-class dl > div {
   align-items: start;
 }
-.selected-class dd.schedule-main {
+.selected-class dd.panel-schedule {
   line-height: 1.4;
 }
