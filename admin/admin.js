@@ -1395,7 +1395,7 @@
           <div class="field"><label>Email</label><input name="email" type="email" required ${canManageStaff() ? "" : "disabled"} value="${esc(r.email || "")}" /></div>
           <div class="field"><label>Lớp học</label><select name="sessionId" required ${canManageStaff() ? "" : "disabled"}><option value="">Chọn lớp</option>${sessions.items.map((s) => `<option value="${s.id}" ${r.session_id === s.id ? "selected" : ""}>${esc(s.session_name)} · ${fmtDate(s.start_date)}</option>`).join("")}</select></div>
           <div class="field"><label>Số tiền (VND)</label><input name="amount" type="number" min="0" step="1" required ${canManageStaff() ? "" : "disabled"} value="${esc(r.amount ?? 0)}" /></div>
-          <div class="field"><label>Trạng thái</label><select name="status" ${canManageStaff() ? "" : "disabled"}>${REG_STATUS_OPTIONS.map((k) => `<option value="${k}" ${adminRegStatus(r.status) === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select></div>
+          <div class="field"><label>Trạng thái</label><select name="status" ${canManageStaff() && adminRegStatus(r.status) !== "confirmed" ? "" : "disabled"}>${REG_STATUS_OPTIONS.map((k) => `<option value="${k}" ${adminRegStatus(r.status) === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select></div>
           <div class="field"><label>Vai trò công việc</label><input name="jobRole" ${canManageStaff() ? "" : "disabled"} value="${esc(r.job_role || "")}" /></div>
           <div class="field"><label>Tổ chức</label><input name="organization" ${canManageStaff() ? "" : "disabled"} value="${esc(r.organization || "")}" /></div>
           <div class="field full"><label>Mục tiêu</label><textarea name="goal" ${canManageStaff() ? "" : "disabled"}>${esc(r.goal || "")}</textarea></div>
@@ -1415,7 +1415,8 @@
           method: isNew ? "POST" : "PUT",
           body: {
             fullName: val(e.target, "fullName"), phone: val(e.target, "phone"), email: val(e.target, "email"),
-            sessionId: val(e.target, "sessionId"), amount: val(e.target, "amount"), status: val(e.target, "status"),
+            sessionId: val(e.target, "sessionId"), amount: val(e.target, "amount"),
+            status: adminRegStatus(r.status) === "confirmed" ? "confirmed" : val(e.target, "status"),
             jobRole: val(e.target, "jobRole"), organization: val(e.target, "organization"), goal: val(e.target, "goal"),
             source: val(e.target, "source"), consentPrivacy: e.target.elements.consentPrivacy.checked,
             consentMarketing: e.target.elements.consentMarketing.checked, note: isNew ? "" : val(e.target, "note"),

@@ -244,7 +244,17 @@ test("registration CRUD enforces roles, validation, persistence, and protected s
     body: { fullName: "Nguyễn An C", sessionId: "s1", status: "confirmed" },
   });
   assert.equal(confirmedEdit.status, 200);
-  assert.equal(confirmedUpdates, 1, "editing a confirmed registration must keep learner/enrollment synchronization");
+  assert.equal(confirmedUpdates, 0, "editing an already confirmed registration must not provision again");
+  assert.equal(store.snap.registrations[0].full_name, "Nguyễn An C");
+
+  const relock = await request(app, {
+    method: "PUT", path: `/api/admin/registrations/${created.json.id}`,
+    body: { sessionId: "s1", status: "pending_payment" },
+  });
+  assert.equal(relock.status, 400);
+  assert.match(relock.json.error, /đã xác nhận/);
+  assert.equal(store.snap.registrations[0].status, "confirmed");
+  assert.equal(confirmedUpdates, 0);
 
   store.snap.registrations[0].student_id = "st1";
   const protectedDelete = await request(app, { method: "DELETE", path: `/api/admin/registrations/${created.json.id}` });
@@ -487,6 +497,7 @@ test("admin UI exposes registration add, edit, delete, and core fields", () => {
   assert.match(ui, /Gửi thông tin đăng nhập thủ công/);
   assert.doesNotMatch(ui, /Đã xác nhận và gửi email kích hoạt/);
   assert.match(ui, /REG_STATUS_OPTIONS/);
+  assert.match(ui, /adminRegStatus\(r\.status\) !== "confirmed"/);
   assert.doesNotMatch(ui, /Danh sách chờ/);
   assert.doesNotMatch(ui, /Đã liên hệ/);
   assert.doesNotMatch(ui, /Giá riêng/);
