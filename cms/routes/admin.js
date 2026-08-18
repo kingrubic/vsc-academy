@@ -864,6 +864,11 @@ function createAdminRouter(store) {
       if ((isNew || body.sessionId !== undefined) && !session) throw V.fail("Session not found");
       const notes = parseJson(row?.notes, []);
       if (body.note) notes.push({ at: now(), by: req.session.user.email, text: body.note, status });
+      const previousStatus = row ? V.normalizeRegStatus(row.status) || row.status : "";
+      const wasConfirmed = previousStatus === "confirmed";
+      if (wasConfirmed && status !== "confirmed") {
+        throw V.fail("Không đổi trạng thái đăng ký đã xác nhận");
+      }
       const ts = now();
       const updated = {
         ...(row || {}),
@@ -880,7 +885,7 @@ function createAdminRouter(store) {
         student_id: row?.student_id || null,
         amount,
         currency: "VND",
-        status,
+        status: wasConfirmed ? "confirmed" : status,
         consent_privacy: body.consentPrivacy !== undefined ? (body.consentPrivacy ? 1 : 0) : row?.consent_privacy ?? 0,
         consent_marketing: body.consentMarketing !== undefined ? (body.consentMarketing ? 1 : 0) : row?.consent_marketing ?? 0,
         utm: row?.utm || "{}",
@@ -895,8 +900,11 @@ function createAdminRouter(store) {
       const oldCounted = row && registrationCounts(row.status);
       const newCounted = registrationCounts(updated.status);
       let activation = null;
-      if (updated.status === "confirmed") activation = await L.ensureStudentAndEnrollment(store, snap, updated);
-      else await store.upsert("registrations", updated);
+      if (updated.status === "confirmed" && !wasConfirmed) {
+        activation = await L.ensureStudentAndEnrollment(store, snap, updated);
+      } else {
+        await store.upsert("registrations", updated);
+      }
       if (row?.session_id !== updated.session_id) {
         if (oldCounted) await adjustRegistrationCount(snap, row.session_id, -1, ts);
         if (newCounted) await adjustRegistrationCount(snap, updated.session_id, 1, ts);

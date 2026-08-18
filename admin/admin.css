@@ -171,6 +171,12 @@ th { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; font-weight: 
   border: 1px solid var(--line);
   background: #fff;
 }
+.field select:disabled, .field input:disabled, .field textarea:disabled {
+  opacity: 0.55;
+  background: #eef2f7;
+  color: var(--muted);
+  cursor: not-allowed;
+}
 .toolbar input { min-width: 220px; }
 .btn, .btn-ghost, .btn-danger {
   display: inline-flex;
