@@ -192,10 +192,10 @@ if (heroSlider) {
   const dots = [...heroSlider.querySelectorAll('.hero-banner-dots button')];
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let current = 0;
-  const timers = [];
+  let timer = null;
 
   const showHeroSlide = index => {
-    current = Math.max(0, Math.min(index, slides.length - 1));
+    current = (index + slides.length) % slides.length;
     slides.forEach((slide, slideIndex) => {
       const active = slideIndex === current;
       slide.classList.toggle('is-active', active);
@@ -207,15 +207,26 @@ if (heroSlider) {
       dot.setAttribute('aria-selected', String(active));
     });
   };
-  const stopSequence = () => timers.splice(0).forEach(timer => window.clearTimeout(timer));
-  const selectHeroSlide = index => { stopSequence(); showHeroSlide(index); };
+  const stopAuto = () => {
+    if (timer) {
+      window.clearInterval(timer);
+      timer = null;
+    }
+  };
+  const startAuto = () => {
+    stopAuto();
+    if (reduceMotion || slides.length < 2) return;
+    timer = window.setInterval(() => showHeroSlide(current + 1), 5000);
+  };
+  const selectHeroSlide = index => {
+    showHeroSlide(index);
+    startAuto();
+  };
   showHeroSlide(0);
-  if (!reduceMotion) {
-    slides.slice(1).forEach((slide, index) => {
-      timers.push(window.setTimeout(() => showHeroSlide(index + 1), (index + 1) * 5000));
-    });
-  }
+  startAuto();
   dots.forEach((dot, index) => dot.addEventListener('click', () => selectHeroSlide(index)));
-  heroSlider.querySelector('.hero-banner-prev').addEventListener('click', () => selectHeroSlide(current === 0 ? slides.length - 1 : current - 1));
-  heroSlider.querySelector('.hero-banner-next').addEventListener('click', () => selectHeroSlide(current === slides.length - 1 ? 0 : current + 1));
+  heroSlider.querySelector('.hero-banner-prev').addEventListener('click', () => selectHeroSlide(current - 1));
+  heroSlider.querySelector('.hero-banner-next').addEventListener('click', () => selectHeroSlide(current + 1));
+  heroSlider.addEventListener('mouseenter', stopAuto);
+  heroSlider.addEventListener('mouseleave', startAuto);
 }
