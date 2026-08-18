@@ -161,6 +161,21 @@ function sessionInstructorName(snap, session, programRow) {
     .join(", ");
 }
 
+function sessionMeetings(snap, sessionId) {
+  return alive(snap.class_meetings)
+    .filter((row) => String(row.session_id) === String(sessionId) && row.date)
+    .sort(
+      (a, b) =>
+        Number(a.sort_order || 0) - Number(b.sort_order || 0) ||
+        String(a.date).localeCompare(String(b.date)),
+    )
+    .map((row) => ({
+      date: row.date,
+      startTime: row.start_time,
+      endTime: row.end_time,
+    }));
+}
+
 function sessionPublic(snap, row, programRow, locale = "vi") {
   const info = programInfo(snap, programRow, locale);
   const venue = getVenue(snap, row.venue_id) || getVenue(snap, programRow.venue_default_id);
@@ -200,6 +215,8 @@ function sessionPublic(snap, row, programRow, locale = "vi") {
     detailUrl: detailUrl(programRow),
   };
   if (instructorName) item.instructorName = instructorName;
+  const meetings = sessionMeetings(snap, row.id);
+  if (meetings.length) item.meetings = meetings;
   if (info.scheduleLabel) item.scheduleLabel = info.scheduleLabel;
   if (info.supportLabel) item.supportLabel = info.supportLabel;
   if (info.primaryPlatform) item.primaryPlatform = info.primaryPlatform;
@@ -469,4 +486,5 @@ module.exports = {
   bootstrap,
   remainingSeats,
   sessionInstructorName,
+  sessionMeetings,
 };
