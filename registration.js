@@ -18,6 +18,25 @@
       const [y, m, d] = e.date.split("-");
       return `${d}.${m}.${y}`;
     };
+  function bankName(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d")
+      .replace(/Đ/g, "D")
+      .replace(/[^A-Za-z0-9 ]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+  function bankPhone(value) {
+    return String(value || "").replace(/\D/g, "");
+  }
+  function transferContent(session, student) {
+    const code = String(session?.slug || session?.sessionId || "VSC").trim();
+    const name = bankName(student?.fullName);
+    const phone = bankPhone(student?.phone);
+    return [code, name, phone].filter(Boolean).join("_");
+  }
   function sameKey(a, b) {
     return String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
   }
@@ -286,6 +305,7 @@
         program: { programId: selected.programId, programName: selected.title },
         session: {
           sessionId: selected.id,
+          slug: selected.slug,
           date: selected.date,
           startTime: selected.startTime,
           endTime: selected.endTime,
@@ -365,7 +385,10 @@
   paymentTrigger?.addEventListener("click", () => {
     if (!lastRegistration) return;
     $("#paymentAmount").textContent = lastRegistration.session.price;
-    $("#paymentContent").textContent = `VSC ${lastRegistration.registrationId}`;
+    $("#paymentContent").textContent = transferContent(
+      lastRegistration.session,
+      lastRegistration.student,
+    );
     paymentModal.hidden = false;
     document.body.classList.add("payment-modal-open");
     paymentModal.querySelector(".payment-close")?.focus();
