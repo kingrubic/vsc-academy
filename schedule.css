@@ -21,3 +21,13 @@
 @media(max-width:720px){.registration-steps:before{opacity:.58}.registration-steps>.container:after{display:none}.schedule-final:after{opacity:.55}}
 @media(prefers-reduced-motion:reduce){.registration-steps:before,.registration-steps:after,.registration-steps>.container:after,.schedule-final:before,.schedule-final:after,.schedule-final-grid{animation:none}}
 @media(prefers-reduced-motion:reduce){.schedule-final-grid{animation:none}}
+
+.selected-class dl > div {
+  align-items: start;
+}
+.selected-class dd.panel-schedule {
+  line-height: 1.4;
+}
+.selected-class .panel-date {
+  line-height: 1.25;
+}
