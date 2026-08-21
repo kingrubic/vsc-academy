@@ -132,9 +132,10 @@
 .legal-doc p {
   margin: 0 0 12px;
 }
-.legal-doc ul {
+.legal-doc ul,
+.legal-doc ol {
   margin: 0 0 12px;
-  padding: 0 0 0 18px;
+  padding: 0 0 0 22px;
 }
 .legal-doc li {
   margin: 0 0 8px;
