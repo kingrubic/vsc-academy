@@ -20,7 +20,9 @@
 .footer-social{display:grid!important;width:42px!important;height:42px;margin-top:18px!important;place-items:center;border:1px solid rgba(255,255,255,.45);color:#fff!important;transition:transform .25s ease,border-color .25s ease,background .25s ease}
 .footer-social svg{width:18px;height:18px;fill:currentColor}
 .footer-social:hover{transform:translateY(-2px);border-color:var(--blue);background:var(--blue)}
-.footer-bottom{display:flex;justify-content:space-between;margin-top:58px;padding-top:22px;border-top:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.7);font-size:11px;line-height:1.5;letter-spacing:.08em}
+.footer-bottom{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:58px;padding-top:22px;border-top:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.7);font-size:11px;line-height:1.5;letter-spacing:.08em}
+.footer-bottom a.footer-legal{display:inline;margin:0;color:rgba(255,255,255,.7);font-size:11px;letter-spacing:.08em}
+.footer-bottom a.footer-legal:hover{color:#64dcff}
 @keyframes footerGrid{to{transform:translate3d(64px,64px,0)}}
 @keyframes footerOrbit{to{transform:translate3d(-16px,-10px,0) scale(1.05)}}
 @media(max-width:950px){.footer-grid{grid-template-columns:1.3fr 1fr 1fr}.footer-contact{grid-column:2/4}}
