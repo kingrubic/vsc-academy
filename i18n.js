@@ -10,6 +10,7 @@
     contact: { vi: "/lien-he", en: "/en/contact" },
     register: { vi: "/dang-ky", en: "/en/register" },
     verify: { vi: "/verify", en: "/en/verify" },
+    privacy: { vi: "/chinh-sach-quyen-rieng-tu", en: "/en/privacy" },
     "course-ai-starter": {
       vi: "/khoa-hoc/ai-starter",
       en: "/en/courses/ai-starter",
