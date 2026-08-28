@@ -351,8 +351,8 @@ export const upsertInstructorAccount = mutation({
 export const issuePasswordReset = mutation({
   args: {
     tokenHash: v.string(),
-    studentId: v.optional(v.string()),
-    userId: v.optional(v.string()),
+    studentId: v.optional(v.union(v.string(), v.null())),
+    userId: v.optional(v.union(v.string(), v.null())),
     now: v.string(),
     expiresAt: v.string(),
     maxOutstanding: v.number(),
