@@ -14,6 +14,11 @@ function smtpReady() {
   return Mailer.hasTestTransport() || Mailer.smtpConfigured();
 }
 
+function optionalId(value) {
+  const id = String(value || "").trim();
+  return id || undefined;
+}
+
 function requireSecurityMail() {
   const origin = C.publicEmailOrigin();
   if (!smtpReady()) {
@@ -30,14 +35,25 @@ async function issuePasswordReset(store, _req, target) {
   const token = C.newSecretToken();
   const ts = now();
   const hash = C.hashToken(token);
-  const issued = await store.issuePasswordReset({
+  const payload = {
     tokenHash: hash,
-    studentId: target.studentId || null,
-    userId: target.userId || null,
     now: ts,
     expiresAt: new Date(Date.now() + C.RESET_TTL_MS).toISOString(),
     maxOutstanding: MAX_OUTSTANDING,
-  });
+  };
+  const studentId = optionalId(target.studentId);
+  const userId = optionalId(target.userId);
+  if (studentId) payload.studentId = studentId;
+  if (userId) payload.userId = userId;
+  let issued;
+  try {
+    issued = await store.issuePasswordReset(payload);
+  } catch (err) {
+    throw Object.assign(new Error("Không gửi được yêu cầu đặt lại mật khẩu. Thử lại sau."), {
+      status: 502,
+      cause: err,
+    });
+  }
   if (!issued?.ok) {
     throw Object.assign(new Error("Quá nhiều yêu cầu đặt lại mật khẩu. Thử lại sau."), { status: 429 });
   }
@@ -51,8 +67,8 @@ async function issuePasswordReset(store, _req, target) {
     target.html ||
     `<p>Chào ${name || "bạn"},</p><p>Đặt mật khẩu mới tại:</p><p><a href="${url}">${url}</a></p><p>Link hết hạn sau 1 giờ.</p><p>VSC Academy</p>`;
   const mailed = await queueMail(store, target.email, subject, text, target.kind || "password_reset", {
-    studentId: target.studentId || null,
-    userId: target.userId || null,
+    studentId: studentId || null,
+    userId: userId || null,
     html,
   });
   if (!mailed.sent) {

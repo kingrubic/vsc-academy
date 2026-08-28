@@ -297,6 +297,12 @@ test("admin reset password emails a link and does not return the token", async (
   await withEnv("PUBLIC_SITE_URL", "https://vscacademy.edu.vn", async () => {
     try {
       const store = mockStore();
+      const resetArgs = [];
+      const originalIssue = store.issuePasswordReset;
+      store.issuePasswordReset = (args) => {
+        resetArgs.push(JSON.parse(JSON.stringify(args)));
+        return originalIssue(args);
+      };
       const app = appFor(store, owner);
       const studentReset = await request(app, {
         method: "POST",
@@ -306,6 +312,8 @@ test("admin reset password emails a link and does not return the token", async (
       assert.equal(studentReset.status, 200);
       assert.equal(studentReset.json.to, "hv@x.test");
       assert.equal(studentReset.json.emailed, true);
+      assert.equal(resetArgs[0].studentId, "st1");
+      assert.equal(Object.prototype.hasOwnProperty.call(resetArgs[0], "userId"), false);
       assert.equal(studentReset.json.activationPath, undefined);
       assert.equal(JSON.stringify(studentReset.json).includes("token="), false);
       const studentMail = store.data.mail_outbox.find((row) => row.to_email === "hv@x.test");
@@ -325,6 +333,8 @@ test("admin reset password emails a link and does not return the token", async (
       });
       assert.equal(instructorReset.status, 200);
       assert.equal(instructorReset.json.to, "gv@vsc.academy");
+      assert.equal(resetArgs[1].userId, "gv-user");
+      assert.equal(Object.prototype.hasOwnProperty.call(resetArgs[1], "studentId"), false);
       const staffMail = store.data.mail_outbox.find((row) => row.to_email === "gv@vsc.academy");
       assert.doesNotMatch(staffMail.body, /token=/);
       assert.match(sent[1].text, /https:\/\/vscacademy\.edu\.vn\/giang-vien\/dat-lai-mat-khau\?token=/);
@@ -396,6 +406,7 @@ test("admin UI adds temporary password fields and reset buttons", () => {
   assert.match(ui, /instructor-reset-password/);
   assert.match(ui, /student-reset-password/);
   assert.match(ui, /\/students\/\$\{id\}\/reset-password/);
+  assert.match(ui, /confirmAction\("Bạn có chắc chắn thực hiện hành động Reset mật khẩu không\?"\)/);
   assert.doesNotMatch(ui, /xếp hàng gửi email/);
 });
 
@@ -405,7 +416,7 @@ test("admin UI exposes student add, edit, and delete controls", () => {
   assert.match(ui, /\["Tên", "Email", "SĐT", "Lớp", "Trạng thái", "Ngày tạo", "Thao tác"\]/);
   assert.match(ui, /data-student-delete/);
   assert.match(ui, /id="student-delete"/);
-  assert.match(ui, /confirmAction\("Xóa học viên này\?/);
+  assert.match(ui, /confirmAction\("Bạn có chắc chắn thực hiện hành động Xóa học viên không\?/);
   assert.match(ui, /canManageStaff\(\) \? `<a class="btn btn-primary" href="\$\{href\("\/students\/new"\)\}"/);
   assert.match(ui, /Chưa xếp lớp/);
   assert.match(ui, /redirectEnrollments/);

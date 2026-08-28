@@ -198,7 +198,7 @@ test("authoritative account mutations claim resets and write instructor/student 
   const students = fs.readFileSync(path.join(__dirname, "..", "routes", "admin-learner.js"), "utf8");
   assert.match(source, /export const consumePasswordReset = mutation/);
   assert.match(source, /expectedKind/);
-  assert.match(source, /export const issuePasswordReset = mutation/);
+  assert.match(source, /studentId: v.optional\(v.union\(v.string\(\), v.null\(\)\)\)/);
   assert.match(source, /export const consumeActivation = mutation/);
   assert.match(source, /export const provisionLearnerAccount = mutation/);
   assert.match(source, /export const abortLearnerProvision = mutation/);
