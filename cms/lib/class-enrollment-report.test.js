@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const {
   classEnrollmentRows,
   summarizeRows,
+  snapshotReport,
   filename,
   fmtDate,
   renderPdf,
@@ -50,6 +51,10 @@ test("class report counts registrations and confirmed transfers per class, exclu
   assert.equal(totals.registered, 5);
   assert.equal(totals.transferred, 2);
   assert.equal(totals.pending, 3);
+  const snap = snapshotReport({ sessions, programs, registrations, generatedAt: "2026-08-28T03:16:00.000Z" });
+  assert.equal(snap.generatedAt, "2026-08-28T03:16:00.000Z");
+  assert.equal(snap.rows.length, 3);
+  assert.equal(snap.totals.registered, 5);
 });
 
 test("class report filename and date follow the Vietnamese admin convention", () => {

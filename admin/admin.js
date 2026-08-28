@@ -85,6 +85,7 @@
   const INSTRUCTOR_SEGS = new Set(["", "login", "change-password", "dat-lai-mat-khau", "sessions", "students", "materials", "announcements"]);
 
   const state = { user: null, cache: {} };
+  let reportPoll = 0;
   const $ = (s, el = document) => el.querySelector(s);
   const app = $("#app");
   const toastEl = $("#toast");
@@ -270,6 +271,22 @@
     if (!d) return "—";
     return String(d).slice(0, 10).split("-").reverse().join("/");
   }
+  function fmtInt(n) {
+    return Number(n || 0).toLocaleString("vi-VN");
+  }
+  function fmtStamp(iso) {
+    const d = iso ? new Date(iso) : new Date();
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleString("vi-VN", {
+      timeZone: "Asia/Ho_Chi_Minh",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
   function fmtSessionDates(s) {
     const start = fmtDate(s.start_date);
     const end = fmtDate(s.end_date || s.start_date);
@@ -428,6 +445,7 @@
       ["Lớp học", href("/sessions")],
       ["Đăng ký", href("/registrations")],
       ["Học viên", href("/students")],
+      ["Báo cáo", href("/reports")],
       ["Tài liệu", href("/materials")],
       ["Thông báo", href("/announcements")],
       ["Chứng nhận", href("/certificates")],
@@ -479,14 +497,6 @@
         <div class="stat"><b>${s.enIncomplete}</b><span>Bản Anh chưa xong</span></div>
       </div>`;
     app.innerHTML = `
-      ${
-        instructor
-          ? ""
-          : `<div class="toolbar">
-        <a class="btn btn-primary" href="/api/admin/dashboard/class-report.pdf">Xuất PDF báo cáo lớp</a>
-        <span class="copy-hint">Mỗi lớp: số đăng ký và số đã chuyển khoản, gửi cấp trên thay cho sheet thủ công.</span>
-      </div>`
-      }
       ${stats}
       <div class="grid-2">
         <div class="card">
@@ -515,6 +525,68 @@
         }
       </div>`;
     bindCopyButtons();
+  }
+
+  function stopReportPoll() {
+    if (reportPoll) {
+      clearInterval(reportPoll);
+      reportPoll = 0;
+    }
+  }
+
+  function paintClassReport(data) {
+    const t = data.totals || { classes: 0, registered: 0, transferred: 0, pending: 0 };
+    const rows = data.rows || [];
+    $("#page-title").textContent = "Báo cáo";
+    app.innerHTML = `
+      <div class="toolbar">
+        <a class="btn btn-primary" href="/api/admin/reports/classes.pdf">Xuất PDF báo cáo lớp</a>
+        <button class="btn" type="button" id="report-refresh">Làm mới</button>
+        <span class="copy-hint" id="report-stamp">Cập nhật lúc ${esc(fmtStamp(data.generatedAt))}</span>
+      </div>
+      <div class="stats">
+        <div class="stat"><b>${fmtInt(t.classes)}</b><span>Số lớp</span></div>
+        <div class="stat"><b>${fmtInt(t.registered)}</b><span>Đăng ký</span></div>
+        <div class="stat"><b>${fmtInt(t.transferred)}</b><span>Đã chuyển khoản</span></div>
+        <div class="stat"><b>${fmtInt(t.pending)}</b><span>Chờ thanh toán</span></div>
+      </div>
+      ${table(
+        ["Lớp học", "Khóa", "Khai giảng", "Trạng thái", "Đăng ký", "Đã CK", "Chờ CK"],
+        rows.map(
+          (row) => `<tr>
+            <td><a href="${href(`/sessions/${row.id}`)}">${esc(row.className)}</a></td>
+            <td>${esc(row.programName || "")}</td>
+            <td>${fmtDate(row.startDate)}</td>
+            <td>${esc(row.statusLabel || "")}</td>
+            <td class="num">${fmtInt(row.registered)}</td>
+            <td class="num">${fmtInt(row.transferred)}</td>
+            <td class="num">${fmtInt(row.pending)}</td>
+          </tr>`,
+        ).concat(
+          rows.length
+            ? [`<tr class="report-total"><td>Tổng</td><td>${fmtInt(t.classes)} lớp</td><td></td><td></td><td class="num">${fmtInt(t.registered)}</td><td class="num">${fmtInt(t.transferred)}</td><td class="num">${fmtInt(t.pending)}</td></tr>`]
+            : [],
+        ),
+        "Chưa có lớp học.",
+      )}
+      <p class="copy-hint">Đăng ký = hồ sơ chưa hủy. Đã chuyển khoản = trạng thái Đã xác nhận (đã đối soát thanh toán). Chờ CK = còn chờ chuyển khoản. Số liệu lấy mới mỗi 15 giây.</p>`;
+    $("#report-refresh")?.addEventListener("click", () => viewReports());
+  }
+
+  async function viewReports() {
+    if (isInstructor()) return go(href("/"));
+    stopReportPoll();
+    $("#page-title").textContent = "Báo cáo";
+    const load = async () => {
+      if (segs()[0] !== "reports") return;
+      const data = await api("/reports/classes");
+      if (segs()[0] !== "reports") return;
+      paintClassReport(data);
+    };
+    await load();
+    reportPoll = setInterval(() => {
+      load().catch((err) => toast(err.message, true));
+    }, 15000);
   }
 
   async function viewPrograms() {
@@ -2463,6 +2535,7 @@
     $("#password-view").classList.add("hidden");
     $("#shell").classList.remove("hidden");
     layout();
+    stopReportPoll();
     const key = segs()[0] || "";
     const id = segs()[1];
     app.innerHTML = `<p class="empty">Đang tải…</p>`;
@@ -2476,6 +2549,7 @@
       if (key === "registrations") return viewRegistrations();
       if (key === "students" && id) return viewStudent(id);
       if (key === "students") return viewStudents();
+      if (key === "reports") return viewReports();
       if (key === "enrollments") return redirectEnrollments(id);
       if (key === "materials") return viewLearnerMaterials();
       if (key === "announcements") return viewAdminAnnouncements();

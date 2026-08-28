@@ -190,6 +190,8 @@ test("instructor API allowlist permits class-scoped work and denies CMS/enrollme
     ["DELETE", "/api/admin/announcements/a1"],
     ["GET", "/api/admin/registrations"],
     ["GET", "/api/admin/dashboard/class-report.pdf"],
+    ["GET", "/api/admin/reports/classes"],
+    ["GET", "/api/admin/reports/classes.pdf"],
     ["GET", "/api/admin/settings"],
     ["POST", "/api/admin/certificates/issue", { enrollmentId: "e1" }],
     ["DELETE", "/api/admin/certificate-templates/t1"],
@@ -539,10 +541,14 @@ test("admin UI hides instructor-forbidden enrollment and delete controls", () =>
   assert.doesNotMatch(ui, /\$\("#note-form"\)\.onsubmit/);
 });
 
-test("admin dashboard offers a class enrollment PDF report", () => {
+test("admin reports page shows live class enrollment counts and exports PDF", () => {
   const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /\["Học viên", href\("\/students"\)\],\s*\["Báo cáo", href\("\/reports"\)\],\s*\["Tài liệu"/);
+  assert.match(ui, /async function viewReports/);
   assert.match(ui, /Xuất PDF báo cáo lớp/);
-  assert.match(ui, /\/api\/admin\/dashboard\/class-report\.pdf/);
+  assert.match(ui, /\/api\/admin\/reports\/classes\.pdf/);
+  assert.match(ui, /api\("\/reports\/classes"\)/);
+  assert.doesNotMatch(ui, /\/api\/admin\/dashboard\/class-report\.pdf/);
 });
 
 test("admin can download a class enrollment PDF and instructors cannot", async () => {
@@ -560,16 +566,25 @@ test("admin can download a class enrollment PDF and instructors cannot", async (
     { id: "r2", session_id: "s1", status: "pending_payment", full_name: "Binh" },
     { id: "r3", session_id: "s1", status: "cancelled", full_name: "Chi" },
   ];
-  const pdf = await request(app, { method: "GET", path: "/api/admin/dashboard/class-report.pdf" });
+  const listed = await request(app, { method: "GET", path: "/api/admin/reports/classes" });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.json.totals.registered, 2);
+  assert.equal(listed.json.totals.transferred, 1);
+  assert.equal(listed.json.totals.pending, 1);
+  assert.equal(listed.json.rows[0].className, "AI Starter T8");
+  const pdf = await request(app, { method: "GET", path: "/api/admin/reports/classes.pdf" });
   assert.equal(pdf.status, 200);
   assert.match(pdf.json.raw, /^%PDF/);
+  const legacy = await request(app, { method: "GET", path: "/api/admin/dashboard/class-report.pdf" });
+  assert.equal(legacy.status, 200);
+  assert.match(legacy.json.raw, /^%PDF/);
 });
 
 test("admin shell uses Vietnamese navigation and versioned assets", () => {
   const root = path.join(__dirname, "..", "..", "admin");
   const ui = fs.readFileSync(path.join(root, "admin.js"), "utf8");
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  for (const label of ["Tổng quan", "Khóa học", "Lớp học", "Đăng ký", "Học viên", "Tài liệu", "Chứng nhận", "Giảng viên", "Cài đặt"]) {
+  for (const label of ["Tổng quan", "Khóa học", "Lớp học", "Đăng ký", "Học viên", "Báo cáo", "Tài liệu", "Chứng nhận", "Giảng viên", "Cài đặt"]) {
     assert.match(ui, new RegExp(`\\["${label}"`), `missing Vietnamese navigation label: ${label}`);
   }
   assert.doesNotMatch(ui, /\["Ghi danh"/);

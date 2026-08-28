@@ -133,6 +133,15 @@ function summarizeRows(rows) {
   );
 }
 
+function snapshotReport({ sessions, programs, registrations, generatedAt } = {}) {
+  const rows = classEnrollmentRows({ sessions, programs, registrations });
+  return {
+    generatedAt: generatedAt || new Date().toISOString(),
+    rows,
+    totals: summarizeRows(rows),
+  };
+}
+
 function filename(generatedAt) {
   return `vsc-bao-cao-lop-${dateStamp(generatedAt)}.pdf`;
 }
@@ -356,8 +365,10 @@ function renderPdf({ sessions, programs, registrations, generatedAt } = {}) {
 module.exports = {
   classEnrollmentRows,
   summarizeRows,
+  snapshotReport,
   filename,
   fmtDate,
+  fmtStamp,
   renderPdf,
   SESSION_LABEL,
 };
