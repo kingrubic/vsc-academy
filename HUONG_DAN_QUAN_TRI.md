@@ -250,9 +250,11 @@ Lớp offline: không cần link họp. Học viên thấy địa điểm và n�
 
 ### Danh sách
 
-Lọc theo khóa, lớp, trạng thái. Ô tìm: tên, email, số điện thoại, mã.
+Lọc theo khóa, lớp, trạng thái. Ô tìm: tên, email, số điện thoại, mã đăng ký, **nội dung chuyển khoản**.
 
-- **Tải CSV** — xuất danh sách ra file bảng tính.
+Mỗi dòng có cột **Nội dung CK** — đúng chuỗi học viên thấy trên màn hình hướng dẫn thanh toán (mã lớp + tên + SĐT). Bấm **Sao chép** để dán khi đối chiếu sao kê ngân hàng.
+
+- **Tải CSV** — xuất danh sách ra file bảng tính, có cột nội dung chuyển khoản.
 - **+ Thêm đăng ký** — nhập tay khi nhận đăng ký ngoài website.
 
 ### Xử lý một đăng ký

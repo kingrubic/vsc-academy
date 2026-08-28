@@ -221,6 +221,17 @@ test("registration CRUD enforces roles, validation, persistence, and protected s
   assert.equal(registration.email, "an@example.com");
   assert.equal(store.snap.sessions[0].registered_count, 1);
 
+  store.snap.sessions[0].slug = "AS-2482026-01";
+  const listed = await request(app, { method: "GET", path: "/api/admin/registrations" });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.json.items[0].transfer_content, "AS-2482026-01_Nguyen An_0901234567");
+  const foundMemo = await request(app, { method: "GET", path: "/api/admin/registrations?q=AS-2482026-01_Nguyen" });
+  assert.equal(foundMemo.json.items.length, 1);
+  const csv = await request(app, { method: "GET", path: "/api/admin/registrations/export.csv" });
+  assert.equal(csv.status, 200);
+  assert.match(csv.json.raw, /TransferContent/);
+  assert.match(csv.json.raw, /AS-2482026-01_Nguyen An_0901234567/);
+
   const edited = await request(app, {
     method: "PUT", path: `/api/admin/registrations/${created.json.id}`,
     body: { fullName: "Nguyễn An B", phone: "0901234567", email: "an@example.com", sessionId: "s1", amount: 0, status: "cancelled", jobRole: "Quản lý" },
@@ -487,7 +498,9 @@ test("unmatched admin API returns JSON instead of an HTML error page", async () 
 test("admin UI exposes registration add, edit, delete, and core fields", () => {
   const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
   assert.match(ui, /\+ Thêm đăng ký/);
-  assert.match(ui, /\["ID", "Họ tên", "Khóa", "Lớp", "Số tiền", "Ngày", "Trạng thái", "Thao tác"\]/);
+  assert.match(ui, /\["ID", "Họ tên", "Khóa", "Lớp", "Nội dung CK", "Số tiền", "Ngày", "Trạng thái", "Thao tác"\]/);
+  assert.match(ui, /Nội dung chuyển khoản/);
+  assert.match(ui, /data-copy=/);
   assert.match(ui, /data-reg-delete/);
   for (const field of ["fullName", "phone", "email", "sessionId", "amount", "status", "jobRole", "organization", "goal", "source", "consentPrivacy", "consentMarketing"]) {
     assert.match(ui, new RegExp(`name=\\"${field}\\"`), `missing registration field ${field}`);

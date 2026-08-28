@@ -18,24 +18,8 @@
       const [y, m, d] = e.date.split("-");
       return `${d}.${m}.${y}`;
     };
-  function bankName(value) {
-    return String(value || "")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/đ/g, "d")
-      .replace(/Đ/g, "D")
-      .replace(/[^A-Za-z0-9 ]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-  function bankPhone(value) {
-    return String(value || "").replace(/\D/g, "");
-  }
   function transferContent(session, student) {
-    const code = String(session?.slug || session?.sessionId || "VSC").trim();
-    const name = bankName(student?.fullName);
-    const phone = bankPhone(student?.phone);
-    return [code, name, phone].filter(Boolean).join("_");
+    return window.VSCTransfer.transferContent(session, student);
   }
   function sameKey(a, b) {
     return String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();

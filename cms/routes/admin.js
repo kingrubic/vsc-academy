@@ -24,6 +24,7 @@ const Security = require("../lib/lms-security");
 const StaffPortal = require("../lib/staff-portal");
 const PasswordReset = require("../lib/password-reset");
 const { attachLearnerAdmin } = require("./admin-learner");
+const Transfer = require("../lib/transfer-content");
 
 const UPLOAD_DIR = path.join(__dirname, "..", "..", "uploads", "cms");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -226,6 +227,7 @@ function createAdminRouter(store) {
         const program = aliveById(snap.programs, row.program_id);
         return {
           id: row.id,
+          full_name: row.full_name,
           status: row.status,
           created_at: row.created_at,
           program_id: row.program_id,
@@ -233,6 +235,7 @@ function createAdminRouter(store) {
           session_name: session?.session_name,
           start_date: session?.start_date,
           programName: programShortName(program),
+          transfer_content: Transfer.transferContent(session, row),
         };
       });
     res.json({
@@ -767,7 +770,19 @@ function createAdminRouter(store) {
       .filter((r) => !programId || r.program_id === programId)
       .filter((r) => !sessionId || r.session_id === sessionId)
       .filter((r) => !status || V.registrationStatusMatches(status, r.status))
-      .filter((r) => !q || like(r.full_name, q) || like(r.email, q) || like(r.phone, q) || like(r.id, q))
+      .filter((r) => {
+        if (!q) return true;
+        const session = aliveById(snap.sessions, r.session_id);
+        const memo = Transfer.transferContent(session, r);
+        return (
+          like(r.full_name, q) ||
+          like(r.email, q) ||
+          like(r.phone, q) ||
+          like(r.id, q) ||
+          like(session?.slug, q) ||
+          like(memo, q)
+        );
+      })
       .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
       .map((row) => {
         const session = aliveById(snap.sessions, row.session_id);
@@ -775,8 +790,10 @@ function createAdminRouter(store) {
         return {
           ...row,
           session_name: session?.session_name,
+          session_slug: session?.slug || "",
           start_date: session?.start_date,
           programName: programShortName(program),
+          transfer_content: Transfer.transferContent(session, row),
           utm: parseJson(row.utm, {}),
           invoice: parseJson(row.invoice, {}),
           notes: parseJson(row.notes, []),
@@ -789,7 +806,7 @@ function createAdminRouter(store) {
     if (editorLocked(req.session.user)) return res.status(403).json({ error: "Forbidden" });
     const snap = await store.dump();
     const rows = alive(snap.registrations).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
-    const header = "Name,Phone,Email,Program,Session,Status,Amount,Created At";
+    const header = "Name,Phone,Email,Program,Session,TransferContent,Status,Amount,Created At";
     const lines = rows.map((row) => {
       const program = aliveById(snap.programs, row.program_id);
       const session = aliveById(snap.sessions, row.session_id);
@@ -799,6 +816,7 @@ function createAdminRouter(store) {
         row.email,
         programShortName(program),
         session?.session_name || "",
+        Transfer.transferContent(session, row),
         row.status,
         row.amount || "",
         row.created_at,
@@ -820,10 +838,12 @@ function createAdminRouter(store) {
     res.json({
       ...row,
       session_name: session?.session_name,
+      session_slug: session?.slug || "",
       start_date: session?.start_date,
       start_time: session?.start_time,
       end_time: session?.end_time,
       programName: programShortName(program),
+      transfer_content: Transfer.transferContent(session, row),
       utm: parseJson(row.utm, {}),
       invoice: parseJson(row.invoice, {}),
       notes: parseJson(row.notes, []),
