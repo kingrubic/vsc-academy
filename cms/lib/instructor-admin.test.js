@@ -189,6 +189,7 @@ test("instructor API allowlist permits class-scoped work and denies CMS/enrollme
     ["DELETE", "/api/admin/materials/m1"],
     ["DELETE", "/api/admin/announcements/a1"],
     ["GET", "/api/admin/registrations"],
+    ["GET", "/api/admin/dashboard/class-report.pdf"],
     ["GET", "/api/admin/settings"],
     ["POST", "/api/admin/certificates/issue", { enrollmentId: "e1" }],
     ["DELETE", "/api/admin/certificate-templates/t1"],
@@ -536,6 +537,32 @@ test("admin UI hides instructor-forbidden enrollment and delete controls", () =>
   assert.match(ui, /captureNext\(/);
   assert.match(ui, /vsc_staff_next/);
   assert.doesNotMatch(ui, /\$\("#note-form"\)\.onsubmit/);
+});
+
+test("admin dashboard offers a class enrollment PDF report", () => {
+  const ui = fs.readFileSync(path.join(__dirname, "..", "..", "admin", "admin.js"), "utf8");
+  assert.match(ui, /Xuất PDF báo cáo lớp/);
+  assert.match(ui, /\/api\/admin\/dashboard\/class-report\.pdf/);
+});
+
+test("admin can download a class enrollment PDF and instructors cannot", async () => {
+  const admin = { role: "ADMIN", instructor_id: null, email: "admin@vsc.academy" };
+  const { app, store } = harnessFor(admin, {
+    allowWrite: true,
+    sessionUser: { role: "ADMIN", instructorId: null, email: "admin@vsc.academy" },
+  });
+  store.snap.sessions[0].session_name = "AI Starter T8";
+  store.snap.sessions[0].start_date = "2026-08-24";
+  store.snap.sessions[0].status = "open";
+  store.snap.programs[0].content_vi = JSON.stringify({ shortName: "AI Starter" });
+  store.snap.registrations = [
+    { id: "r1", session_id: "s1", status: "confirmed", full_name: "An" },
+    { id: "r2", session_id: "s1", status: "pending_payment", full_name: "Binh" },
+    { id: "r3", session_id: "s1", status: "cancelled", full_name: "Chi" },
+  ];
+  const pdf = await request(app, { method: "GET", path: "/api/admin/dashboard/class-report.pdf" });
+  assert.equal(pdf.status, 200);
+  assert.match(pdf.json.raw, /^%PDF/);
 });
 
 test("admin shell uses Vietnamese navigation and versioned assets", () => {

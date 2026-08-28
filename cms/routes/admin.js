@@ -25,6 +25,7 @@ const StaffPortal = require("../lib/staff-portal");
 const PasswordReset = require("../lib/password-reset");
 const { attachLearnerAdmin } = require("./admin-learner");
 const Transfer = require("../lib/transfer-content");
+const ClassReport = require("../lib/class-enrollment-report");
 
 const UPLOAD_DIR = path.join(__dirname, "..", "..", "uploads", "cms");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -243,6 +244,25 @@ function createAdminRouter(store) {
       upcoming: upcomingRows,
       latestRegs,
     });
+  });
+
+  router.get("/dashboard/class-report.pdf", async (req, res) => {
+    if (req.lmsScope?.type === "instructor") return res.status(403).json({ error: "Forbidden" });
+    try {
+      const snap = await store.dump();
+      const generatedAt = now();
+      const buffer = await ClassReport.renderPdf({
+        sessions: alive(snap.sessions),
+        programs: alive(snap.programs),
+        registrations: alive(snap.registrations),
+        generatedAt,
+      });
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${ClassReport.filename(generatedAt)}"`);
+      res.send(buffer);
+    } catch (err) {
+      sendErr(res, err);
+    }
   });
 
   router.get("/programs", async (req, res) => {

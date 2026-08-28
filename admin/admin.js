@@ -479,6 +479,14 @@
         <div class="stat"><b>${s.enIncomplete}</b><span>Bản Anh chưa xong</span></div>
       </div>`;
     app.innerHTML = `
+      ${
+        instructor
+          ? ""
+          : `<div class="toolbar">
+        <a class="btn btn-primary" href="/api/admin/dashboard/class-report.pdf">Xuất PDF báo cáo lớp</a>
+        <span class="copy-hint">Mỗi lớp: số đăng ký và số đã chuyển khoản, gửi cấp trên thay cho sheet thủ công.</span>
+      </div>`
+      }
       ${stats}
       <div class="grid-2">
         <div class="card">
