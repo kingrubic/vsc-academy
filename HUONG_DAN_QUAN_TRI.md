@@ -99,6 +99,8 @@ Trang đầu tiên sau khi đăng nhập.
 
 Bạn thấy số liệu nhanh: số chương trình, lớp sắp khai giảng, lớp đang mở đăng ký, tổng đăng ký, đăng ký mới, số học viên, bài viết còn nháp, bản tiếng Anh chưa xong.
 
+**Xuất PDF báo cáo lớp** — file gửi cấp trên, mỗi lớp có số đăng ký (hồ sơ chưa hủy) và số đã chuyển khoản (trạng thái **Đã xác nhận**). Có thêm cột chờ thanh toán. Không cần làm sheet thủ công.
+
 Hai bảng hỗ trợ:
 
 - **Lớp sắp khai giảng** — bấm tên lớp để mở chi tiết.
