@@ -1869,7 +1869,7 @@
     });
     $("#sessionId").onchange = apply;
     app.querySelectorAll("[data-student-delete]").forEach((button) => button.addEventListener("click", async () => {
-      if (!confirmAction("Xóa học viên này? Tài khoản sẽ bị vô hiệu và các lớp đang học sẽ bị hủy ghi danh.")) return;
+      if (!confirmAction("Bạn có chắc chắn thực hiện hành động Xóa học viên không? Tài khoản sẽ bị vô hiệu và các lớp đang học sẽ bị hủy ghi danh.")) return;
       button.disabled = true;
       try {
         await api(`/students/${button.dataset.studentDelete}`, { method: "DELETE" });
@@ -2057,7 +2057,7 @@
     const deleteBtn = $("#student-delete");
     if (deleteBtn) {
       deleteBtn.onclick = async () => {
-        if (!confirmAction("Xóa học viên này? Tài khoản sẽ bị vô hiệu và các lớp đang học sẽ bị hủy ghi danh.")) return;
+        if (!confirmAction("Bạn có chắc chắn thực hiện hành động Xóa học viên không? Tài khoản sẽ bị vô hiệu và các lớp đang học sẽ bị hủy ghi danh.")) return;
         deleteBtn.disabled = true;
         try {
           await api(`/students/${id}`, { method: "DELETE" });
@@ -2072,6 +2072,7 @@
     const resetBtn = $("#student-reset-password");
     if (resetBtn) {
       resetBtn.onclick = async () => {
+        if (!confirmAction("Bạn có chắc chắn thực hiện hành động Reset mật khẩu không?")) return;
         try {
           const r = await api(`/students/${id}/reset-password`, { method: "POST", body: {} });
           if (!r.emailed) throw new Error(r.error || "Chưa gửi được email đặt lại mật khẩu");

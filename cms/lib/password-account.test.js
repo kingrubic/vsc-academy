@@ -406,6 +406,7 @@ test("admin UI adds temporary password fields and reset buttons", () => {
   assert.match(ui, /instructor-reset-password/);
   assert.match(ui, /student-reset-password/);
   assert.match(ui, /\/students\/\$\{id\}\/reset-password/);
+  assert.match(ui, /confirmAction\("Bạn có chắc chắn thực hiện hành động Reset mật khẩu không\?"\)/);
   assert.doesNotMatch(ui, /xếp hàng gửi email/);
 });
 
@@ -415,7 +416,7 @@ test("admin UI exposes student add, edit, and delete controls", () => {
   assert.match(ui, /\["Tên", "Email", "SĐT", "Lớp", "Trạng thái", "Ngày tạo", "Thao tác"\]/);
   assert.match(ui, /data-student-delete/);
   assert.match(ui, /id="student-delete"/);
-  assert.match(ui, /confirmAction\("Xóa học viên này\?/);
+  assert.match(ui, /confirmAction\("Bạn có chắc chắn thực hiện hành động Xóa học viên không\?/);
   assert.match(ui, /canManageStaff\(\) \? `<a class="btn btn-primary" href="\$\{href\("\/students\/new"\)\}"/);
   assert.match(ui, /Chưa xếp lớp/);
   assert.match(ui, /redirectEnrollments/);
