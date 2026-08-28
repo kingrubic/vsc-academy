@@ -362,6 +362,22 @@
       .replace(/</g, "&lt;")
       .replace(/"/g, "&quot;");
   }
+  function transferCell(value) {
+    if (!value) return "—";
+    return `<span class="copy-field"><code>${esc(value)}</code><button type="button" class="btn" data-copy="${esc(value)}">Sao chép</button></span>`;
+  }
+  function bindCopyButtons(root = app) {
+    root.querySelectorAll("[data-copy]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(btn.dataset.copy);
+          toast("Đã sao chép");
+        } catch {
+          toast("Không sao chép được", true);
+        }
+      });
+    });
+  }
   function val(form, name) {
     const el = form.elements[name];
     if (!el) return undefined;
@@ -481,15 +497,16 @@
             : `<div class="card">
           <h2>Đăng ký mới nhất</h2>
           ${table(
-            ["Tên", "Khóa", "Lớp", "Ngày", "Trạng thái"],
+            ["Tên", "Khóa", "Lớp", "Nội dung CK", "Ngày", "Trạng thái"],
             d.latestRegs.map(
               (x) =>
-                `<tr><td><a href="${href(`/registrations/${x.id}`)}">${esc(x.full_name)}</a></td><td>${esc(x.programName || "")}</td><td>${esc(x.session_name || "")}</td><td>${fmtDate(x.created_at)}</td><td>${badge(x.status)}</td></tr>`,
+                `<tr><td><a href="${href(`/registrations/${x.id}`)}">${esc(x.full_name)}</a></td><td>${esc(x.programName || "")}</td><td>${esc(x.session_name || "")}</td><td>${transferCell(x.transfer_content)}</td><td>${fmtDate(x.created_at)}</td><td>${badge(x.status)}</td></tr>`,
             ),
           )}
         </div>`
         }
       </div>`;
+    bindCopyButtons();
   }
 
   async function viewPrograms() {
@@ -1330,7 +1347,7 @@
     ]);
     app.innerHTML = `
       <div class="toolbar">
-        <input id="q" placeholder="Tên, email, SĐT, mã" value="${esc(qs.get("q") || "")}" />
+        <input id="q" placeholder="Tên, email, SĐT, mã, nội dung CK" value="${esc(qs.get("q") || "")}" />
         <select id="programId"><option value="">Khóa</option>${programs.items.map((p) => `<option value="${p.id}" ${qs.get("programId") === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
         <select id="sessionId"><option value="">Lớp</option>${sessions.items.map((s) => `<option value="${s.id}" ${qs.get("sessionId") === s.id ? "selected" : ""}>${esc(s.session_name)}</option>`).join("")}</select>
         <select id="status"><option value="">Trạng thái</option>${REG_STATUS_OPTIONS.map((k) => `<option value="${k}" ${qs.get("status") === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select>
@@ -1338,13 +1355,14 @@
         ${canManageStaff() ? `<a class="btn btn-primary" href="${href("/registrations/new")}">+ Thêm đăng ký</a>` : ""}
       </div>
       ${table(
-        ["ID", "Họ tên", "Khóa", "Lớp", "Số tiền", "Ngày", "Trạng thái", "Thao tác"],
+        ["ID", "Họ tên", "Khóa", "Lớp", "Nội dung CK", "Số tiền", "Ngày", "Trạng thái", "Thao tác"],
         data.items.map(
           (r) => `<tr>
             <td><a href="${href(`/registrations/${r.id}`)}">${esc(r.id)}</a></td>
             <td>${esc(r.full_name)}<br><small>${esc(r.email)}</small></td>
             <td>${esc(r.programName || "")}</td>
             <td>${esc(r.session_name || "")}</td>
+            <td>${transferCell(r.transfer_content)}</td>
             <td>${fmtPrice(r.amount)}</td>
             <td>${fmtDate(r.created_at)}</td>
             <td>${badge(r.status)}</td>
@@ -1376,6 +1394,7 @@
         toast(err.message, true);
       }
     }));
+    bindCopyButtons();
   }
 
   async function viewRegistration(id) {
@@ -1398,6 +1417,7 @@
           <div class="field"><label>Trạng thái</label><select name="status" ${canManageStaff() && adminRegStatus(r.status) !== "confirmed" ? "" : "disabled"}>${REG_STATUS_OPTIONS.map((k) => `<option value="${k}" ${adminRegStatus(r.status) === k ? "selected" : ""}>${REG_LABEL[k]}</option>`).join("")}</select></div>
           <div class="field"><label>Vai trò công việc</label><input name="jobRole" ${canManageStaff() ? "" : "disabled"} value="${esc(r.job_role || "")}" /></div>
           <div class="field"><label>Tổ chức</label><input name="organization" ${canManageStaff() ? "" : "disabled"} value="${esc(r.organization || "")}" /></div>
+          ${isNew ? "" : `<div class="field full"><label>Nội dung chuyển khoản</label>${transferCell(r.transfer_content)}<p class="copy-hint">Chuỗi học viên thấy trên màn hình hướng dẫn thanh toán. Dùng để đối chiếu sao kê.</p></div>`}
           <div class="field full"><label>Mục tiêu</label><textarea name="goal" ${canManageStaff() ? "" : "disabled"}>${esc(r.goal || "")}</textarea></div>
           <div class="field"><label>Nguồn</label><input name="source" ${canManageStaff() ? "" : "disabled"} value="${esc(r.source || "")}" /></div>
           <div class="field"><label><input name="consentPrivacy" type="checkbox" ${r.consent_privacy ? "checked" : ""} ${canManageStaff() ? "" : "disabled"} /> Đồng ý chính sách bảo mật</label><label><input name="consentMarketing" type="checkbox" ${r.consent_marketing ? "checked" : ""} ${canManageStaff() ? "" : "disabled"} /> Đồng ý nhận marketing</label></div>
@@ -1444,11 +1464,13 @@
         toast(err.message, true);
       }
     };
-    if (!isNew) $("#reg-delete").onclick = async () => {
+    const del = $("#reg-delete");
+    if (del) del.onclick = async () => {
       if (!confirmAction("Xóa đăng ký này?")) return;
       try { await api(`/registrations/${id}`, { method: "DELETE" }); toast("Đã xóa đăng ký"); go(href("/registrations")); }
       catch (err) { toast(err.message, true); }
     };
+    bindCopyButtons();
   }
 
   function simpleCrudPage({ title, endpoint, fields, nameKey, extraToolbar }) {

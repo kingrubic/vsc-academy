@@ -162,6 +162,10 @@ h1, h2, h3 { font-family: var(--display); letter-spacing: -0.02em; }
 }
 .card h2 { margin: 0; padding: 16px 18px 0; font-size: 15px; }
 table { width: 100%; border-collapse: collapse; }
+.copy-field { display: inline-flex; align-items: flex-start; gap: 8px; max-width: 360px; }
+.copy-field code { font-size: 12px; line-height: 1.45; word-break: break-all; }
+.copy-field .btn { padding: 4px 8px; font-size: 10px; flex: none; }
+.copy-hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
 th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--line); font-size: 13px; }
 th { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; font-weight: 700; }
 .date-end { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
