@@ -246,7 +246,7 @@ function createAdminRouter(store) {
     });
   });
 
-  router.get("/dashboard/class-report.pdf", async (req, res) => {
+  async function sendClassReportPdf(req, res) {
     if (req.lmsScope?.type === "instructor") return res.status(403).json({ error: "Forbidden" });
     try {
       const snap = await store.dump();
@@ -260,6 +260,25 @@ function createAdminRouter(store) {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${ClassReport.filename(generatedAt)}"`);
       res.send(buffer);
+    } catch (err) {
+      sendErr(res, err);
+    }
+  }
+
+  router.get("/dashboard/class-report.pdf", sendClassReportPdf);
+  router.get("/reports/classes.pdf", sendClassReportPdf);
+  router.get("/reports/classes", async (req, res) => {
+    if (req.lmsScope?.type === "instructor") return res.status(403).json({ error: "Forbidden" });
+    try {
+      const snap = await store.dump();
+      res.json(
+        ClassReport.snapshotReport({
+          sessions: alive(snap.sessions),
+          programs: alive(snap.programs),
+          registrations: alive(snap.registrations),
+          generatedAt: now(),
+        }),
+      );
     } catch (err) {
       sendErr(res, err);
     }

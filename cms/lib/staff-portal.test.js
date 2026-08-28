@@ -82,6 +82,8 @@ test("instructor admin allowlist is fail-closed for CMS mutations and private ad
   assert.equal(P.instructorMayAccessAdmin("DELETE", "/announcements/a1"), false);
   assert.equal(P.instructorMayAccessAdmin("GET", "/registrations"), false);
   assert.equal(P.instructorMayAccessAdmin("GET", "/dashboard/class-report.pdf"), false);
+  assert.equal(P.instructorMayAccessAdmin("GET", "/reports/classes"), false);
+  assert.equal(P.instructorMayAccessAdmin("GET", "/reports/classes.pdf"), false);
   assert.equal(P.instructorMayAccessAdmin("GET", "/settings"), false);
   assert.equal(P.instructorMayAccessAdmin("GET", "/certificates"), false);
   for (const [method, path] of P.ADMIN_MUTATION_SAMPLES) {

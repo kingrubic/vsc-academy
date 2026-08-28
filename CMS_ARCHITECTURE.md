@@ -82,7 +82,7 @@ Helpers used by the server: `getPrograms()`, `getProgram(slug, locale)`, `getSes
 
 ### Admin UI
 
-`/admin` `/admin/login` `/admin/programs` `/admin/programs/:id` `/admin/sessions` `/admin/sessions/:id` `/admin/registrations` `/admin/registrations/:id` `/admin/students` `/admin/students/:id` `/admin/materials` `/admin/announcements` `/admin/certificates` `/admin/certificate-templates` `/admin/instructors` `/admin/insights` `/admin/resources` `/admin/media` `/admin/venues` `/admin/settings`
+`/admin` `/admin/login` `/admin/programs` `/admin/programs/:id` `/admin/sessions` `/admin/sessions/:id` `/admin/registrations` `/admin/registrations/:id` `/admin/students` `/admin/students/:id` `/admin/reports` `/admin/materials` `/admin/announcements` `/admin/certificates` `/admin/certificate-templates` `/admin/instructors` `/admin/insights` `/admin/resources` `/admin/media` `/admin/venues` `/admin/settings`
 
 ### Learner Portal
 

@@ -168,6 +168,8 @@ table { width: 100%; border-collapse: collapse; }
 .copy-hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
 th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--line); font-size: 13px; }
 th { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; font-weight: 700; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.report-total td { background: var(--navy-2); color: #fff; font-weight: 700; border-bottom: none; }
 .date-end { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
 .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 .toolbar .copy-hint { margin: 0; }
