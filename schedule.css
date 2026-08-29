@@ -28,6 +28,15 @@
 .selected-class dd.panel-schedule {
   line-height: 1.4;
 }
+.selected-class dd.panel-class-code {
+  color: var(--cyan);
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  line-height: 1.2;
+  word-break: break-word;
+}
 .selected-class .panel-date {
   line-height: 1.25;
 }
